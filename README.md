@@ -6,8 +6,6 @@ The 136 patches that are accepted by upstream Linux developers. All patches are 
 
 These patches have fixed 320 misuses.
 
-We have anonymized these patches as required by submission rules.
-
 ### studied-patch
 
 All the patches that we used for the study, including 437 Linux patches merged into Linux 5.0
