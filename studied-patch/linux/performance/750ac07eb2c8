@@ -1,0 +1,45 @@
+commit 750ac07eb2c85617b5522402a99b4b408cd0b1b3
+Author: Freeman Liu <freeman.liu@unisoc.com>
+Date:   Fri Nov 9 11:25:31 2018 +0800
+
+    iio: adc: sc27xx: Add ADC data conversion timeout
+    
+    Sometimes the ADC controller met some problems, and it will not complete
+    the data conversion, that will can not wake up the read process any more
+    to block users. So we should add one maximum conversion time to avoid
+    this issue.
+    
+    Signed-off-by: Freeman Liu <freeman.liu@unisoc.com>
+    Signed-off-by: Baolin Wang <baolin.wang@linaro.org>
+    Signed-off-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+
+diff --git a/drivers/iio/adc/sc27xx_adc.c b/drivers/iio/adc/sc27xx_adc.c
+index 7940b23dcad9..f7f7a18904b4 100644
+--- a/drivers/iio/adc/sc27xx_adc.c
++++ b/drivers/iio/adc/sc27xx_adc.c
+@@ -52,6 +52,9 @@
+ /* Timeout (ms) for the trylock of hardware spinlocks */
+ #define SC27XX_ADC_HWLOCK_TIMEOUT	5000
+ 
++/* Timeout (ms) for ADC data conversion according to ADC datasheet */
++#define SC27XX_ADC_RDY_TIMEOUT		100
++
+ /* Maximum ADC channel number */
+ #define SC27XX_ADC_CHANNEL_MAX		32
+ 
+@@ -223,7 +226,14 @@ static int sc27xx_adc_read(struct sc27xx_adc_data *data, int channel,
+ 	if (ret)
+ 		goto disable_adc;
+ 
+-	wait_for_completion(&data->completion);
++	ret = wait_for_completion_timeout(&data->completion,
++				msecs_to_jiffies(SC27XX_ADC_RDY_TIMEOUT));
++	if (!ret) {
++		dev_err(data->dev, "read ADC data timeout\n");
++		ret = -ETIMEDOUT;
++	} else {
++		ret = 0;
++	}
+ 
+ disable_adc:
+ 	regmap_update_bits(data->regmap, data->base + SC27XX_ADC_CTL,

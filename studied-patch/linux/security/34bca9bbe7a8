@@ -1,0 +1,26 @@
+commit 34bca9bbe7a81c4b53cacb20e996090ddf371c51
+Author: Dan Carpenter <dan.carpenter@oracle.com>
+Date:   Thu Dec 20 14:32:43 2018 +0300
+
+    cifs: Use kzfree() to free password
+    
+    We should zero out the password before we free it.
+    
+    Fixes: 3d6cacbb5310 ("cifs: Add DFS cache routines")
+    Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+    Signed-off-by: Steve French <stfrench@microsoft.com>
+    Reviewed-by: Paulo Alcantara <palcantara@suse.de>
+
+diff --git a/fs/cifs/dfs_cache.c b/fs/cifs/dfs_cache.c
+index f4e09073bb7d..cd63c4a70875 100644
+--- a/fs/cifs/dfs_cache.c
++++ b/fs/cifs/dfs_cache.c
+@@ -1127,7 +1127,7 @@ static int dup_vol(struct smb_vol *vol, struct smb_vol *new)
+ err_free_unc:
+ 	kfree(new->UNC);
+ err_free_password:
+-	kfree(new->password);
++	kzfree(new->password);
+ err_free_username:
+ 	kfree(new->username);
+ 	kfree(new);

@@ -1,0 +1,54 @@
+commit 25b0077511fe7cf1b876174f8481fb1742f4fb4d
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Tue Nov 6 19:18:45 2018 -0800
+
+    workqueue: Replace call_rcu_sched() with call_rcu()
+    
+    Now that call_rcu()'s callback is not invoked until after all
+    preempt-disable regions of code have completed (in addition to explicitly
+    marked RCU read-side critical sections), call_rcu() can be used in place
+    of call_rcu_sched().  This commit therefore makes that change.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: Lai Jiangshan <jiangshanlai@gmail.com>
+    Acked-by: Tejun Heo <tj@kernel.org>
+
+diff --git a/kernel/workqueue.c b/kernel/workqueue.c
+index 0280deac392e..392be4b252f6 100644
+--- a/kernel/workqueue.c
++++ b/kernel/workqueue.c
+@@ -3396,7 +3396,7 @@ static void put_unbound_pool(struct worker_pool *pool)
+ 	del_timer_sync(&pool->mayday_timer);
+ 
+ 	/* sched-RCU protected to allow dereferences from get_work_pool() */
+-	call_rcu_sched(&pool->rcu, rcu_free_pool);
++	call_rcu(&pool->rcu, rcu_free_pool);
+ }
+ 
+ /**
+@@ -3503,14 +3503,14 @@ static void pwq_unbound_release_workfn(struct work_struct *work)
+ 	put_unbound_pool(pool);
+ 	mutex_unlock(&wq_pool_mutex);
+ 
+-	call_rcu_sched(&pwq->rcu, rcu_free_pwq);
++	call_rcu(&pwq->rcu, rcu_free_pwq);
+ 
+ 	/*
+ 	 * If we're the last pwq going away, @wq is already dead and no one
+ 	 * is gonna access it anymore.  Schedule RCU free.
+ 	 */
+ 	if (is_last)
+-		call_rcu_sched(&wq->rcu, rcu_free_wq);
++		call_rcu(&wq->rcu, rcu_free_wq);
+ }
+ 
+ /**
+@@ -4195,7 +4195,7 @@ void destroy_workqueue(struct workqueue_struct *wq)
+ 		 * The base ref is never dropped on per-cpu pwqs.  Directly
+ 		 * schedule RCU free.
+ 		 */
+-		call_rcu_sched(&wq->rcu, rcu_free_wq);
++		call_rcu(&wq->rcu, rcu_free_wq);
+ 	} else {
+ 		/*
+ 		 * We're the sole accessor of @wq at this point.  Directly

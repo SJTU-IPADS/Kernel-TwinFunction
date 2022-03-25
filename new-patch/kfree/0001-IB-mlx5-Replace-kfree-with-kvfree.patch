@@ -1,0 +1,30 @@
+From d7bde3d84841553df1c79e4154044ad5ae33e197 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 17 Jul 2019 16:07:19 +0800
+Subject: [PATCH] IB/mlx5: Replace kfree with kvfree
+
+Variable allocated by kvzalloc should not be freed by kfree.
+Because it may be allocated by vmalloc.
+So replace kfree with kvfree here.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/infiniband/hw/mlx5/odp.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/infiniband/hw/mlx5/odp.c b/drivers/infiniband/hw/mlx5/odp.c
+index 5b642d81e617..ea4b41b260b3 100644
+--- a/drivers/infiniband/hw/mlx5/odp.c
++++ b/drivers/infiniband/hw/mlx5/odp.c
+@@ -1813,7 +1813,7 @@ int mlx5_ib_advise_mr_prefetch(struct ib_pd *pd,
+ 	if (valid_req)
+ 		queue_work(system_unbound_wq, &work->work);
+ 	else
+-		kfree(work);
++		kvfree(work);
+ 
+ 	srcu_read_unlock(&dev->mr_srcu, srcu_key);
+ 
+-- 
+2.20.1
+

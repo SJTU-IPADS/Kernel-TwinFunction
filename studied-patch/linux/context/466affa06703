@@ -1,0 +1,47 @@
+commit 466affa06703d5668b06b25fe34942a784506b62
+Author: Charles Keepax <ckeepax@opensource.cirrus.com>
+Date:   Wed Nov 21 10:13:16 2018 +0000
+
+    regulator: wm8994: Don't use devres for enable GPIOs
+    
+    The regulator core takes over managing the lifetime of the enable GPIO
+    once the regulator is registered. As such we shouldn't register the
+    enable GPIO using devm, or it will be freed twice.
+    
+    Reported-by: Marek Szyprowski <m.szyprowski@samsung.com>
+    Signed-off-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+    Tested-by: Marek Szyprowski <m.szyprowski@samsung.com>
+    Signed-off-by: Mark Brown <broonie@kernel.org>
+
+diff --git a/drivers/regulator/wm8994-regulator.c b/drivers/regulator/wm8994-regulator.c
+index d7fec533c403..46e6b4ee1491 100644
+--- a/drivers/regulator/wm8994-regulator.c
++++ b/drivers/regulator/wm8994-regulator.c
+@@ -147,11 +147,14 @@ static int wm8994_ldo_probe(struct platform_device *pdev)
+ 	config.regmap = wm8994->regmap;
+ 	config.init_data = &ldo->init_data;
+ 
+-	/* Look up LDO enable GPIO from the parent device node */
+-	gpiod = devm_gpiod_get_optional(pdev->dev.parent,
+-					id ? "wlf,ldo2ena" : "wlf,ldo1ena",
+-					GPIOD_OUT_LOW |
+-					GPIOD_FLAGS_BIT_NONEXCLUSIVE);
++	/*
++	 * Look up LDO enable GPIO from the parent device node, we don't
++	 * use devm because the regulator core will free the GPIO
++	 */
++	gpiod = gpiod_get_optional(pdev->dev.parent,
++				   id ? "wlf,ldo2ena" : "wlf,ldo1ena",
++				   GPIOD_OUT_LOW |
++				   GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+ 	if (IS_ERR(gpiod))
+ 		return PTR_ERR(gpiod);
+ 	config.ena_gpiod = gpiod;
+@@ -184,6 +187,7 @@ static int wm8994_ldo_probe(struct platform_device *pdev)
+ 	return 0;
+ 
+ err:
++	gpiod_put(gpiod);
+ 	return ret;
+ }
+ 

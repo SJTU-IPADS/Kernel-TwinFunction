@@ -1,0 +1,38 @@
+From 0a43b30c45ba2fdce4d7af16959fa2abeb40a652 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 24 Jul 2019 18:21:26 +0800
+Subject: [PATCH net-next 09/10] qtnfmac_pcie: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/net/wireless/quantenna/qtnfmac/pcie/pcie.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/wireless/quantenna/qtnfmac/pcie/pcie.c b/drivers/net/wireless/quantenna/qtnfmac/pcie/pcie.c
+index e4e9344b6982..8ae318b5fe54 100644
+--- a/drivers/net/wireless/quantenna/qtnfmac/pcie/pcie.c
++++ b/drivers/net/wireless/quantenna/qtnfmac/pcie/pcie.c
+@@ -430,7 +430,7 @@ static int qtnf_pcie_suspend(struct device *dev)
+ 	struct qtnf_pcie_bus_priv *priv;
+ 	struct qtnf_bus *bus;
+ 
+-	bus = pci_get_drvdata(to_pci_dev(dev));
++	bus = dev_get_drvdata(dev);
+ 	if (!bus)
+ 		return -EFAULT;
+ 
+@@ -443,7 +443,7 @@ static int qtnf_pcie_resume(struct device *dev)
+ 	struct qtnf_pcie_bus_priv *priv;
+ 	struct qtnf_bus *bus;
+ 
+-	bus = pci_get_drvdata(to_pci_dev(dev));
++	bus = dev_get_drvdata(dev);
+ 	if (!bus)
+ 		return -EFAULT;
+ 
+-- 
+2.20.1
+

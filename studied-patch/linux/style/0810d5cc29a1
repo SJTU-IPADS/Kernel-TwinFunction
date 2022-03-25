@@ -1,0 +1,56 @@
+commit 0810d5cc29a1e4bb9e738a478b746aebf8dc1931
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 21:59:58 2018 +0200
+
+    bus: brcmstb_gisb: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
+
+diff --git a/drivers/bus/brcmstb_gisb.c b/drivers/bus/brcmstb_gisb.c
+index 68ac3e93b600..f58ff67e97ac 100644
+--- a/drivers/bus/brcmstb_gisb.c
++++ b/drivers/bus/brcmstb_gisb.c
+@@ -150,8 +150,7 @@ static ssize_t gisb_arb_get_timeout(struct device *dev,
+ 				    struct device_attribute *attr,
+ 				    char *buf)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct brcmstb_gisb_arb_device *gdev = platform_get_drvdata(pdev);
++	struct brcmstb_gisb_arb_device *gdev = dev_get_drvdata(dev);
+ 	u32 timeout;
+ 
+ 	mutex_lock(&gdev->lock);
+@@ -165,8 +164,7 @@ static ssize_t gisb_arb_set_timeout(struct device *dev,
+ 				    struct device_attribute *attr,
+ 				    const char *buf, size_t count)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct brcmstb_gisb_arb_device *gdev = platform_get_drvdata(pdev);
++	struct brcmstb_gisb_arb_device *gdev = dev_get_drvdata(dev);
+ 	int val, ret;
+ 
+ 	ret = kstrtoint(buf, 10, &val);
+@@ -418,8 +416,7 @@ static int __init brcmstb_gisb_arb_probe(struct platform_device *pdev)
+ #ifdef CONFIG_PM_SLEEP
+ static int brcmstb_gisb_arb_suspend(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct brcmstb_gisb_arb_device *gdev = platform_get_drvdata(pdev);
++	struct brcmstb_gisb_arb_device *gdev = dev_get_drvdata(dev);
+ 
+ 	gdev->saved_timeout = gisb_read(gdev, ARB_TIMER);
+ 
+@@ -431,8 +428,7 @@ static int brcmstb_gisb_arb_suspend(struct device *dev)
+  */
+ static int brcmstb_gisb_arb_resume_noirq(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct brcmstb_gisb_arb_device *gdev = platform_get_drvdata(pdev);
++	struct brcmstb_gisb_arb_device *gdev = dev_get_drvdata(dev);
+ 
+ 	gisb_write(gdev, gdev->saved_timeout, ARB_TIMER);
+ 

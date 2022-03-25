@@ -1,0 +1,77 @@
+From 379ceb68ffb518532cef1bf20053126377725267 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 4 Jul 2019 09:19:46 +0800
+Subject: [Patch v2 04/10] drm/panfrost: using dev_get_drvdata directly
+
+Several drivers cast a struct device pointer to a struct
+platform_device pointer only to then call platform_get_drvdata().
+To improve readability, these constructs can be simplified
+by using dev_get_drvdata() directly.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Make the commit message more clearly.
+
+ drivers/gpu/drm/panfrost/panfrost_devfreq.c | 6 +++---
+ drivers/gpu/drm/panfrost/panfrost_device.c  | 6 ++----
+ 2 files changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/panfrost/panfrost_devfreq.c b/drivers/gpu/drm/panfrost/panfrost_devfreq.c
+index db798532b0b6..bef5df4d99ac 100644
+--- a/drivers/gpu/drm/panfrost/panfrost_devfreq.c
++++ b/drivers/gpu/drm/panfrost/panfrost_devfreq.c
+@@ -18,7 +18,7 @@ static void panfrost_devfreq_update_utilization(struct panfrost_device *pfdev, i
+ static int panfrost_devfreq_target(struct device *dev, unsigned long *freq,
+ 				   u32 flags)
+ {
+-	struct panfrost_device *pfdev = platform_get_drvdata(to_platform_device(dev));
++	struct panfrost_device *pfdev = dev_get_drvdata(dev);
+ 	struct dev_pm_opp *opp;
+ 	unsigned long old_clk_rate = pfdev->devfreq.cur_freq;
+ 	unsigned long target_volt, target_rate;
+@@ -86,7 +86,7 @@ static void panfrost_devfreq_reset(struct panfrost_device *pfdev)
+ static int panfrost_devfreq_get_dev_status(struct device *dev,
+ 					   struct devfreq_dev_status *status)
+ {
+-	struct panfrost_device *pfdev = platform_get_drvdata(to_platform_device(dev));
++	struct panfrost_device *pfdev = dev_get_drvdata(dev);
+ 	int i;
+ 
+ 	for (i = 0; i < NUM_JOB_SLOTS; i++) {
+@@ -117,7 +117,7 @@ static int panfrost_devfreq_get_dev_status(struct device *dev,
+ 
+ static int panfrost_devfreq_get_cur_freq(struct device *dev, unsigned long *freq)
+ {
+-	struct panfrost_device *pfdev = platform_get_drvdata(to_platform_device(dev));
++	struct panfrost_device *pfdev = dev_get_drvdata(dev);
+ 
+ 	*freq = pfdev->devfreq.cur_freq;
+ 
+diff --git a/drivers/gpu/drm/panfrost/panfrost_device.c b/drivers/gpu/drm/panfrost/panfrost_device.c
+index 3b2bced1b015..ed187648e6d8 100644
+--- a/drivers/gpu/drm/panfrost/panfrost_device.c
++++ b/drivers/gpu/drm/panfrost/panfrost_device.c
+@@ -227,8 +227,7 @@ const char *panfrost_exception_name(struct panfrost_device *pfdev, u32 exception
+ #ifdef CONFIG_PM
+ int panfrost_device_resume(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct panfrost_device *pfdev = platform_get_drvdata(pdev);
++	struct panfrost_device *pfdev = dev_get_drvdata(dev);
+ 
+ 	panfrost_gpu_soft_reset(pfdev);
+ 
+@@ -243,8 +242,7 @@ int panfrost_device_resume(struct device *dev)
+ 
+ int panfrost_device_suspend(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct panfrost_device *pfdev = platform_get_drvdata(pdev);
++	struct panfrost_device *pfdev = dev_get_drvdata(dev);
+ 
+ 	if (!panfrost_job_is_idle(pfdev))
+ 		return -EBUSY;
+-- 
+2.11.0
+

@@ -1,0 +1,36 @@
+commit ba180314253947f2a6057e21a0f92b5c314454b1
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Tue Nov 6 18:58:01 2018 -0800
+
+    main: Replace rcu_barrier_sched() with rcu_barrier()
+    
+    Now that all RCU flavors have been consolidated, rcu_barrier_sched()
+    is but a synonym for rcu_barrier().  This commit therefore replaces
+    the former with the latter.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: Andrew Morton <akpm@linux-foundation.org>
+    Cc: "Steven Rostedt (VMware)" <rostedt@goodmis.org>
+    Cc: Thomas Gleixner <tglx@linutronix.de>
+    Cc: <linux-mm@kvack.org>
+
+diff --git a/init/main.c b/init/main.c
+index ee147103ba1b..a45486330243 100644
+--- a/init/main.c
++++ b/init/main.c
+@@ -1046,12 +1046,12 @@ static void mark_readonly(void)
+ {
+ 	if (rodata_enabled) {
+ 		/*
+-		 * load_module() results in W+X mappings, which are cleaned up
+-		 * with call_rcu_sched().  Let's make sure that queued work is
++		 * load_module() results in W+X mappings, which are cleaned
++		 * up with call_rcu().  Let's make sure that queued work is
+ 		 * flushed so that we don't hit false positives looking for
+ 		 * insecure pages which are W+X.
+ 		 */
+-		rcu_barrier_sched();
++		rcu_barrier();
+ 		mark_rodata_ro();
+ 		rodata_test();
+ 	} else

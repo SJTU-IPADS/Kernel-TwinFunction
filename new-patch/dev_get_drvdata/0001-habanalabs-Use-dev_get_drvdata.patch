@@ -1,0 +1,43 @@
+From 407417377d7c4f5bc90bdabc492b8e2333cdd107 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 20:32:30 +0800
+Subject: [PATCH v2] habanalabs: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Split v1 into different subsystems
+
+ drivers/misc/habanalabs/habanalabs_drv.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/misc/habanalabs/habanalabs_drv.c b/drivers/misc/habanalabs/habanalabs_drv.c
+index 6f6dbe93f1df..678f61646ca9 100644
+--- a/drivers/misc/habanalabs/habanalabs_drv.c
++++ b/drivers/misc/habanalabs/habanalabs_drv.c
+@@ -295,8 +295,7 @@ void destroy_hdev(struct hl_device *hdev)
+ 
+ static int hl_pmops_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct hl_device *hdev = pci_get_drvdata(pdev);
++	struct hl_device *hdev = dev_get_drvdata(dev);
+ 
+ 	pr_debug("Going to suspend PCI device\n");
+ 
+@@ -310,8 +309,7 @@ static int hl_pmops_suspend(struct device *dev)
+ 
+ static int hl_pmops_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct hl_device *hdev = pci_get_drvdata(pdev);
++	struct hl_device *hdev = dev_get_drvdata(dev);
+ 
+ 	pr_debug("Going to resume PCI device\n");
+ 
+-- 
+2.20.1
+

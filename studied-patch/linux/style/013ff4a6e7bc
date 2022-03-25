@@ -1,0 +1,32 @@
+commit 013ff4a6e7bc5aa64b0b937daae0244e3c93e49c
+Author: Lance Roy <ldr709@gmail.com>
+Date:   Thu Oct 4 23:45:41 2018 -0700
+
+    sfc: Replace spin_is_locked() with lockdep
+    
+    lockdep_assert_held() is better suited to checking locking requirements,
+    since it only checks if the current thread holds the lock regardless of
+    whether someone else does. This is also a step towards possibly removing
+    spin_is_locked().
+    
+    Signed-off-by: Lance Roy <ldr709@gmail.com>
+    Cc: Solarflare linux maintainers <linux-net-drivers@solarflare.com>
+    Cc: Bert Kenward <bkenward@solarflare.com>
+    Cc: "David S. Miller" <davem@davemloft.net>
+    Cc: <netdev@vger.kernel.org>
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Acked-by: Edward Cree <ecree@solarflare.com>
+
+diff --git a/drivers/net/ethernet/sfc/efx.c b/drivers/net/ethernet/sfc/efx.c
+index 98fe7e762e17..3643015a55cf 100644
+--- a/drivers/net/ethernet/sfc/efx.c
++++ b/drivers/net/ethernet/sfc/efx.c
+@@ -3167,7 +3167,7 @@ struct hlist_head *efx_rps_hash_bucket(struct efx_nic *efx,
+ {
+ 	u32 hash = efx_filter_spec_hash(spec);
+ 
+-	WARN_ON(!spin_is_locked(&efx->rps_hash_lock));
++	lockdep_assert_held(&efx->rps_hash_lock);
+ 	if (!efx->rps_hash_table)
+ 		return NULL;
+ 	return &efx->rps_hash_table[hash % EFX_ARFS_HASH_TABLE_SIZE];

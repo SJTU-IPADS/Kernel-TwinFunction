@@ -1,0 +1,195 @@
+commit 9cddda26c849b5877ed0b162fd9d105635107da8
+Author: ian <ian@FreeBSD.org>
+Date:   Sun Mar 25 01:52:38 2018 +0000
+
+    MFC r330773, r330778, r330782, r330797
+    
+    r330773:
+    Use separate mutexes for atrtc and i8254 locking.  Change all the strange
+    un-function-like RTC_LOCK/UNLOCK macro usage into normal function calls.
+    Since there is no longer any need to handle register access from a debugger
+    context, those function calls can just be regular mutex lock/unlock calls.
+    
+    Requested by:  bde
+    
+    r330778:
+    Everywhere that multiple registers are accessed in sequence, lock/unlock
+    just once around the whole group of accesses.
+    
+    r330782:
+    Remove MTX_NOPROFILE from atrtc_lock, it was inappropriately copy/pasted
+    from the i8254 driver when I created separate mutexes for each.  The i8254
+    driver could be the active timecounter, leading to recursion during mutex
+    profiling, but the atrtc driver cannot be a timecounter, so it isn't needed.
+    
+    r330797:
+    Give the atrtc_time_lock a unique name.
+    
+    Reported by:    hps@
+
+diff --git a/sys/isa/rtc.h b/sys/isa/rtc.h
+index 64c7b36279c..d84c2b07248 100644
+--- a/sys/isa/rtc.h
++++ b/sys/isa/rtc.h
+@@ -114,7 +114,6 @@
+ #define	RTC_CENTURY	0x32	/* current century */
+ 
+ #ifdef _KERNEL
+-extern  struct mtx clock_lock;
+ extern  struct mtx atrtc_time_lock;
+ extern	int atrtcclock_disable;
+ int	rtcin(int reg);
+diff --git a/sys/x86/isa/atrtc.c b/sys/x86/isa/atrtc.c
+index 8fee4aae3df..44ec5fd49e1 100644
+--- a/sys/x86/isa/atrtc.c
++++ b/sys/x86/isa/atrtc.c
+@@ -54,15 +54,15 @@ __FBSDID("$FreeBSD$");
+ #include "clock_if.h"
+ 
+ /*
+- * clock_lock protects low-level access to individual hardware registers.
++ * atrtc_lock protects low-level access to individual hardware registers.
+  * atrtc_time_lock protects the entire sequence of accessing multiple registers
+  * to read or write the date and time.
+  */
+-#define	RTC_LOCK	do { if (!kdb_active) mtx_lock_spin(&clock_lock); } while (0)
+-#define	RTC_UNLOCK	do { if (!kdb_active) mtx_unlock_spin(&clock_lock); } while (0)
++static struct mtx atrtc_lock;
++MTX_SYSINIT(atrtc_lock_init, &atrtc_lock, "atrtc", MTX_SPIN);
+ 
+ struct mtx atrtc_time_lock;
+-MTX_SYSINIT(atrtc_lock_init, &atrtc_time_lock, "atrtc", MTX_DEF);
++MTX_SYSINIT(atrtc_time_lock_init, &atrtc_time_lock, "atrtc_time", MTX_DEF);
+ 
+ int	atrtcclock_disable = 0;
+ 
+@@ -106,9 +106,9 @@ rtcin(int reg)
+ {
+ 	u_char val;
+ 
+-	RTC_LOCK;
++	mtx_lock_spin(&atrtc_lock);
+ 	val = rtcin_locked(reg);
+-	RTC_UNLOCK;
++	mtx_unlock_spin(&atrtc_lock);
+ 	return (val);
+ }
+ 
+@@ -116,17 +116,19 @@ void
+ writertc(int reg, u_char val)
+ {
+ 
+-	RTC_LOCK;
++	mtx_lock_spin(&atrtc_lock);
+ 	rtcout_locked(reg, val);
+-	RTC_UNLOCK;
++	mtx_unlock_spin(&atrtc_lock);
+ }
+ 
+ static void
+ atrtc_start(void)
+ {
+ 
+-	writertc(RTC_STATUSA, rtc_statusa);
+-	writertc(RTC_STATUSB, RTCSB_24HR);
++	mtx_lock_spin(&atrtc_lock);
++	rtcout_locked(RTC_STATUSA, rtc_statusa);
++	rtcout_locked(RTC_STATUSB, RTCSB_24HR);
++	mtx_unlock_spin(&atrtc_lock);
+ }
+ 
+ static void
+@@ -142,8 +144,10 @@ atrtc_enable_intr(void)
+ {
+ 
+ 	rtc_statusb |= RTCSB_PINTR;
+-	writertc(RTC_STATUSB, rtc_statusb);
+-	rtcin(RTC_INTR);
++	mtx_lock_spin(&atrtc_lock);
++	rtcout_locked(RTC_STATUSB, rtc_statusb);
++	rtcin_locked(RTC_INTR);
++	mtx_unlock_spin(&atrtc_lock);
+ }
+ 
+ static void
+@@ -151,8 +155,10 @@ atrtc_disable_intr(void)
+ {
+ 
+ 	rtc_statusb &= ~RTCSB_PINTR;
+-	writertc(RTC_STATUSB, rtc_statusb);
+-	rtcin(RTC_INTR);
++	mtx_lock_spin(&atrtc_lock);
++	rtcout_locked(RTC_STATUSB, rtc_statusb);
++	rtcin_locked(RTC_INTR);
++	mtx_unlock_spin(&atrtc_lock);
+ }
+ 
+ void
+@@ -160,11 +166,13 @@ atrtc_restore(void)
+ {
+ 
+ 	/* Restore all of the RTC's "status" (actually, control) registers. */
+-	rtcin(RTC_STATUSA);	/* dummy to get rtc_reg set */
+-	writertc(RTC_STATUSB, RTCSB_24HR);
+-	writertc(RTC_STATUSA, rtc_statusa);
+-	writertc(RTC_STATUSB, rtc_statusb);
+-	rtcin(RTC_INTR);
++	mtx_lock_spin(&atrtc_lock);
++	rtcin_locked(RTC_STATUSA);	/* dummy to get rtc_reg set */
++	rtcout_locked(RTC_STATUSB, RTCSB_24HR);
++	rtcout_locked(RTC_STATUSA, rtc_statusa);
++	rtcout_locked(RTC_STATUSB, rtc_statusb);
++	rtcin_locked(RTC_INTR);
++	mtx_unlock_spin(&atrtc_lock);
+ }
+ 
+ /**********************************************************************
+@@ -319,7 +327,7 @@ atrtc_settime(device_t dev __unused, struct timespec *ts)
+ 	clock_dbgprint_bcd(dev, CLOCK_DBG_WRITE, &bct);
+ 
+ 	mtx_lock(&atrtc_time_lock);
+-	RTC_LOCK;
++	mtx_lock_spin(&atrtc_lock);
+ 
+ 	/* Disable RTC updates and interrupts.  */
+ 	rtcout_locked(RTC_STATUSB, RTCSB_HALT | RTCSB_24HR);
+@@ -342,7 +350,7 @@ atrtc_settime(device_t dev __unused, struct timespec *ts)
+ 	rtcout_locked(RTC_STATUSB, rtc_statusb);
+ 	rtcin_locked(RTC_INTR);
+ 
+-	RTC_UNLOCK;
++	mtx_unlock_spin(&atrtc_lock);
+ 	mtx_unlock(&atrtc_time_lock);
+ 
+ 	return (0);
+@@ -369,7 +377,7 @@ atrtc_gettime(device_t dev, struct timespec *ts)
+ 	mtx_lock(&atrtc_time_lock);
+ 	while (rtcin(RTC_STATUSA) & RTCSA_TUP)
+ 		continue;
+-	RTC_LOCK;
++	mtx_lock_spin(&atrtc_lock);
+ 	bct.sec  = rtcin_locked(RTC_SEC);
+ 	bct.min  = rtcin_locked(RTC_MIN);
+ 	bct.hour = rtcin_locked(RTC_HRS);
+@@ -379,7 +387,7 @@ atrtc_gettime(device_t dev, struct timespec *ts)
+ #ifdef USE_RTC_CENTURY
+ 	bct.year |= rtcin_locked(RTC_CENTURY) << 8;
+ #endif
+-	RTC_UNLOCK;
++	mtx_unlock_spin(&atrtc_lock);
+ 	mtx_unlock(&atrtc_time_lock);
+ 	/* dow is unused in timespec conversion and we have no nsec info. */
+ 	bct.dow  = 0;
+diff --git a/sys/x86/isa/clock.c b/sys/x86/isa/clock.c
+index 517ffc5d539..04844e90c04 100644
+--- a/sys/x86/isa/clock.c
++++ b/sys/x86/isa/clock.c
+@@ -100,7 +100,7 @@ TUNABLE_INT("hw.i8254.freq", &i8254_freq);
+ int	i8254_max_count;
+ static int i8254_timecounter = 1;
+ 
+-struct mtx clock_lock;
++static	struct mtx clock_lock;
+ static	struct intsrc *i8254_intsrc;
+ static	uint16_t i8254_lastcount;
+ static	uint16_t i8254_offset;

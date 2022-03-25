@@ -1,0 +1,33 @@
+commit 5e6f3ae5c13b12ecd440da2f511fc5fd3c8de520
+Author: Linus Walleij <linus.walleij@linaro.org>
+Date:   Thu Dec 6 13:43:38 2018 +0100
+
+    regulator: fixed: Let core handle GPIO descriptor
+    
+    Use the gpiod_get() rather than the devm_* version so that the
+    regulator core can handle the lifecycle of these descriptors.
+    
+    Fixes: efdfeb079cc3 ("regulator: fixed: Convert to use GPIO descriptor only")
+    Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+    Reviewed-by: Marek Szyprowski <m.szyprowski@samsung.com>
+    Tested-by: Marek Szyprowski <m.szyprowski@samsung.com>
+    Reviewed-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+    Signed-off-by: Mark Brown <broonie@kernel.org>
+
+diff --git a/drivers/regulator/fixed.c b/drivers/regulator/fixed.c
+index ccc29038f19a..9abdb9130766 100644
+--- a/drivers/regulator/fixed.c
++++ b/drivers/regulator/fixed.c
+@@ -183,7 +183,11 @@ static int reg_fixed_voltage_probe(struct platform_device *pdev)
+ 	 */
+ 	gflags |= GPIOD_FLAGS_BIT_NONEXCLUSIVE;
+ 
+-	cfg.ena_gpiod = devm_gpiod_get_optional(&pdev->dev, NULL, gflags);
++	/*
++	 * Do not use devm* here: the regulator core takes over the
++	 * lifecycle management of the GPIO descriptor.
++	 */
++	cfg.ena_gpiod = gpiod_get_optional(&pdev->dev, NULL, gflags);
+ 	if (IS_ERR(cfg.ena_gpiod))
+ 		return PTR_ERR(cfg.ena_gpiod);
+ 

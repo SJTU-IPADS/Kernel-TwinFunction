@@ -1,0 +1,64 @@
+commit 9c48060141bd937497774546e4bb89b8992be383
+Author: Paolo Abeni <pabeni@redhat.com>
+Date:   Thu Nov 15 02:34:50 2018 +0100
+
+    udp: fix jump label misuse
+    
+    The commit 60fb9567bf30 ("udp: implement complete book-keeping for
+    encap_needed") introduced a severe misuse of jump label APIs, which
+    syzbot, as reported by Eric, was able to exploit.
+    
+    When multiple sockets/process can concurrently request (and than
+    disable) the udp encap, we need to track the activation counter with
+    *_inc()/*_dec() jump label variants, or we can experience bad things
+    at disable time.
+    
+    Fixes: 60fb9567bf30 ("udp: implement complete book-keeping for encap_needed")
+    Reported-by: Eric Dumazet <eric.dumazet@gmail.com>
+    Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/net/ipv4/udp.c b/net/ipv4/udp.c
+index 6f8890c5bc7e..aff2a8e99e01 100644
+--- a/net/ipv4/udp.c
++++ b/net/ipv4/udp.c
+@@ -587,7 +587,7 @@ static inline bool __udp_is_mcast_sock(struct net *net, struct sock *sk,
+ DEFINE_STATIC_KEY_FALSE(udp_encap_needed_key);
+ void udp_encap_enable(void)
+ {
+-	static_branch_enable(&udp_encap_needed_key);
++	static_branch_inc(&udp_encap_needed_key);
+ }
+ EXPORT_SYMBOL(udp_encap_enable);
+ 
+@@ -2524,7 +2524,7 @@ void udp_destroy_sock(struct sock *sk)
+ 				encap_destroy(sk);
+ 		}
+ 		if (up->encap_enabled)
+-			static_branch_disable(&udp_encap_needed_key);
++			static_branch_dec(&udp_encap_needed_key);
+ 	}
+ }
+ 
+diff --git a/net/ipv6/udp.c b/net/ipv6/udp.c
+index dde51fc7ac16..09cba4cfe31f 100644
+--- a/net/ipv6/udp.c
++++ b/net/ipv6/udp.c
+@@ -448,7 +448,7 @@ int udpv6_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
+ DEFINE_STATIC_KEY_FALSE(udpv6_encap_needed_key);
+ void udpv6_encap_enable(void)
+ {
+-	static_branch_enable(&udpv6_encap_needed_key);
++	static_branch_inc(&udpv6_encap_needed_key);
+ }
+ EXPORT_SYMBOL(udpv6_encap_enable);
+ 
+@@ -1579,7 +1579,7 @@ void udpv6_destroy_sock(struct sock *sk)
+ 				encap_destroy(sk);
+ 		}
+ 		if (up->encap_enabled)
+-			static_branch_disable(&udpv6_encap_needed_key);
++			static_branch_dec(&udpv6_encap_needed_key);
+ 	}
+ 
+ 	inet6_destroy_sock(sk);

@@ -1,0 +1,43 @@
+commit 25a1b7102f3f1181be1feaa0ed6ff82f1b526acd
+Author: Marek Vasut <marek.vasut@gmail.com>
+Date:   Wed Dec 12 02:39:56 2018 +0100
+
+    gpio: pca953x: Zap ad-hoc I2C block write in multi GPIO set
+    
+    The ad-hoc i2c block write can be replaced by standard register accessor
+    function, which correctly handles all the chip details and differences.
+    Do so to simplify the code.
+    
+    Signed-off-by: Marek Vasut <marek.vasut+renesas@gmail.com>
+    Cc: Bartosz Golaszewski <bgolaszewski@baylibre.com>
+    Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+
+diff --git a/drivers/gpio/gpio-pca953x.c b/drivers/gpio/gpio-pca953x.c
+index dc691bd52a79..b3386819c550 100644
+--- a/drivers/gpio/gpio-pca953x.c
++++ b/drivers/gpio/gpio-pca953x.c
+@@ -364,8 +364,6 @@ static void pca953x_gpio_set_multiple(struct gpio_chip *gc,
+ 				      unsigned long *mask, unsigned long *bits)
+ {
+ 	struct pca953x_chip *chip = gpiochip_get_data(gc);
+-	int bank_shift = pca953x_bank_shift(chip);
+-	u32 regaddr = chip->regs->output << bank_shift;
+ 	unsigned int bank_mask, bank_val;
+ 	int bank;
+ 	u8 reg_val[MAX_BANK];
+@@ -384,14 +382,7 @@ static void pca953x_gpio_set_multiple(struct gpio_chip *gc,
+ 		}
+ 	}
+ 
+-	/* PCA9575 needs address-increment on multi-byte writes */
+-	if ((PCA_CHIP_TYPE(chip->driver_data) == PCA957X_TYPE) &&
+-	    (NBANK(chip) > 1)) {
+-		regaddr |= REG_ADDR_AI;
+-	}
+-
+-	ret = i2c_smbus_write_i2c_block_data(chip->client, regaddr,
+-					     NBANK(chip), reg_val);
++	ret = pca953x_write_regs(chip, chip->regs->output, reg_val);
+ 	if (ret)
+ 		goto exit;
+ 

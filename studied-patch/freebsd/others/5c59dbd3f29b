@@ -1,0 +1,24 @@
+commit 5c59dbd3f29b05719aa907818c1d16069202ae91
+Author: ian <ian@FreeBSD.org>
+Date:   Mon Sep 11 22:33:29 2017 +0000
+
+    MFC r322373:
+    
+    Ensure the clocks driver is attached before any drivers that need to enable
+    clocks in their attach().
+
+diff --git a/sys/arm/ti/am335x/am335x_prcm.c b/sys/arm/ti/am335x/am335x_prcm.c
+index f7934328e35..71fe72ef2f2 100644
+--- a/sys/arm/ti/am335x/am335x_prcm.c
++++ b/sys/arm/ti/am335x/am335x_prcm.c
+@@ -466,8 +466,8 @@ static driver_t am335x_prcm_driver = {
+ 
+ static devclass_t am335x_prcm_devclass;
+ 
+-DRIVER_MODULE(am335x_prcm, simplebus, am335x_prcm_driver,
+-	am335x_prcm_devclass, 0, 0);
++EARLY_DRIVER_MODULE(am335x_prcm, simplebus, am335x_prcm_driver,
++	am335x_prcm_devclass, 0, 0, BUS_PASS_TIMER + BUS_PASS_ORDER_EARLY);
+ MODULE_VERSION(am335x_prcm, 1);
+ MODULE_DEPEND(am335x_prcm, ti_scm, 1, 1, 1);
+ 

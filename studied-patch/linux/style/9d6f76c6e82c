@@ -1,0 +1,47 @@
+commit 9d6f76c6e82c336aaa57bc0c6e54e0444117bcee
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 22:00:48 2018 +0200
+
+    thermal: int340x_thermal: int3400_thermal: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Reviewed-by: Daniel Lezcano <daniel.lezcano@linaro.org>
+    Signed-off-by: Zhang Rui <rui.zhang@intel.com>
+
+diff --git a/drivers/thermal/int340x_thermal/int3400_thermal.c b/drivers/thermal/int340x_thermal/int3400_thermal.c
+index e26b01c05e82..61ca7ce3624e 100644
+--- a/drivers/thermal/int340x_thermal/int3400_thermal.c
++++ b/drivers/thermal/int340x_thermal/int3400_thermal.c
+@@ -48,8 +48,7 @@ static ssize_t available_uuids_show(struct device *dev,
+ 				    struct device_attribute *attr,
+ 				    char *buf)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct int3400_thermal_priv *priv = platform_get_drvdata(pdev);
++	struct int3400_thermal_priv *priv = dev_get_drvdata(dev);
+ 	int i;
+ 	int length = 0;
+ 
+@@ -68,8 +67,7 @@ static ssize_t available_uuids_show(struct device *dev,
+ static ssize_t current_uuid_show(struct device *dev,
+ 				 struct device_attribute *devattr, char *buf)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct int3400_thermal_priv *priv = platform_get_drvdata(pdev);
++	struct int3400_thermal_priv *priv = dev_get_drvdata(dev);
+ 
+ 	if (priv->uuid_bitmap & (1 << priv->current_uuid_index))
+ 		return sprintf(buf, "%s\n",
+@@ -82,8 +80,7 @@ static ssize_t current_uuid_store(struct device *dev,
+ 				  struct device_attribute *attr,
+ 				  const char *buf, size_t count)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct int3400_thermal_priv *priv = platform_get_drvdata(pdev);
++	struct int3400_thermal_priv *priv = dev_get_drvdata(dev);
+ 	int i;
+ 
+ 	for (i = 0; i < INT3400_THERMAL_MAXIMUM_UUID; ++i) {

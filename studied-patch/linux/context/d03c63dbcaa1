@@ -1,0 +1,60 @@
+commit d03c63dbcaa1ee570d0435a7f79c7083ffb59245
+Author: Linus Walleij <linus.walleij@linaro.org>
+Date:   Thu Dec 6 13:43:43 2018 +0100
+
+    regulator: max77686: Let core handle GPIO descriptor
+    
+    Use the gpiod_get_from_of_node() rather than the devm_*
+    version so that the regulator core can handle the lifecycle
+    of these descriptors.
+    
+    Fix up the errorpath so that we free this descriptor if
+    an error occurs in the callback. Rely on the regulator
+    core to deal with it after this point: a previous patch
+    fixed up the regulator core to properly dispose any
+    GPIO descriptors once you call regulator_register().
+    
+    Fixes: 96392c3d8ca4 ("regulator: max77686: Pass descriptor instead of GPIO number")
+    Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+    Reviewed-by: Marek Szyprowski <m.szyprowski@samsung.com>
+    Tested-by: Marek Szyprowski <m.szyprowski@samsung.com>
+    Reviewed-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+    Signed-off-by: Mark Brown <broonie@kernel.org>
+
+diff --git a/drivers/regulator/max77686-regulator.c b/drivers/regulator/max77686-regulator.c
+index f5cee1775905..8020eb57374a 100644
+--- a/drivers/regulator/max77686-regulator.c
++++ b/drivers/regulator/max77686-regulator.c
+@@ -250,13 +250,13 @@ static int max77686_of_parse_cb(struct device_node *np,
+ 		struct regulator_config *config)
+ {
+ 	struct max77686_data *max77686 = config->driver_data;
++	int ret;
+ 
+ 	switch (desc->id) {
+ 	case MAX77686_BUCK8:
+ 	case MAX77686_BUCK9:
+ 	case MAX77686_LDO20 ... MAX77686_LDO22:
+-		config->ena_gpiod = devm_gpiod_get_from_of_node(max77686->dev,
+-				np,
++		config->ena_gpiod = gpiod_get_from_of_node(np,
+ 				"maxim,ena",
+ 				0,
+ 				GPIOD_OUT_HIGH | GPIOD_FLAGS_BIT_NONEXCLUSIVE,
+@@ -271,9 +271,13 @@ static int max77686_of_parse_cb(struct device_node *np,
+ 	if (config->ena_gpiod) {
+ 		set_bit(desc->id, max77686->gpio_enabled);
+ 
+-		return regmap_update_bits(config->regmap, desc->enable_reg,
+-					  desc->enable_mask,
+-					  MAX77686_GPIO_CONTROL);
++		ret = regmap_update_bits(config->regmap, desc->enable_reg,
++					 desc->enable_mask,
++					 MAX77686_GPIO_CONTROL);
++		if (ret) {
++			gpiod_put(config->ena_gpiod);
++			config->ena_gpiod = NULL;
++		}
+ 	}
+ 
+ 	return 0;

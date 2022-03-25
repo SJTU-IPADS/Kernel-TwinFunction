@@ -1,0 +1,39 @@
+commit 5da54c1810e52f7abba0ff7932dddd761f945875
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Tue Nov 6 19:43:32 2018 -0800
+
+    net/core: Replace call_rcu_bh() and synchronize_rcu_bh()
+    
+    Now that call_rcu()'s callback is not invoked until after all bh-disable
+    regions of code have completed (in addition to explicitly marked
+    RCU read-side critical sections), call_rcu() can be used in place of
+    call_rcu_bh().  Similarly, synchronize_rcu() can be used in place of
+    synchronize_rcu_bh().  This commit therefore makes these changes.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: "David S. Miller" <davem@davemloft.net>
+    Cc: Eric Dumazet <edumazet@google.com>
+    Cc: <netdev@vger.kernel.org>
+
+diff --git a/net/core/netpoll.c b/net/core/netpoll.c
+index 5da9552b186b..677d3f332172 100644
+--- a/net/core/netpoll.c
++++ b/net/core/netpoll.c
+@@ -800,7 +800,7 @@ void __netpoll_cleanup(struct netpoll *np)
+ 			ops->ndo_netpoll_cleanup(np->dev);
+ 
+ 		RCU_INIT_POINTER(np->dev->npinfo, NULL);
+-		call_rcu_bh(&npinfo->rcu, rcu_cleanup_netpoll_info);
++		call_rcu(&npinfo->rcu, rcu_cleanup_netpoll_info);
+ 	} else
+ 		RCU_INIT_POINTER(np->dev->npinfo, NULL);
+ }
+@@ -811,7 +811,7 @@ void __netpoll_free(struct netpoll *np)
+ 	ASSERT_RTNL();
+ 
+ 	/* Wait for transmitting packets to finish before freeing. */
+-	synchronize_rcu_bh();
++	synchronize_rcu();
+ 	__netpoll_cleanup(np);
+ 	kfree(np);
+ }

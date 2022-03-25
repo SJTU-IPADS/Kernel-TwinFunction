@@ -1,0 +1,37 @@
+commit 6342ca644713601b42dcb8f35e3751afc0943373
+Author: Prashant Bhole <bhole_prashant_q7@lab.ntt.co.jp>
+Date:   Tue Dec 11 11:43:07 2018 +0900
+
+    tun: replace get_cpu_ptr with this_cpu_ptr when bh disabled
+    
+    tun_xdp_one() runs with local bh disabled. So there is no need to
+    disable preemption by calling get_cpu_ptr while updating stats. This
+    patch replaces the use of get_cpu_ptr() with this_cpu_ptr() as a
+    micro-optimization. Also removes related put_cpu_ptr call.
+    
+    Acked-by: Jason Wang <jasowang@redhat.com>
+    Signed-off-by: Prashant Bhole <bhole_prashant_q7@lab.ntt.co.jp>
+    Acked-by: Michael S. Tsirkin <mst@redhat.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/tun.c b/drivers/net/tun.c
+index 72577aa35b06..a4fdad475594 100644
+--- a/drivers/net/tun.c
++++ b/drivers/net/tun.c
+@@ -2495,12 +2495,14 @@ static int tun_xdp_one(struct tun_struct *tun,
+ 	skb_record_rx_queue(skb, tfile->queue_index);
+ 	netif_receive_skb(skb);
+ 
+-	stats = get_cpu_ptr(tun->pcpu_stats);
++	/* No need for get_cpu_ptr() here since this function is
++	 * always called with bh disabled
++	 */
++	stats = this_cpu_ptr(tun->pcpu_stats);
+ 	u64_stats_update_begin(&stats->syncp);
+ 	stats->rx_packets++;
+ 	stats->rx_bytes += datasize;
+ 	u64_stats_update_end(&stats->syncp);
+-	put_cpu_ptr(stats);
+ 
+ 	if (rxhash)
+ 		tun_flow_update(tun, rxhash, tfile);

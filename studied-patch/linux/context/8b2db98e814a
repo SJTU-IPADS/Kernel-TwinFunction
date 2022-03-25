@@ -1,0 +1,27 @@
+commit 8b2db98e814a5ec45e8800fc22ca9000ae0a517b
+Author: Wei Yongjun <weiyongjun1@huawei.com>
+Date:   Mon Dec 17 12:19:53 2018 +0000
+
+    scsi: target/core: Use kmem_cache_free() instead of kfree()
+    
+    memory allocated by kmem_cache_alloc() should be freed using
+    kmem_cache_free(), not kfree().
+    
+    Fixes: ad669505c4e9 ("scsi: target/core: Make sure that target_wait_for_sess_cmds() waits long enough")
+    Signed-off-by: Wei Yongjun <weiyongjun1@huawei.com>
+    Reviewed-by: Bart Van Assche <bvanassche@acm.org>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/target/target_core_transport.c b/drivers/target/target_core_transport.c
+index f60b9d1ebb33..dccf2c58c7ec 100644
+--- a/drivers/target/target_core_transport.c
++++ b/drivers/target/target_core_transport.c
+@@ -266,7 +266,7 @@ struct se_session *transport_alloc_session(enum target_prot_op sup_prot_ops)
+ 	}
+ 	ret = transport_init_session(se_sess);
+ 	if (ret < 0) {
+-		kfree(se_sess);
++		kmem_cache_free(se_sess_cache, se_sess);
+ 		return ERR_PTR(ret);
+ 	}
+ 	se_sess->sup_prot_ops = sup_prot_ops;

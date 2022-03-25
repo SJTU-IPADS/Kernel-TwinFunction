@@ -1,0 +1,26 @@
+commit 37fefadee8bb665ae337a15aa635dabff9f66ade
+Author: Stefan Wahren <stefan.wahren@i2se.com>
+Date:   Sun Nov 11 21:23:57 2018 +0100
+
+    mmc: bcm2835: Terminate timeout work synchronously
+    
+    It's better to make sure that the timeout work is really terminated
+    before calling mmc_request_done.
+    
+    Signed-off-by: Stefan Wahren <stefan.wahren@i2se.com>
+    Acked-by: Eric Anholt <eric@anholt.net>
+    Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+
+diff --git a/drivers/mmc/host/bcm2835.c b/drivers/mmc/host/bcm2835.c
+index cdfc24f1093b..a7961c391de6 100644
+--- a/drivers/mmc/host/bcm2835.c
++++ b/drivers/mmc/host/bcm2835.c
+@@ -597,7 +597,7 @@ static void bcm2835_finish_request(struct bcm2835_host *host)
+ 	struct dma_chan *terminate_chan = NULL;
+ 	struct mmc_request *mrq;
+ 
+-	cancel_delayed_work(&host->timeout_work);
++	cancel_delayed_work_sync(&host->timeout_work);
+ 
+ 	mrq = host->mrq;
+ 

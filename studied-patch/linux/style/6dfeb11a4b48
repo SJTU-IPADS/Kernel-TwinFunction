@@ -1,0 +1,32 @@
+commit 6dfeb11a4b48e4994ac9e22eef5720f17d1f3502
+Author: zhong jiang <zhongjiang@huawei.com>
+Date:   Tue Sep 18 23:35:32 2018 +0800
+
+    drm/amdkfd: Use kmemdup instead of duplicating its function
+    
+    kmemdup has implemented the function that kmalloc() + memcpy().
+    We prefer to kmemdup rather than code opened implementation.
+    
+    Signed-off-by: zhong jiang <zhongjiang@huawei.com>
+    Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+    Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+    Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_crat.c b/drivers/gpu/drm/amd/amdkfd/kfd_crat.c
+index 56412b0e7e1c..dd4f3bdbf08c 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_crat.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_crat.c
+@@ -753,12 +753,10 @@ int kfd_create_crat_image_acpi(void **crat_image, size_t *size)
+ 		return -ENODATA;
+ 	}
+ 
+-	pcrat_image = kmalloc(crat_table->length, GFP_KERNEL);
++	pcrat_image = kmemdup(crat_table, crat_table->length, GFP_KERNEL);
+ 	if (!pcrat_image)
+ 		return -ENOMEM;
+ 
+-	memcpy(pcrat_image, crat_table, crat_table->length);
+-
+ 	*crat_image = pcrat_image;
+ 	*size = crat_table->length;
+ 

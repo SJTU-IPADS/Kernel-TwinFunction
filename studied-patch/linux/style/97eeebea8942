@@ -1,0 +1,30 @@
+commit 97eeebea894283c290ead6694b76f575e7654773
+Author: Lance Roy <ldr709@gmail.com>
+Date:   Thu Oct 4 23:45:42 2018 -0700
+
+    smsc: Replace spin_is_locked() with lockdep
+    
+    lockdep_assert_held() is better suited to checking locking requirements,
+    since it only checks if the current thread holds the lock regardless of
+    whether someone else does. This is also a step towards possibly removing
+    spin_is_locked().
+    
+    Signed-off-by: Lance Roy <ldr709@gmail.com>
+    Cc: Steve Glendinning <steve.glendinning@shawell.net>
+    Cc: "David S. Miller" <davem@davemloft.net>
+    Cc: <netdev@vger.kernel.org>
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+
+diff --git a/drivers/net/ethernet/smsc/smsc911x.h b/drivers/net/ethernet/smsc/smsc911x.h
+index 8d75508acd2b..51b2fc1a395f 100644
+--- a/drivers/net/ethernet/smsc/smsc911x.h
++++ b/drivers/net/ethernet/smsc/smsc911x.h
+@@ -67,7 +67,7 @@
+ 
+ #ifdef CONFIG_DEBUG_SPINLOCK
+ #define SMSC_ASSERT_MAC_LOCK(pdata) \
+-		WARN_ON_SMP(!spin_is_locked(&pdata->mac_lock))
++		lockdep_assert_held(&pdata->mac_lock)
+ #else
+ #define SMSC_ASSERT_MAC_LOCK(pdata) do {} while (0)
+ #endif				/* CONFIG_DEBUG_SPINLOCK */

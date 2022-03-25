@@ -1,0 +1,35 @@
+commit 0c468d264b83c9cb3db2181ead491ad30d522333
+Author: delphij <delphij@FreeBSD.org>
+Date:   Mon Dec 11 05:19:45 2017 +0000
+
+    MFC r325723:
+    
+    find(1): Don't treat statfs() error as fatal in f_fstype, which can happen
+    when a directory is removed in the middle of find.
+    
+    Instead of a full err(), allow find to continue, plus print a warning with
+    exitstatus set when appropriate.
+    
+    Reported by:    100.chksetuid via gordon
+    Reviewed by:    jilles
+
+diff --git a/usr.bin/find/function.c b/usr.bin/find/function.c
+index d6466a6e92c..68372c768de 100644
+--- a/usr.bin/find/function.c
++++ b/usr.bin/find/function.c
+@@ -902,8 +902,13 @@ f_fstype(PLAN *plan, FTSENT *entry)
+ 		} else
+ 			p = NULL;
+ 
+-		if (statfs(entry->fts_accpath, &sb))
+-			err(1, "%s", entry->fts_accpath);
++		if (statfs(entry->fts_accpath, &sb)) {
++			if (!ignore_readdir_race || errno != ENOENT) {
++				warn("statfs: %s", entry->fts_accpath);
++				exitstatus = 1;
++			}
++			return 0;
++		}
+ 
+ 		if (p) {
+ 			p[0] = save[0];

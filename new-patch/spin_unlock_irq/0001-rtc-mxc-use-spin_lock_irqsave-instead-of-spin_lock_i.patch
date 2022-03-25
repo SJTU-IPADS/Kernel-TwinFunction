@@ -1,0 +1,44 @@
+From 7730fcde9f0e730778442518a0548ea936ffa6d4 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 7 Aug 2019 16:15:48 +0800
+Subject: [PATCH] rtc: mxc: use spin_lock_irqsave instead of spin_lock_irq in
+ IRQ context
+
+As spin_unlock_irq will enable interrupts.
+mxc_rtc_irq_enable is called from interrupt handler mxc_rtc_interrupt.
+Interrupts are enabled in interrupt handler.
+Use spin_lock_irqsave/spin_unlock_irqrestore instead of spin_(un)lock_irq
+in IRQ context to avoid this.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/rtc/rtc-mxc.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/rtc/rtc-mxc.c b/drivers/rtc/rtc-mxc.c
+index e697e96612bb..902d57dcd0d4 100644
+--- a/drivers/rtc/rtc-mxc.c
++++ b/drivers/rtc/rtc-mxc.c
+@@ -184,8 +184,9 @@ static void mxc_rtc_irq_enable(struct device *dev, unsigned int bit,
+ 	struct rtc_plat_data *pdata = dev_get_drvdata(dev);
+ 	void __iomem *ioaddr = pdata->ioaddr;
+ 	u32 reg;
++	unsigned long flags;
+ 
+-	spin_lock_irq(&pdata->rtc->irq_lock);
++	spin_lock_irqsave(&pdata->rtc->irq_lock, flags);
+ 	reg = readw(ioaddr + RTC_RTCIENR);
+ 
+ 	if (enabled)
+@@ -194,7 +195,7 @@ static void mxc_rtc_irq_enable(struct device *dev, unsigned int bit,
+ 		reg &= ~bit;
+ 
+ 	writew(reg, ioaddr + RTC_RTCIENR);
+-	spin_unlock_irq(&pdata->rtc->irq_lock);
++	spin_unlock_irqrestore(&pdata->rtc->irq_lock, flags);
+ }
+ 
+ /* This function is the RTC interrupt service routine. */
+-- 
+2.11.0
+

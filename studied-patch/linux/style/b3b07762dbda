@@ -1,0 +1,40 @@
+commit b3b07762dbda4f4c96eddec3ed8f6ab7ffbf8a7a
+Author: Christoph Hellwig <hch@lst.de>
+Date:   Thu Oct 18 15:10:13 2018 +0200
+
+    scsi: arcmsr: use dma_set_mask
+    
+    The driver currently uses pci_set_dma_mask despite otherwise using the
+    generic DMA API.
+    
+    Signed-off-by: Christoph Hellwig <hch@lst.de>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/scsi/arcmsr/arcmsr_hba.c b/drivers/scsi/arcmsr/arcmsr_hba.c
+index d4404eea24fb..11e8e6df50b1 100644
+--- a/drivers/scsi/arcmsr/arcmsr_hba.c
++++ b/drivers/scsi/arcmsr/arcmsr_hba.c
+@@ -903,9 +903,9 @@ static int arcmsr_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+ 	if(!host){
+     		goto pci_disable_dev;
+ 	}
+-	error = pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
++	error = dma_set_mask(&pdev->dev, DMA_BIT_MASK(64));
+ 	if(error){
+-		error = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
++		error = dma_set_mask(&pdev->dev, DMA_BIT_MASK(32));
+ 		if(error){
+ 			printk(KERN_WARNING
+ 			       "scsi%d: No suitable DMA mask available\n",
+@@ -1049,9 +1049,9 @@ static int arcmsr_resume(struct pci_dev *pdev)
+ 		pr_warn("%s: pci_enable_device error\n", __func__);
+ 		return -ENODEV;
+ 	}
+-	error = pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
++	error = dma_set_mask(&pdev->dev, DMA_BIT_MASK(64));
+ 	if (error) {
+-		error = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
++		error = dma_set_mask(&pdev->dev, DMA_BIT_MASK(32));
+ 		if (error) {
+ 			pr_warn("scsi%d: No suitable DMA mask available\n",
+ 			       host->host_no);

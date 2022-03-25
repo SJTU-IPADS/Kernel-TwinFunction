@@ -1,0 +1,35 @@
+commit 935fcc56abc321ca828f2d1fbb732fd478fd3449
+Author: wuzhouhui <wuzhouhui14@mails.ucas.ac.cn>
+Date:   Thu Mar 22 22:22:38 2018 +0800
+
+    dm mpath: only flush workqueue when needed
+    
+    The workqueues are shared by many multipath devices, only flush whole
+    workqueue when necessary.  Otherwise, we just flush works as needed.
+    
+    Signed-off-by: wuzhouhui <wuzhouhui14@mails.ucas.ac.cn>
+    Signed-off-by: Mike Snitzer <snitzer@redhat.com>
+
+diff --git a/drivers/md/dm-mpath.c b/drivers/md/dm-mpath.c
+index d6a66921daf4..2ee5e357a0a7 100644
+--- a/drivers/md/dm-mpath.c
++++ b/drivers/md/dm-mpath.c
+@@ -1211,14 +1211,16 @@ static void flush_multipath_work(struct multipath *m)
+ 		set_bit(MPATHF_PG_INIT_DISABLED, &m->flags);
+ 		smp_mb__after_atomic();
+ 
+-		flush_workqueue(kmpath_handlerd);
++		if (atomic_read(&m->pg_init_in_progress))
++			flush_workqueue(kmpath_handlerd);
+ 		multipath_wait_for_pg_init_completion(m);
+ 
+ 		clear_bit(MPATHF_PG_INIT_DISABLED, &m->flags);
+ 		smp_mb__after_atomic();
+ 	}
+ 
+-	flush_workqueue(kmultipathd);
++	if (m->queue_mode == DM_TYPE_BIO_BASED)
++		flush_work(&m->process_queued_bios);
+ 	flush_work(&m->trigger_event);
+ }
+ 

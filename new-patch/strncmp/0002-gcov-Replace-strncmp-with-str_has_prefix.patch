@@ -1,0 +1,36 @@
+From de3f2d38f164444c27c59e86d3db08c173efbd24 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 1 Aug 2019 22:39:12 +0800
+Subject: [PATCH v2 02/10] gcov: Replace strncmp with str_has_prefix
+
+strncmp(str, const, len) is error-prone because len
+is easy to have typo.
+The example is the hard-coded len has counting error
+or sizeof(const) forgets - 1.
+So we prefer using newly introduced str_has_prefix
+to substitute such strncmp.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Revise the description.
+
+ kernel/gcov/fs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/gcov/fs.c b/kernel/gcov/fs.c
+index e5eb5ea7ea59..67296c1768b4 100644
+--- a/kernel/gcov/fs.c
++++ b/kernel/gcov/fs.c
+@@ -354,7 +354,7 @@ static char *get_link_target(const char *filename, const struct gcov_link *ext)
+  */
+ static const char *deskew(const char *basename)
+ {
+-	if (strncmp(basename, SKEW_PREFIX, sizeof(SKEW_PREFIX) - 1) == 0)
++	if (str_has_prefix(basename, SKEW_PREFIX))
+ 		return basename + sizeof(SKEW_PREFIX) - 1;
+ 	return basename;
+ }
+-- 
+2.20.1
+

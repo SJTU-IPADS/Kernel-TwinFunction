@@ -1,0 +1,34 @@
+From 5102df1ec997a26e685c0ce8ec59e3c4b0963003 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 17 Jul 2019 15:24:09 +0800
+Subject: [PATCH v2] net/mlx5: Replace kfree with kvfree
+
+Variable allocated by kvmalloc should not be freed by kfree.
+Because it may be allocated by vmalloc.
+So replace kfree with kvfree here.
+
+Fixes: 9b1f298236057 ("net/mlx5: Add support for FW fatal reporter dump")
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Add corresponding Fixes tag
+
+ drivers/net/ethernet/mellanox/mlx5/core/health.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/health.c b/drivers/net/ethernet/mellanox/mlx5/core/health.c
+index 2fe6923f7ce0..9314777d99e3 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/health.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/health.c
+@@ -597,7 +597,7 @@ mlx5_fw_fatal_reporter_dump(struct devlink_health_reporter *reporter,
+ 	err = devlink_fmsg_arr_pair_nest_end(fmsg);
+ 
+ free_data:
+-	kfree(cr_data);
++	kvfree(cr_data);
+ 	return err;
+ }
+ 
+-- 
+2.20.1
+

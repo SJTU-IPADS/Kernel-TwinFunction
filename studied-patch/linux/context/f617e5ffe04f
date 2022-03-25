@@ -1,0 +1,26 @@
+commit f617e5ffe04fd46010b618c9eeadaa04588704c9
+Author: Wei Yongjun <weiyongjun1@huawei.com>
+Date:   Sat Dec 22 10:30:30 2018 +0000
+
+    RDMA/srpt: Use kmem_cache_free() instead of kfree()
+    
+    memory allocated by kmem_cache_alloc() should be freed using
+    kmem_cache_free(), not kfree().
+    
+    Fixes: 5dabcd0456d7 ("RDMA/srpt: Add support for immediate data")
+    Signed-off-by: Wei Yongjun <weiyongjun1@huawei.com>
+    Signed-off-by: Jason Gunthorpe <jgg@mellanox.com>
+
+diff --git a/drivers/infiniband/ulp/srpt/ib_srpt.c b/drivers/infiniband/ulp/srpt/ib_srpt.c
+index b2f63a6dadb6..e75c908e4bc2 100644
+--- a/drivers/infiniband/ulp/srpt/ib_srpt.c
++++ b/drivers/infiniband/ulp/srpt/ib_srpt.c
+@@ -674,7 +674,7 @@ static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev,
+ 	return ioctx;
+ 
+ err_free_buf:
+-	kfree(ioctx->buf);
++	kmem_cache_free(buf_cache, ioctx->buf);
+ err_free_ioctx:
+ 	kfree(ioctx);
+ err:

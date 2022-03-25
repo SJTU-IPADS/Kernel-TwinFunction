@@ -1,0 +1,29 @@
+commit 2396e2821b0f42ab5048d015298d4858a0eefa32
+Author: Mauro Carvalho Chehab <mchehab+samsung@kernel.org>
+Date:   Mon Sep 10 16:14:15 2018 -0400
+
+    media: rc: imon: replace strcpy() by strscpy()
+    
+    The strcpy() function is being deprecated. Replace it by the
+    safer strscpy().
+    
+    Signed-off-by: Mauro Carvalho Chehab <mchehab+samsung@kernel.org>
+    Signed-off-by: Sean Young <sean@mess.org>
+    Signed-off-by: Mauro Carvalho Chehab <mchehab+samsung@kernel.org>
+
+diff --git a/drivers/media/rc/imon.c b/drivers/media/rc/imon.c
+index 1041c056854d..989d2554ec72 100644
+--- a/drivers/media/rc/imon.c
++++ b/drivers/media/rc/imon.c
+@@ -772,9 +772,9 @@ static ssize_t show_associate_remote(struct device *d,
+ 
+ 	mutex_lock(&ictx->lock);
+ 	if (ictx->rf_isassociating)
+-		strcpy(buf, "associating\n");
++		strscpy(buf, "associating\n", PAGE_SIZE);
+ 	else
+-		strcpy(buf, "closed\n");
++		strscpy(buf, "closed\n", PAGE_SIZE);
+ 
+ 	dev_info(d, "Visit http://www.lirc.org/html/imon-24g.html for instructions on how to associate your iMON 2.4G DT/LT remote\n");
+ 	mutex_unlock(&ictx->lock);

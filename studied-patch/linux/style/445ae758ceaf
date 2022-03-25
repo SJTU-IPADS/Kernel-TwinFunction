@@ -1,0 +1,37 @@
+commit 445ae758ceaf394636ad7ab9872f52cdc24165a6
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 22:00:51 2018 +0200
+
+    thermal: st: st_thermal: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Reviewed-by: Daniel Lezcano <daniel.lezcano@linaro.org>
+    Signed-off-by: Zhang Rui <rui.zhang@intel.com>
+
+diff --git a/drivers/thermal/st/st_thermal.c b/drivers/thermal/st/st_thermal.c
+index be637e6b01d2..b2bbdf6eb02b 100644
+--- a/drivers/thermal/st/st_thermal.c
++++ b/drivers/thermal/st/st_thermal.c
+@@ -277,8 +277,7 @@ EXPORT_SYMBOL_GPL(st_thermal_unregister);
+ #ifdef CONFIG_PM_SLEEP
+ static int st_thermal_suspend(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct st_thermal_sensor *sensor = platform_get_drvdata(pdev);
++	struct st_thermal_sensor *sensor = dev_get_drvdata(dev);
+ 
+ 	return st_thermal_sensor_off(sensor);
+ }
+@@ -286,8 +285,7 @@ static int st_thermal_suspend(struct device *dev)
+ static int st_thermal_resume(struct device *dev)
+ {
+ 	int ret;
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct st_thermal_sensor *sensor = platform_get_drvdata(pdev);
++	struct st_thermal_sensor *sensor = dev_get_drvdata(dev);
+ 
+ 	ret = st_thermal_sensor_on(sensor);
+ 	if (ret)

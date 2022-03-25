@@ -1,0 +1,481 @@
+commit 3407da44b73553a2a4010ef670e286f86a05f292
+Author: tuexen <tuexen@FreeBSD.org>
+Date:   Sat Apr 7 14:41:44 2018 +0000
+
+    MFC r321204:
+    
+    Use memset/memcpy instead of bzero/bcopy.
+    
+    Just use one variant instead of both. Use the memset/memcpy
+    ones since they cause less problems in crossplatform deployment.
+
+diff --git a/sys/netinet/sctp_asconf.c b/sys/netinet/sctp_asconf.c
+index 32efe29edef..c6e14f1fc8a 100644
+--- a/sys/netinet/sctp_asconf.c
++++ b/sys/netinet/sctp_asconf.c
+@@ -182,7 +182,7 @@ sctp_process_asconf_add_ip(struct sockaddr *src, struct sctp_asconf_paramhdr *ap
+ 		}
+ 		v4addr = (struct sctp_ipv4addr_param *)ph;
+ 		sin = &store.sin;
+-		bzero(sin, sizeof(*sin));
++		memset(sin, 0, sizeof(*sin));
+ 		sin->sin_family = AF_INET;
+ 		sin->sin_len = sizeof(struct sockaddr_in);
+ 		sin->sin_port = stcb->rport;
+@@ -205,7 +205,7 @@ sctp_process_asconf_add_ip(struct sockaddr *src, struct sctp_asconf_paramhdr *ap
+ 		}
+ 		v6addr = (struct sctp_ipv6addr_param *)ph;
+ 		sin6 = &store.sin6;
+-		bzero(sin6, sizeof(*sin6));
++		memset(sin6, 0, sizeof(*sin6));
+ 		sin6->sin6_family = AF_INET6;
+ 		sin6->sin6_len = sizeof(struct sockaddr_in6);
+ 		sin6->sin6_port = stcb->rport;
+@@ -332,7 +332,7 @@ sctp_process_asconf_delete_ip(struct sockaddr *src,
+ 		}
+ 		v4addr = (struct sctp_ipv4addr_param *)ph;
+ 		sin = &store.sin;
+-		bzero(sin, sizeof(*sin));
++		memset(sin, 0, sizeof(*sin));
+ 		sin->sin_family = AF_INET;
+ 		sin->sin_len = sizeof(struct sockaddr_in);
+ 		sin->sin_port = stcb->rport;
+@@ -352,7 +352,7 @@ sctp_process_asconf_delete_ip(struct sockaddr *src,
+ 		}
+ 		v6addr = (struct sctp_ipv6addr_param *)ph;
+ 		sin6 = &store.sin6;
+-		bzero(sin6, sizeof(*sin6));
++		memset(sin6, 0, sizeof(*sin6));
+ 		sin6->sin6_family = AF_INET6;
+ 		sin6->sin6_len = sizeof(struct sockaddr_in6);
+ 		sin6->sin6_port = stcb->rport;
+@@ -461,7 +461,7 @@ sctp_process_asconf_set_primary(struct sockaddr *src,
+ 		}
+ 		v4addr = (struct sctp_ipv4addr_param *)ph;
+ 		sin = &store.sin;
+-		bzero(sin, sizeof(*sin));
++		memset(sin, 0, sizeof(*sin));
+ 		sin->sin_family = AF_INET;
+ 		sin->sin_len = sizeof(struct sockaddr_in);
+ 		sin->sin_addr.s_addr = v4addr->addr;
+@@ -479,7 +479,7 @@ sctp_process_asconf_set_primary(struct sockaddr *src,
+ 		}
+ 		v6addr = (struct sctp_ipv6addr_param *)ph;
+ 		sin6 = &store.sin6;
+-		bzero(sin6, sizeof(*sin6));
++		memset(sin6, 0, sizeof(*sin6));
+ 		sin6->sin6_family = AF_INET6;
+ 		sin6->sin6_len = sizeof(struct sockaddr_in6);
+ 		memcpy((caddr_t)&sin6->sin6_addr, v6addr->addr,
+@@ -2604,7 +2604,7 @@ sctp_compose_asconf(struct sctp_tcb *stcb, int *retlen, int addr_locked)
+ 	SCTP_BUF_LEN(m_asconf_chk) = sizeof(struct sctp_asconf_chunk);
+ 	SCTP_BUF_LEN(m_asconf) = 0;
+ 	acp = mtod(m_asconf_chk, struct sctp_asconf_chunk *);
+-	bzero(acp, sizeof(struct sctp_asconf_chunk));
++	memset(acp, 0, sizeof(struct sctp_asconf_chunk));
+ 	/* save pointers to lookup address and asconf params */
+ 	lookup_ptr = (caddr_t)(acp + 1);	/* after the header */
+ 	ptr = mtod(m_asconf, caddr_t);	/* beginning of cluster */
+@@ -2737,7 +2737,7 @@ sctp_compose_asconf(struct sctp_tcb *stcb, int *retlen, int addr_locked)
+ 			/* XXX for now, we send a IPv4 address of 0.0.0.0 */
+ 			lookup->ph.param_type = htons(SCTP_IPV4_ADDRESS);
+ 			lookup->ph.param_length = htons(SCTP_SIZE32(sizeof(struct sctp_ipv4addr_param)));
+-			bzero(lookup->addr, sizeof(struct in_addr));
++			memset(lookup->addr, 0, sizeof(struct in_addr));
+ 			SCTP_BUF_LEN(m_asconf_chk) += SCTP_SIZE32(sizeof(struct sctp_ipv4addr_param));
+ 		}
+ 	}
+diff --git a/sys/netinet/sctp_auth.c b/sys/netinet/sctp_auth.c
+index b514560d83f..fd7dbd85dca 100644
+--- a/sys/netinet/sctp_auth.c
++++ b/sys/netinet/sctp_auth.c
+@@ -53,7 +53,7 @@ __FBSDID("$FreeBSD$");
+ void
+ sctp_clear_chunklist(sctp_auth_chklist_t *chklist)
+ {
+-	bzero(chklist, sizeof(*chklist));
++	memset(chklist, 0, sizeof(*chklist));
+ 	/* chklist->num_chunks = 0; */
+ }
+ 
+@@ -92,7 +92,7 @@ sctp_copy_chunklist(sctp_auth_chklist_t *list)
+ 	if (new_list == NULL)
+ 		return (NULL);
+ 	/* copy it */
+-	bcopy(list, new_list, sizeof(*new_list));
++	memcpy(new_list, list, sizeof(*new_list));
+ 
+ 	return (new_list);
+ }
+@@ -338,7 +338,7 @@ sctp_set_key(uint8_t *key, uint32_t keylen)
+ 		/* out of memory */
+ 		return (NULL);
+ 	}
+-	bcopy(key, new_key->key, keylen);
++	memcpy(new_key->key, key, keylen);
+ 	return (new_key);
+ }
+ 
+@@ -427,28 +427,28 @@ sctp_compute_hashkey(sctp_key_t *key1, sctp_key_t *key2, sctp_key_t *shared)
+ 	if (sctp_compare_key(key1, key2) <= 0) {
+ 		/* key is shared + key1 + key2 */
+ 		if (sctp_get_keylen(shared)) {
+-			bcopy(shared->key, key_ptr, shared->keylen);
++			memcpy(key_ptr, shared->key, shared->keylen);
+ 			key_ptr += shared->keylen;
+ 		}
+ 		if (sctp_get_keylen(key1)) {
+-			bcopy(key1->key, key_ptr, key1->keylen);
++			memcpy(key_ptr, key1->key, key1->keylen);
+ 			key_ptr += key1->keylen;
+ 		}
+ 		if (sctp_get_keylen(key2)) {
+-			bcopy(key2->key, key_ptr, key2->keylen);
++			memcpy(key_ptr, key2->key, key2->keylen);
+ 		}
+ 	} else {
+ 		/* key is shared + key2 + key1 */
+ 		if (sctp_get_keylen(shared)) {
+-			bcopy(shared->key, key_ptr, shared->keylen);
++			memcpy(key_ptr, shared->key, shared->keylen);
+ 			key_ptr += shared->keylen;
+ 		}
+ 		if (sctp_get_keylen(key2)) {
+-			bcopy(key2->key, key_ptr, key2->keylen);
++			memcpy(key_ptr, key2->key, key2->keylen);
+ 			key_ptr += key2->keylen;
+ 		}
+ 		if (sctp_get_keylen(key1)) {
+-			bcopy(key1->key, key_ptr, key1->keylen);
++			memcpy(key_ptr, key1->key, key1->keylen);
+ 		}
+ 	}
+ 	return (new_key);
+@@ -764,7 +764,7 @@ sctp_serialize_hmaclist(sctp_hmaclist_t *list, uint8_t *ptr)
+ 
+ 	for (i = 0; i < list->num_algo; i++) {
+ 		hmac_id = htons(list->hmac[i]);
+-		bcopy(&hmac_id, ptr, sizeof(hmac_id));
++		memcpy(ptr, &hmac_id, sizeof(hmac_id));
+ 		ptr += sizeof(hmac_id);
+ 	}
+ 	return (list->num_algo * sizeof(hmac_id));
+@@ -795,7 +795,7 @@ sctp_alloc_authinfo(void)
+ 		/* out of memory */
+ 		return (NULL);
+ 	}
+-	bzero(new_authinfo, sizeof(*new_authinfo));
++	memset(new_authinfo, 0, sizeof(*new_authinfo));
+ 	return (new_authinfo);
+ }
+ 
+@@ -953,10 +953,10 @@ sctp_hmac(uint16_t hmac_algo, uint8_t *key, uint32_t keylen,
+ 		key = temp;
+ 	}
+ 	/* initialize the inner/outer pads with the key and "append" zeroes */
+-	bzero(ipad, blocklen);
+-	bzero(opad, blocklen);
+-	bcopy(key, ipad, keylen);
+-	bcopy(key, opad, keylen);
++	memset(ipad, 0, blocklen);
++	memset(opad, 0, blocklen);
++	memcpy(ipad, key, keylen);
++	memcpy(opad, key, keylen);
+ 
+ 	/* XOR the key with ipad and opad values */
+ 	for (i = 0; i < blocklen; i++) {
+@@ -1013,10 +1013,10 @@ sctp_hmac_m(uint16_t hmac_algo, uint8_t *key, uint32_t keylen,
+ 		key = temp;
+ 	}
+ 	/* initialize the inner/outer pads with the key and "append" zeroes */
+-	bzero(ipad, blocklen);
+-	bzero(opad, blocklen);
+-	bcopy(key, ipad, keylen);
+-	bcopy(key, opad, keylen);
++	memset(ipad, 0, blocklen);
++	memset(opad, 0, blocklen);
++	memcpy(ipad, key, keylen);
++	memcpy(opad, key, keylen);
+ 
+ 	/* XOR the key with ipad and opad values */
+ 	for (i = 0; i < blocklen; i++) {
+@@ -1124,7 +1124,7 @@ sctp_compute_hmac(uint16_t hmac_algo, sctp_key_t *key, uint8_t *text,
+ 		sctp_hmac_final(hmac_algo, &ctx, temp);
+ 		/* save the hashed key as the new key */
+ 		key->keylen = digestlen;
+-		bcopy(temp, key->key, key->keylen);
++		memcpy(key->key, temp, key->keylen);
+ 	}
+ 	return (sctp_hmac(hmac_algo, key->key, key->keylen, text, textlen,
+ 	    digest));
+@@ -1158,7 +1158,7 @@ sctp_compute_hmac_m(uint16_t hmac_algo, sctp_key_t *key, struct mbuf *m,
+ 		sctp_hmac_final(hmac_algo, &ctx, temp);
+ 		/* save the hashed key as the new key */
+ 		key->keylen = digestlen;
+-		bcopy(temp, key->key, key->keylen);
++		memcpy(key->key, temp, key->keylen);
+ 	}
+ 	return (sctp_hmac_m(hmac_algo, key->key, key->keylen, m, m_offset, digest, 0));
+ }
+@@ -1501,17 +1501,17 @@ sctp_auth_get_cookie_params(struct sctp_tcb *stcb, struct mbuf *m,
+ 		/* copy in the RANDOM */
+ 		if (p_random != NULL) {
+ 			keylen = sizeof(*p_random) + random_len;
+-			bcopy(p_random, new_key->key, keylen);
++			memcpy(new_key->key, p_random, keylen);
+ 		}
+ 		/* append in the AUTH chunks */
+ 		if (chunks != NULL) {
+-			bcopy(chunks, new_key->key + keylen,
++			memcpy(new_key->key + keylen, chunks,
+ 			    sizeof(*chunks) + num_chunks);
+ 			keylen += sizeof(*chunks) + num_chunks;
+ 		}
+ 		/* append in the HMACs */
+ 		if (hmacs != NULL) {
+-			bcopy(hmacs, new_key->key + keylen,
++			memcpy(new_key->key + keylen, hmacs,
+ 			    sizeof(*hmacs) + hmacs_len);
+ 		}
+ 	}
+@@ -1550,7 +1550,7 @@ sctp_fill_hmac_digest_m(struct mbuf *m, uint32_t auth_offset,
+ 
+ 	/* zero the digest + chunk padding */
+ 	digestlen = sctp_get_hmac_digest_len(stcb->asoc.peer_hmac_id);
+-	bzero(auth->hmac, SCTP_SIZE32(digestlen));
++	memset(auth->hmac, 0, SCTP_SIZE32(digestlen));
+ 
+ 	/* is the desired key cached? */
+ 	if ((keyid != stcb->asoc.authinfo.assoc_keyid) ||
+@@ -1588,7 +1588,7 @@ sctp_fill_hmac_digest_m(struct mbuf *m, uint32_t auth_offset,
+ 
+ 
+ static void
+-sctp_bzero_m(struct mbuf *m, uint32_t m_offset, uint32_t size)
++sctp_zero_m(struct mbuf *m, uint32_t m_offset, uint32_t size)
+ {
+ 	struct mbuf *m_tmp;
+ 	uint8_t *data;
+@@ -1607,10 +1607,10 @@ sctp_bzero_m(struct mbuf *m, uint32_t m_offset, uint32_t size)
+ 	while ((m_tmp != NULL) && (size > 0)) {
+ 		data = mtod(m_tmp, uint8_t *)+m_offset;
+ 		if (size > (uint32_t)SCTP_BUF_LEN(m_tmp)) {
+-			bzero(data, SCTP_BUF_LEN(m_tmp));
++			memset(data, 0, SCTP_BUF_LEN(m_tmp));
+ 			size -= SCTP_BUF_LEN(m_tmp);
+ 		} else {
+-			bzero(data, size);
++			memset(data, 0, size);
+ 			size = 0;
+ 		}
+ 		/* clear the offset since it's only for the first mbuf */
+@@ -1727,8 +1727,8 @@ sctp_handle_auth(struct sctp_tcb *stcb, struct sctp_auth_chunk *auth,
+ 		return (-1);
+ 	}
+ 	/* save a copy of the digest, zero the pseudo header, and validate */
+-	bcopy(auth->hmac, digest, digestlen);
+-	sctp_bzero_m(m, offset + sizeof(*auth), SCTP_SIZE32(digestlen));
++	memcpy(digest, auth->hmac, digestlen);
++	sctp_zero_m(m, offset + sizeof(*auth), SCTP_SIZE32(digestlen));
+ 	(void)sctp_compute_hmac_m(hmac_id, stcb->asoc.authinfo.recv_key,
+ 	    m, offset, computed_digest);
+ 
+diff --git a/sys/netinet/sctp_output.c b/sys/netinet/sctp_output.c
+index 170ffcc313f..1cfcde89851 100644
+--- a/sys/netinet/sctp_output.c
++++ b/sys/netinet/sctp_output.c
+@@ -4404,7 +4404,7 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
+ 			 * we can try their selection but it may not be
+ 			 * bound.
+ 			 */
+-			bzero(&lsa6_tmp, sizeof(lsa6_tmp));
++			memset(&lsa6_tmp, 0, sizeof(lsa6_tmp));
+ 			lsa6_tmp.sin6_family = AF_INET6;
+ 			lsa6_tmp.sin6_len = sizeof(lsa6_tmp);
+ 			lsa6 = &lsa6_tmp;
+@@ -4489,7 +4489,7 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
+ 			 * XXX: sa6 may not have a valid sin6_scope_id in
+ 			 * the non-SCOPEDROUTING case.
+ 			 */
+-			bzero(&lsa6_storage, sizeof(lsa6_storage));
++			memset(&lsa6_storage, 0, sizeof(lsa6_storage));
+ 			lsa6_storage.sin6_family = AF_INET6;
+ 			lsa6_storage.sin6_len = sizeof(lsa6_storage);
+ 			lsa6_storage.sin6_addr = lsa6->sin6_addr;
+@@ -13730,7 +13730,7 @@ sctp_add_auth_chunk(struct mbuf *m, struct mbuf **m_end,
+ 		SCTP_BUF_RESV_UF(m_auth, SCTP_MIN_OVERHEAD);
+ 	/* fill in the AUTH chunk details */
+ 	auth = mtod(m_auth, struct sctp_auth_chunk *);
+-	bzero(auth, sizeof(*auth));
++	memset(auth, 0, sizeof(*auth));
+ 	auth->ch.chunk_type = SCTP_AUTHENTICATION;
+ 	auth->ch.chunk_flags = 0;
+ 	chunk_len = sizeof(*auth) +
+diff --git a/sys/netinet/sctp_pcb.c b/sys/netinet/sctp_pcb.c
+index 8d63ebe10a5..3dfa59a8f15 100644
+--- a/sys/netinet/sctp_pcb.c
++++ b/sys/netinet/sctp_pcb.c
+@@ -702,7 +702,7 @@ sctp_add_addr_to_vrf(uint32_t vrf_id, void *ifn, uint32_t ifn_index,
+ 			return (NULL);
+ 		}
+ 		SCTP_INCR_LADDR_COUNT();
+-		bzero(wi, sizeof(*wi));
++		memset(wi, 0, sizeof(*wi));
+ 		(void)SCTP_GETTIME_TIMEVAL(&wi->start_time);
+ 		wi->ifa = sctp_ifap;
+ 		wi->action = SCTP_ADD_IP_ADDRESS;
+@@ -811,7 +811,7 @@ sctp_del_addr_from_vrf(uint32_t vrf_id, struct sockaddr *addr,
+ 			return;
+ 		}
+ 		SCTP_INCR_LADDR_COUNT();
+-		bzero(wi, sizeof(*wi));
++		memset(wi, 0, sizeof(*wi));
+ 		(void)SCTP_GETTIME_TIMEVAL(&wi->start_time);
+ 		wi->ifa = sctp_ifap;
+ 		wi->action = SCTP_DEL_IP_ADDRESS;
+@@ -2429,7 +2429,7 @@ sctp_inpcb_alloc(struct socket *so, uint32_t vrf_id)
+ 		return (ENOBUFS);
+ 	}
+ 	/* zap it */
+-	bzero(inp, sizeof(*inp));
++	memset(inp, 0, sizeof(*inp));
+ 
+ 	/* bump generations */
+ 	/* setup socket pointers */
+@@ -2715,7 +2715,7 @@ sctp_move_pcb_and_assoc(struct sctp_inpcb *old_inp, struct sctp_inpcb *new_inp,
+ 				continue;
+ 			}
+ 			SCTP_INCR_LADDR_COUNT();
+-			bzero(laddr, sizeof(*laddr));
++			memset(laddr, 0, sizeof(*laddr));
+ 			(void)SCTP_GETTIME_TIMEVAL(&laddr->start_time);
+ 			laddr->ifa = oladdr->ifa;
+ 			atomic_add_int(&laddr->ifa->refcount, 1);
+@@ -2765,7 +2765,7 @@ sctp_insert_laddr(struct sctpladdr *list, struct sctp_ifa *ifa, uint32_t act)
+ 		return (EINVAL);
+ 	}
+ 	SCTP_INCR_LADDR_COUNT();
+-	bzero(laddr, sizeof(*laddr));
++	memset(laddr, 0, sizeof(*laddr));
+ 	(void)SCTP_GETTIME_TIMEVAL(&laddr->start_time);
+ 	laddr->ifa = ifa;
+ 	laddr->action = act;
+@@ -3766,7 +3766,7 @@ sctp_add_remote_addr(struct sctp_tcb *stcb, struct sockaddr *newaddr,
+ 				/* Invalid address */
+ 				return (-1);
+ 			}
+-			/* zero out the bzero area */
++			/* zero out the zero area */
+ 			memset(&sin->sin_zero, 0, sizeof(sin->sin_zero));
+ 
+ 			/* assure len is set */
+@@ -3849,7 +3849,7 @@ sctp_add_remote_addr(struct sctp_tcb *stcb, struct sockaddr *newaddr,
+ 		return (-1);
+ 	}
+ 	SCTP_INCR_RADDR_COUNT();
+-	bzero(net, sizeof(struct sctp_nets));
++	memset(net, 0, sizeof(struct sctp_nets));
+ 	(void)SCTP_GETTIME_TIMEVAL(&net->start_time);
+ 	memcpy(&net->ro._l_addr, newaddr, newaddr->sa_len);
+ 	switch (newaddr->sa_family) {
+@@ -4285,7 +4285,7 @@ sctp_aloc_assoc(struct sctp_inpcb *inp, struct sockaddr *firstaddr,
+ 	}
+ 	SCTP_INCR_ASOC_COUNT();
+ 
+-	bzero(stcb, sizeof(*stcb));
++	memset(stcb, 0, sizeof(*stcb));
+ 	asoc = &stcb->asoc;
+ 
+ 	asoc->assoc_id = sctp_aloc_a_assoc_id(inp, stcb);
+@@ -5731,7 +5731,7 @@ sctp_pcb_init()
+ 	SCTP_BASE_VAR(sctp_pcb_initialized) = 1;
+ 
+ #if defined(SCTP_LOCAL_TRACE_BUF)
+-	bzero(&SCTP_BASE_SYSCTL(sctp_log), sizeof(struct sctp_log));
++	memset(&SCTP_BASE_SYSCTL(sctp_log), 0, sizeof(struct sctp_log));
+ #endif
+ #if defined(__FreeBSD__) && defined(SMP) && defined(SCTP_USE_PERCPU_STAT)
+ 	SCTP_MALLOC(SCTP_BASE_STATS, struct sctpstat *,
+@@ -5740,11 +5740,11 @@ sctp_pcb_init()
+ #endif
+ 	(void)SCTP_GETTIME_TIMEVAL(&tv);
+ #if defined(__FreeBSD__) && defined(SMP) && defined(SCTP_USE_PERCPU_STAT)
+-	bzero(SCTP_BASE_STATS, (sizeof(struct sctpstat) * (mp_maxid + 1)));
++	memset(SCTP_BASE_STATS, 0, sizeof(struct sctpstat) * (mp_maxid + 1));
+ 	SCTP_BASE_STATS[PCPU_GET(cpuid)].sctps_discontinuitytime.tv_sec = (uint32_t)tv.tv_sec;
+ 	SCTP_BASE_STATS[PCPU_GET(cpuid)].sctps_discontinuitytime.tv_usec = (uint32_t)tv.tv_usec;
+ #else
+-	bzero(&SCTP_BASE_STATS, sizeof(struct sctpstat));
++	memset(&SCTP_BASE_STATS, 0, sizeof(struct sctpstat));
+ 	SCTP_BASE_STAT(sctps_discontinuitytime).tv_sec = (uint32_t)tv.tv_sec;
+ 	SCTP_BASE_STAT(sctps_discontinuitytime).tv_usec = (uint32_t)tv.tv_usec;
+ #endif
+@@ -6656,17 +6656,17 @@ sctp_load_addresses_from_init(struct sctp_tcb *stcb, struct mbuf *m,
+ 		/* copy in the RANDOM */
+ 		if (p_random != NULL) {
+ 			keylen = sizeof(*p_random) + random_len;
+-			bcopy(p_random, new_key->key, keylen);
++			memcpy(new_key->key, p_random, keylen);
+ 		}
+ 		/* append in the AUTH chunks */
+ 		if (chunks != NULL) {
+-			bcopy(chunks, new_key->key + keylen,
++			memcpy(new_key->key + keylen, chunks,
+ 			    sizeof(*chunks) + num_chunks);
+ 			keylen += sizeof(*chunks) + num_chunks;
+ 		}
+ 		/* append in the HMACs */
+ 		if (hmacs != NULL) {
+-			bcopy(hmacs, new_key->key + keylen,
++			memcpy(new_key->key + keylen, hmacs,
+ 			    sizeof(*hmacs) + hmacs_len);
+ 		}
+ 	} else {
+diff --git a/sys/netinet/sctp_usrreq.c b/sys/netinet/sctp_usrreq.c
+index 75d817559bc..10039e0a75c 100644
+--- a/sys/netinet/sctp_usrreq.c
++++ b/sys/netinet/sctp_usrreq.c
+@@ -85,7 +85,7 @@ sctp_init(void)
+ #if defined(SCTP_PACKET_LOGGING)
+ 	SCTP_BASE_VAR(packet_log_writers) = 0;
+ 	SCTP_BASE_VAR(packet_log_end) = 0;
+-	bzero(&SCTP_BASE_VAR(packet_log_buffer), SCTP_PACKET_LOG_SIZE);
++	memset(&SCTP_BASE_VAR(packet_log_buffer), 0, SCTP_PACKET_LOG_SIZE);
+ #endif
+ }
+ 
+diff --git a/sys/netinet/sctputil.c b/sys/netinet/sctputil.c
+index fa3d7d10ea9..b6da36babdf 100644
+--- a/sys/netinet/sctputil.c
++++ b/sys/netinet/sctputil.c
+@@ -2593,7 +2593,7 @@ sctp_m_getptr(struct mbuf *m, int off, int len, uint8_t *in_ptr)
+ 		/* else, it spans more than one mbuf, so save a temp copy... */
+ 		while ((m != NULL) && (len > 0)) {
+ 			count = min(SCTP_BUF_LEN(m) - off, len);
+-			bcopy(mtod(m, caddr_t)+off, ptr, count);
++			memcpy(ptr, mtod(m, caddr_t)+off, count);
+ 			len -= count;
+ 			ptr += count;
+ 			off = 0;
+@@ -6166,7 +6166,7 @@ sctp_dynamic_set_primary(struct sockaddr *sa, uint32_t vrf_id)
+ 	}
+ 	/* Now incr the count and int wi structure */
+ 	SCTP_INCR_LADDR_COUNT();
+-	bzero(wi, sizeof(*wi));
++	memset(wi, 0, sizeof(*wi));
+ 	(void)SCTP_GETTIME_TIMEVAL(&wi->start_time);
+ 	wi->ifa = ifa;
+ 	wi->action = SCTP_SET_PRIM_ADDR;
+diff --git a/sys/netinet6/sctp6_usrreq.c b/sys/netinet6/sctp6_usrreq.c
+index 054b4c1b06a..4e5a64710d9 100644
+--- a/sys/netinet6/sctp6_usrreq.c
++++ b/sys/netinet6/sctp6_usrreq.c
+@@ -305,7 +305,7 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
+ 			return;
+ 		}
+ 		/* Copy out the port numbers and the verification tag. */
+-		bzero(&sh, sizeof(sh));
++		memset(&sh, 0, sizeof(sh));
+ 		m_copydata(ip6cp->ip6c_m,
+ 		    ip6cp->ip6c_off,
+ 		    sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint32_t),

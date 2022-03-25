@@ -1,0 +1,88 @@
+From cb08fd74ad9c1449e4f14cefcdeed88caeaa4b04 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 4 Jul 2019 09:20:09 +0800
+Subject: [Patch v2 05/10] iio: using dev_get_drvdata directly
+
+Several drivers cast a struct device pointer to a struct
+platform_device pointer only to then call platform_get_drvdata().
+To improve readability, these constructs can be simplified
+by using dev_get_drvdata() directly.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Make the commit message more clearly.
+
+ drivers/iio/adc/at91-sama5d2_adc.c | 12 ++++--------
+ drivers/iio/adc/at91_adc.c         |  4 ++--
+ 2 files changed, 6 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/iio/adc/at91-sama5d2_adc.c b/drivers/iio/adc/at91-sama5d2_adc.c
+index d384cf0250ff..a2837a0e7cba 100644
+--- a/drivers/iio/adc/at91-sama5d2_adc.c
++++ b/drivers/iio/adc/at91-sama5d2_adc.c
+@@ -1578,8 +1578,7 @@ static void at91_adc_hw_init(struct at91_adc_state *st)
+ static ssize_t at91_adc_get_fifo_state(struct device *dev,
+ 				       struct device_attribute *attr, char *buf)
+ {
+-	struct iio_dev *indio_dev =
+-			platform_get_drvdata(to_platform_device(dev));
++	struct iio_dev *indio_dev = dev_get_drvdata(dev);
+ 	struct at91_adc_state *st = iio_priv(indio_dev);
+ 
+ 	return scnprintf(buf, PAGE_SIZE, "%d\n", !!st->dma_st.dma_chan);
+@@ -1588,8 +1587,7 @@ static ssize_t at91_adc_get_fifo_state(struct device *dev,
+ static ssize_t at91_adc_get_watermark(struct device *dev,
+ 				      struct device_attribute *attr, char *buf)
+ {
+-	struct iio_dev *indio_dev =
+-			platform_get_drvdata(to_platform_device(dev));
++	struct iio_dev *indio_dev = dev_get_drvdata(dev);
+ 	struct at91_adc_state *st = iio_priv(indio_dev);
+ 
+ 	return scnprintf(buf, PAGE_SIZE, "%d\n", st->dma_st.watermark);
+@@ -1841,8 +1839,7 @@ static int at91_adc_remove(struct platform_device *pdev)
+ 
+ static __maybe_unused int at91_adc_suspend(struct device *dev)
+ {
+-	struct iio_dev *indio_dev =
+-			platform_get_drvdata(to_platform_device(dev));
++	struct iio_dev *indio_dev = dev_get_drvdata(dev);
+ 	struct at91_adc_state *st = iio_priv(indio_dev);
+ 
+ 	/*
+@@ -1862,8 +1859,7 @@ static __maybe_unused int at91_adc_suspend(struct device *dev)
+ 
+ static __maybe_unused int at91_adc_resume(struct device *dev)
+ {
+-	struct iio_dev *indio_dev =
+-			platform_get_drvdata(to_platform_device(dev));
++	struct iio_dev *indio_dev = dev_get_drvdata(dev);
+ 	struct at91_adc_state *st = iio_priv(indio_dev);
+ 	int ret;
+ 
+diff --git a/drivers/iio/adc/at91_adc.c b/drivers/iio/adc/at91_adc.c
+index d23709ed9049..32f1c4a33b20 100644
+--- a/drivers/iio/adc/at91_adc.c
++++ b/drivers/iio/adc/at91_adc.c
+@@ -1359,7 +1359,7 @@ static int at91_adc_remove(struct platform_device *pdev)
+ #ifdef CONFIG_PM_SLEEP
+ static int at91_adc_suspend(struct device *dev)
+ {
+-	struct iio_dev *idev = platform_get_drvdata(to_platform_device(dev));
++	struct iio_dev *idev = dev_get_drvdata(dev);
+ 	struct at91_adc_state *st = iio_priv(idev);
+ 
+ 	pinctrl_pm_select_sleep_state(dev);
+@@ -1370,7 +1370,7 @@ static int at91_adc_suspend(struct device *dev)
+ 
+ static int at91_adc_resume(struct device *dev)
+ {
+-	struct iio_dev *idev = platform_get_drvdata(to_platform_device(dev));
++	struct iio_dev *idev = dev_get_drvdata(dev);
+ 	struct at91_adc_state *st = iio_priv(idev);
+ 
+ 	clk_prepare_enable(st->clk);
+-- 
+2.11.0
+

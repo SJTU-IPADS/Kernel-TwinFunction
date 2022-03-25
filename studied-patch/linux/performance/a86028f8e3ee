@@ -1,0 +1,30 @@
+commit a86028f8e3eea59517cb47895faad04b6ae8d8e1
+Author: Colin Ian King <colin.king@canonical.com>
+Date:   Tue Dec 18 11:35:52 2018 +0000
+
+    staging: most: sound: replace snprintf with strscpy
+    
+    Using snprintf without a format specifier is potentially risky if
+    the string device_name contains format specifiers. Replace this with
+    the safer and more efficient strscpy.
+    
+    Cleans up clang warning:
+    drivers/staging/most/sound/sound.c:673:41: warning: format string is not
+    a string literal (potentially insecure) [-Wformat-security]
+    
+    Signed-off-by: Colin Ian King <colin.king@canonical.com>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/staging/most/sound/sound.c b/drivers/staging/most/sound/sound.c
+index 29a4c72e6357..79ab3a78c5ec 100644
+--- a/drivers/staging/most/sound/sound.c
++++ b/drivers/staging/most/sound/sound.c
+@@ -670,7 +670,7 @@ static int audio_probe_channel(struct most_interface *iface, int channel_id,
+ 		goto err_free_adpt;
+ 
+ 	pcm->private_data = channel;
+-	snprintf(pcm->name, sizeof(pcm->name), device_name);
++	strscpy(pcm->name, device_name, sizeof(pcm->name));
+ 	snd_pcm_set_ops(pcm, direction, &pcm_ops);
+ 
+ 	if (create) {

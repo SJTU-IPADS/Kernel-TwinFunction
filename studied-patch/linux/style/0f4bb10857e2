@@ -1,0 +1,32 @@
+commit 0f4bb10857e22a657e6c8cca5d1d54b641e94628
+Author: Wen Yang <wen.yang99@zte.com.cn>
+Date:   Thu Dec 6 07:29:10 2018 -0500
+
+    media: siano: Use kmemdup instead of duplicating its function
+    
+    kmemdup has implemented the function that kmalloc() + memcpy().
+    We prefer to kmemdup rather than code opened implementation.
+    
+    This issue was detected with the help of coccinelle.
+    
+    Signed-off-by: Wen Yang <wen.yang99@zte.com.cn>
+    CC: Tomoki Sekiyama <tomoki.sekiyama@gmail.com>
+    CC: linux-kernel@vger.kernel.org
+    Signed-off-by: Mauro Carvalho Chehab <mchehab+samsung@kernel.org>
+
+diff --git a/drivers/media/usb/siano/smsusb.c b/drivers/media/usb/siano/smsusb.c
+index be3634407f1f..2ffded08407b 100644
+--- a/drivers/media/usb/siano/smsusb.c
++++ b/drivers/media/usb/siano/smsusb.c
+@@ -225,10 +225,9 @@ static int smsusb_sendrequest(void *context, void *buffer, size_t size)
+ 		return -ENOENT;
+ 	}
+ 
+-	phdr = kmalloc(size, GFP_KERNEL);
++	phdr = kmemdup(buffer, size, GFP_KERNEL);
+ 	if (!phdr)
+ 		return -ENOMEM;
+-	memcpy(phdr, buffer, size);
+ 
+ 	pr_debug("sending %s(%d) size: %d\n",
+ 		  smscore_translate_msg(phdr->msg_type), phdr->msg_type,

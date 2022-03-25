@@ -1,0 +1,29 @@
+commit a0076e1778c23de4a42d90fee4ecb4c21dbb5838
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Mon Nov 5 16:57:40 2018 -0800
+
+    crypto/pcrypt: Replace synchronize_rcu_bh() with synchronize_rcu()
+    
+    Now that synchronize_rcu() waits for bh-disable regions of code as
+    well as RCU read-side critical sections, the synchronize_rcu_bh() in
+    pcrypt_cpumask_change_notify() can be replaced by synchronize_rcu().
+    This commit therefore makes this change.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: Steffen Klassert <steffen.klassert@secunet.com>
+    Cc: <linux-crypto@vger.kernel.org>
+    Acked-by: Herbert Xu <herbert@gondor.apana.org.au>
+
+diff --git a/crypto/pcrypt.c b/crypto/pcrypt.c
+index f8ec3d4ba4a8..8eb3c4c9ff67 100644
+--- a/crypto/pcrypt.c
++++ b/crypto/pcrypt.c
+@@ -382,7 +382,7 @@ static int pcrypt_cpumask_change_notify(struct notifier_block *self,
+ 
+ 	cpumask_copy(new_mask->mask, cpumask->cbcpu);
+ 	rcu_assign_pointer(pcrypt->cb_cpumask, new_mask);
+-	synchronize_rcu_bh();
++	synchronize_rcu();
+ 
+ 	free_cpumask_var(old_mask->mask);
+ 	kfree(old_mask);

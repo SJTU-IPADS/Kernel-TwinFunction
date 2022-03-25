@@ -1,0 +1,39 @@
+From 307ffdceb9a8b3d6d0ce5d368e9ffaf78579e3e5 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 18:04:22 +0800
+Subject: [PATCH] drm/bochs: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/gpu/drm/bochs/bochs_drv.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/bochs/bochs_drv.c b/drivers/gpu/drm/bochs/bochs_drv.c
+index 8f3a5bda9d03..d8a50200408c 100644
+--- a/drivers/gpu/drm/bochs/bochs_drv.c
++++ b/drivers/gpu/drm/bochs/bochs_drv.c
+@@ -83,16 +83,14 @@ static struct drm_driver bochs_driver = {
+ #ifdef CONFIG_PM_SLEEP
+ static int bochs_pm_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
+ 
+ 	return drm_mode_config_helper_suspend(drm_dev);
+ }
+ 
+ static int bochs_pm_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
+ 
+ 	return drm_mode_config_helper_resume(drm_dev);
+ }
+-- 
+2.20.1
+

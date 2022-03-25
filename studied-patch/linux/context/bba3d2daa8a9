@@ -1,0 +1,57 @@
+commit bba3d2daa8a9bc888902275401f15ef48fcdd378
+Author: Alexandre Belloni <alexandre.belloni@bootlin.com>
+Date:   Mon Dec 31 00:49:36 2018 +0100
+
+    rtc: nvmem: fix possible use after free
+    
+    In cas of probe failure, devres may free the memory allocated for
+    rtc->nvram before devm_rtc_release_device() is called. This leads to
+    rtc_nvram_unregister using it after being freed which may lead to a crash.
+    
+    This has been shown to happen after commit 461e557b9727 ("rtc: nvmem: use
+    devm_nvmem_register()")
+    
+    Reported-by: kernel test robot <lkp@intel.com>
+    Signed-off-by: Alexandre Belloni <alexandre.belloni@bootlin.com>
+
+diff --git a/drivers/rtc/nvmem.c b/drivers/rtc/nvmem.c
+index ebdfe8e3a1a0..dce518d5e50e 100644
+--- a/drivers/rtc/nvmem.c
++++ b/drivers/rtc/nvmem.c
+@@ -12,6 +12,7 @@
+ #include <linux/types.h>
+ #include <linux/nvmem-consumer.h>
+ #include <linux/rtc.h>
++#include <linux/slab.h>
+ #include <linux/sysfs.h>
+ 
+ /*
+@@ -45,9 +46,7 @@ static int rtc_nvram_register(struct rtc_device *rtc,
+ {
+ 	int err;
+ 
+-	rtc->nvram = devm_kzalloc(rtc->dev.parent,
+-				sizeof(struct bin_attribute),
+-				GFP_KERNEL);
++	rtc->nvram = kzalloc(sizeof(struct bin_attribute), GFP_KERNEL);
+ 	if (!rtc->nvram)
+ 		return -ENOMEM;
+ 
+@@ -64,7 +63,7 @@ static int rtc_nvram_register(struct rtc_device *rtc,
+ 	err = sysfs_create_bin_file(&rtc->dev.parent->kobj,
+ 				    rtc->nvram);
+ 	if (err) {
+-		devm_kfree(rtc->dev.parent, rtc->nvram);
++		kfree(rtc->nvram);
+ 		rtc->nvram = NULL;
+ 	}
+ 
+@@ -74,6 +73,8 @@ static int rtc_nvram_register(struct rtc_device *rtc,
+ static void rtc_nvram_unregister(struct rtc_device *rtc)
+ {
+ 	sysfs_remove_bin_file(&rtc->dev.parent->kobj, rtc->nvram);
++	kfree(rtc->nvram);
++	rtc->nvram = NULL;
+ }
+ 
+ /*

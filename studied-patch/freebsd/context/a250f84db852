@@ -1,0 +1,26 @@
+commit a250f84db852d6a625c0e7a49cf3965a0444c91e
+Author: mav <mav@FreeBSD.org>
+Date:   Thu Feb 1 19:06:42 2018 +0000
+
+    MFC r324634 (by imp):
+    Use nvme_ctrlr_poll instead of nvme_ctrlr_intx_handler since it is
+    more general and doesn't try to access registers that may be undefined
+    when the card is in MSIX mode.
+    
+    This change, along with r324630, r324631, r324632, makes nda crash
+    dumps work again. Previously, they only worked on CPU 0 when the stack
+    garbage was just so.
+
+diff --git a/sys/dev/nvme/nvme_sim.c b/sys/dev/nvme/nvme_sim.c
+index bab877994eb..6d99cded4f7 100644
+--- a/sys/dev/nvme/nvme_sim.c
++++ b/sys/dev/nvme/nvme_sim.c
+@@ -254,7 +254,7 @@ static void
+ nvme_sim_poll(struct cam_sim *sim)
+ {
+ 
+-	nvme_ctrlr_intx_handler(sim2ctrlr(sim));
++	nvme_ctrlr_poll(sim2ctrlr(sim));
+ }
+ 
+ static void *

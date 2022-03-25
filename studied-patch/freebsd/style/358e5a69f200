@@ -1,0 +1,433 @@
+commit 358e5a69f20092a434e85862b3b4abdb0902a90e
+Author: mav <mav@FreeBSD.org>
+Date:   Sun Feb 18 00:20:06 2018 +0000
+
+    MFC r328228: MFV r328227: 8909 8585 can cause a use-after-free kernel panic
+    
+    illumos/illumos-gate@94ddd0900a8838f62bba15e270649a42f4ef9f81
+    
+    https://www.illumos.org/issues/8909:
+    There's a race condition that exists if `zil_free_lwb` races with either
+    `zil_commit_waiter_timeout` and/or `zil_lwb_flush_vdevs_done`.
+    
+    Here's an example panic due to this bug:
+    
+    > ::status
+        debugging crash dump vmcore.0 (64-bit) from ip-10-110-205-40
+        operating system: 5.11 dlpx-5.2.2.0_2017-12-04-17-28-32b6ba51fb (i86pc)
+        image uuid: 4af0edfb-e58e-6ed8-cafc-d3e9167c7513
+        panic message:
+        BAD TRAP: type=e (#pf Page fault) rp=ffffff0010555970 addr=60 occurred in mo
+    dule "zfs" due to a NULL pointer dereference
+        dump content: kernel pages only
+    
+    > $c
+        zio_shrink+0x12()
+        zil_lwb_write_issue+0x30d(ffffff03dcd15cc0, ffffff03e0730e20)
+        zil_commit_waiter_timeout+0xa2(ffffff03dcd15cc0, ffffff03d97ffcf8)
+        zil_commit_waiter+0xf3(ffffff03dcd15cc0, ffffff03d97ffcf8)
+        zil_commit+0x80(ffffff03dcd15cc0, 9a9)
+        zfs_write+0xc34(ffffff03dc38b140, ffffff0010555e60, 40, ffffff03e00fb758, 0)
+        fop_write+0x5b(ffffff03dc38b140, ffffff0010555e60, 40, ffffff03e00fb758, 0)
+        write+0x250(42, fffffd7ff4832000, 2000)
+        sys_syscall+0x177()
+    
+    If there's an outstanding lwb that's in `zil_commit_waiter_timeout`
+    waiting to timeout, waiting on it's waiter's CV, we must be sure not to
+    call `zil_free_lwb`. If we end up calling `zil_free_lwb`, then that LWB
+    may be freed and can result in a use-after-free situation where the
+    stale lwb pointer stored in the `zil_commit_waiter_t` structure of the
+    thread waiting on the waiter's CV is used.
+    
+    A similar situation can occur if an lwb is issued to disk, and thus in
+    the `LWB_STATE_ISSUED` state, and `zil_free_lwb` is called while the
+    disk is servicing that lwb. In this situation, the lwb will be freed by
+    `zil_free_lwb`, which will result in a use-after-free situation when the
+    lwb's zio completes, and `zil_lwb_flush_vdevs_done` is called.
+    
+    This race condition is prevented in `zil_close` by calling `zil_commit`
+    before `zil_free_lwb` is called, which will ensure all outstanding (i.e.
+    all lwb's in the `LWB_STATE_OPEN` and/or `LWB_STATE_ISSUED` states)
+    reach the `LWB_STATE_DONE` state before the lwb's are freed
+    (`zil_commit` will not return untill all the lwb's are
+    `LWB_STATE_DONE`).
+    
+    Further, this race condition is prevented in `zil_sync` by only calling
+    `zil_free_lwb` for lwb's that do not have their `lwb_buf` pointer set.
+    All lwb's not in the `LWB_STATE_DONE` state will have a non-null value
+    for this pointer; the pointer is only cleared in
+    `zil_lwb_flush_vdevs_done`, at which point the lwb's state will be
+    changed to `LWB_STATE_DONE`.
+    
+    This race is present in `zil_suspend`, leading to this bug.
+    
+    At first glance, it would appear as though this would not be true
+    because `zil_suspend` will call `zil_commit`, just like `zil_close`, but
+    the problem is that `zil_suspend` will set the zilog's `zl_suspend`
+    field prior to calling `zil_commit`. Further, in `zil_commit`, if
+    `zl_suspend` is set, `zil_commit` will take a special branch of logic
+    and use `txg_wait_synced` instead of performing the normal `zil_commit`
+    logic.
+    
+    This call to `txg_wait_synced` might be good enough for the data to
+    reach disk safely before it returns, but it does not ensure that all
+    outstanding lwb's reach the `LWB_STATE_DONE` state before it returns.
+    This is because, if there's an lwb "stuck" in
+    `zil_commit_waiter_timeout`, waiting for it's lwb to timeout, it will
+    maintain a non-null value for it's `lwb_buf` field and thus `zil_sync`
+    will not free that lwb. Thus, even though the lwb's data is already on
+    disk, the lwb will be left lingering, waiting on the CV, and will
+    eventually timeout and be issued to disk even though the write is
+    unnesseary.
+    
+    So, after `zil_commit` is called from `zil_suspend`, we incorrectly
+    assume that there are not outstanding lwb's, and proceed to free all
+    lwb's found on the zilog's lwb list. As a result, we free the lwb that
+    will later be used `zil_commit_waiter_timeout`.
+    
+    Reviewed by: John Kennedy <jwk404@gmail.com>
+    Reviewed by: Matthew Ahrens <mahrens@delphix.com>
+    Reviewed by: George Wilson <george.wilson@delphix.com>
+    Reviewed by: Brad Lewis <brad.lewis@delphix.com>
+    Reviewed by: Igor Kozhukhov <igor@dilos.org>
+    Approved by: Robert Mustacchi <rm@joyent.com>
+    Author: Prakash Surya <prakash.surya@delphix.com>
+
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil.h b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil.h
+index a88b96e7b5a..07a23d41ea3 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil.h
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil.h
+@@ -418,6 +418,7 @@ extern void	zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
+ 
+ extern void	zil_async_to_sync(zilog_t *zilog, uint64_t oid);
+ extern void	zil_commit(zilog_t *zilog, uint64_t oid);
++extern void	zil_commit_impl(zilog_t *zilog, uint64_t oid);
+ 
+ extern int	zil_vdev_offline(const char *osname, void *txarg);
+ extern int	zil_claim(struct dsl_pool *dp,
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil_impl.h b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil_impl.h
+index 8702ce82091..1825ced5666 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil_impl.h
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil_impl.h
+@@ -37,13 +37,38 @@ extern "C" {
+ #endif
+ 
+ /*
+- * Possbile states for a given lwb structure. An lwb will start out in
+- * the "closed" state, and then transition to the "opened" state via a
+- * call to zil_lwb_write_open(). After the lwb is "open", it can
+- * transition into the "issued" state via zil_lwb_write_issue(). After
+- * the lwb's zio completes, and the vdev's are flushed, the lwb will
+- * transition into the "done" state via zil_lwb_write_done(), and the
+- * structure eventually freed.
++ * Possbile states for a given lwb structure.
++ *
++ * An lwb will start out in the "closed" state, and then transition to
++ * the "opened" state via a call to zil_lwb_write_open(). When
++ * transitioning from "closed" to "opened" the zilog's "zl_issuer_lock"
++ * must be held.
++ *
++ * After the lwb is "opened", it can transition into the "issued" state
++ * via zil_lwb_write_issue(). Again, the zilog's "zl_issuer_lock" must
++ * be held when making this transition.
++ *
++ * After the lwb's zio completes, and the vdev's are flushed, the lwb
++ * will transition into the "done" state via zil_lwb_write_done(). When
++ * transitioning from "issued" to "done", the zilog's "zl_lock" must be
++ * held, *not* the "zl_issuer_lock".
++ *
++ * The zilog's "zl_issuer_lock" can become heavily contended in certain
++ * workloads, so we specifically avoid acquiring that lock when
++ * transitioning an lwb from "issued" to "done". This allows us to avoid
++ * having to acquire the "zl_issuer_lock" for each lwb ZIO completion,
++ * which would have added more lock contention on an already heavily
++ * contended lock.
++ *
++ * Additionally, correctness when reading an lwb's state is often
++ * acheived by exploiting the fact that these state transitions occur in
++ * this specific order; i.e. "closed" to "opened" to "issued" to "done".
++ *
++ * Thus, if an lwb is in the "closed" or "opened" state, holding the
++ * "zl_issuer_lock" will prevent a concurrent thread from transitioning
++ * that lwb to the "issued" state. Likewise, if an lwb is already in the
++ * "issued" state, holding the "zl_lock" will prevent a concurrent
++ * thread from transitioning that lwb to the "done" state.
+  */
+ typedef enum {
+     LWB_STATE_CLOSED,
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zio.h b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zio.h
+index 55265584be0..c11ed9883df 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zio.h
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zio.h
+@@ -592,7 +592,6 @@ extern enum zio_checksum zio_checksum_dedup_select(spa_t *spa,
+ extern enum zio_compress zio_compress_select(spa_t *spa,
+     enum zio_compress child, enum zio_compress parent);
+ 
+-extern void zio_cancel(zio_t *zio);
+ extern void zio_suspend(spa_t *spa, zio_t *zio);
+ extern int zio_resume(spa_t *spa);
+ extern void zio_resume_wait(spa_t *spa);
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zil.c b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zil.c
+index 81fb411cec2..66741116ced 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zil.c
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zil.c
+@@ -511,7 +511,7 @@ zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, boolean_t slog, uint64_t txg)
+ 
+ 	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
+ 	ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
+-	ASSERT(list_is_empty(&lwb->lwb_waiters));
++	VERIFY(list_is_empty(&lwb->lwb_waiters));
+ 
+ 	return (lwb);
+ }
+@@ -521,31 +521,13 @@ zil_free_lwb(zilog_t *zilog, lwb_t *lwb)
+ {
+ 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
+ 	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
+-	ASSERT(list_is_empty(&lwb->lwb_waiters));
+-
+-	if (lwb->lwb_state == LWB_STATE_OPENED) {
+-		avl_tree_t *t = &lwb->lwb_vdev_tree;
+-		void *cookie = NULL;
+-		zil_vdev_node_t *zv;
+-
+-		while ((zv = avl_destroy_nodes(t, &cookie)) != NULL)
+-			kmem_free(zv, sizeof (*zv));
+-
+-		ASSERT3P(lwb->lwb_root_zio, !=, NULL);
+-		ASSERT3P(lwb->lwb_write_zio, !=, NULL);
+-
+-		zio_cancel(lwb->lwb_root_zio);
+-		zio_cancel(lwb->lwb_write_zio);
+-
+-		lwb->lwb_root_zio = NULL;
+-		lwb->lwb_write_zio = NULL;
+-	} else {
+-		ASSERT3S(lwb->lwb_state, !=, LWB_STATE_ISSUED);
+-	}
+-
++	VERIFY(list_is_empty(&lwb->lwb_waiters));
+ 	ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
+ 	ASSERT3P(lwb->lwb_write_zio, ==, NULL);
+ 	ASSERT3P(lwb->lwb_root_zio, ==, NULL);
++	ASSERT3U(lwb->lwb_max_txg, <=, spa_syncing_txg(zilog->zl_spa));
++	ASSERT(lwb->lwb_state == LWB_STATE_CLOSED ||
++	    lwb->lwb_state == LWB_STATE_DONE);
+ 
+ 	/*
+ 	 * Clear the zilog's field to indicate this lwb is no longer
+@@ -892,6 +874,12 @@ zil_commit_waiter_skip(zil_commit_waiter_t *zcw)
+ static void
+ zil_commit_waiter_link_lwb(zil_commit_waiter_t *zcw, lwb_t *lwb)
+ {
++	/*
++	 * The lwb_waiters field of the lwb is protected by the zilog's
++	 * zl_lock, thus it must be held when calling this function.
++	 */
++	ASSERT(MUTEX_HELD(&lwb->lwb_zilog->zl_lock));
++
+ 	mutex_enter(&zcw->zcw_lock);
+ 	ASSERT(!list_link_active(&zcw->zcw_node));
+ 	ASSERT3P(zcw->zcw_lwb, ==, NULL);
+@@ -1357,8 +1345,10 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
+ 	 * For more details, see the comment above zil_commit().
+ 	 */
+ 	if (lrc->lrc_txtype == TX_COMMIT) {
++		mutex_enter(&zilog->zl_lock);
+ 		zil_commit_waiter_link_lwb(itx->itx_private, lwb);
+ 		itx->itx_private = NULL;
++		mutex_exit(&zilog->zl_lock);
+ 		return (lwb);
+ 	}
+ 
+@@ -1966,16 +1956,54 @@ zil_process_commit_list(zilog_t *zilog)
+ 			    zilog_t *, zilog, itx_t *, itx);
+ 		}
+ 
+-		/*
+-		 * This is inherently racy and may result in us writing
+-		 * out a log block for a txg that was just synced. This
+-		 * is ok since we'll end cleaning up that log block the
+-		 * next time we call zil_sync().
+-		 */
+ 		boolean_t synced = txg <= spa_last_synced_txg(spa);
+ 		boolean_t frozen = txg > spa_freeze_txg(spa);
+ 
+-		if (!synced || frozen) {
++		/*
++		 * If the txg of this itx has already been synced out, then
++		 * we don't need to commit this itx to an lwb. This is
++		 * because the data of this itx will have already been
++		 * written to the main pool. This is inherently racy, and
++		 * it's still ok to commit an itx whose txg has already
++		 * been synced; this will result in a write that's
++		 * unnecessary, but will do no harm.
++		 *
++		 * With that said, we always want to commit TX_COMMIT itxs
++		 * to an lwb, regardless of whether or not that itx's txg
++		 * has been synced out. We do this to ensure any OPENED lwb
++		 * will always have at least one zil_commit_waiter_t linked
++		 * to the lwb.
++		 *
++		 * As a counter-example, if we skipped TX_COMMIT itx's
++		 * whose txg had already been synced, the following
++		 * situation could occur if we happened to be racing with
++		 * spa_sync:
++		 *
++		 * 1. we commit a non-TX_COMMIT itx to an lwb, where the
++		 *    itx's txg is 10 and the last synced txg is 9.
++		 * 2. spa_sync finishes syncing out txg 10.
++		 * 3. we move to the next itx in the list, it's a TX_COMMIT
++		 *    whose txg is 10, so we skip it rather than committing
++		 *    it to the lwb used in (1).
++		 *
++		 * If the itx that is skipped in (3) is the last TX_COMMIT
++		 * itx in the commit list, than it's possible for the lwb
++		 * used in (1) to remain in the OPENED state indefinitely.
++		 *
++		 * To prevent the above scenario from occuring, ensuring
++		 * that once an lwb is OPENED it will transition to ISSUED
++		 * and eventually DONE, we always commit TX_COMMIT itx's to
++		 * an lwb here, even if that itx's txg has already been
++		 * synced.
++		 *
++		 * Finally, if the pool is frozen, we _always_ commit the
++		 * itx.  The point of freezing the pool is to prevent data
++		 * from being written to the main pool via spa_sync, and
++		 * instead rely solely on the ZIL to persistently store the
++		 * data; i.e.  when the pool is frozen, the last synced txg
++		 * value can't be trusted.
++		 */
++		if (frozen || !synced || lrc->lrc_txtype == TX_COMMIT) {
+ 			if (lwb != NULL) {
+ 				lwb = zil_lwb_commit(zilog, itx, lwb);
+ 			} else if (lrc->lrc_txtype == TX_COMMIT) {
+@@ -1983,22 +2011,6 @@ zil_process_commit_list(zilog_t *zilog)
+ 				zil_commit_waiter_link_nolwb(
+ 				    itx->itx_private, &nolwb_waiters);
+ 			}
+-		} else if (lrc->lrc_txtype == TX_COMMIT) {
+-			ASSERT3B(synced, ==, B_TRUE);
+-			ASSERT3B(frozen, ==, B_FALSE);
+-
+-			/*
+-			 * If this is a commit itx, then there will be a
+-			 * thread that is either: already waiting for
+-			 * it, or soon will be waiting.
+-			 *
+-			 * This itx has already been committed to disk
+-			 * via spa_sync() so we don't bother committing
+-			 * it to an lwb. As a result, we cannot use the
+-			 * lwb zio callback to signal the waiter and
+-			 * mark it as done, so we must do that here.
+-			 */
+-			zil_commit_waiter_skip(itx->itx_private);
+ 		}
+ 
+ 		list_remove(&zilog->zl_itx_commit_list, itx);
+@@ -2100,7 +2112,6 @@ zil_commit_writer(zilog_t *zilog, zil_commit_waiter_t *zcw)
+ {
+ 	ASSERT(!MUTEX_HELD(&zilog->zl_lock));
+ 	ASSERT(spa_writeable(zilog->zl_spa));
+-	ASSERT0(zilog->zl_suspend);
+ 
+ 	mutex_enter(&zilog->zl_issuer_lock);
+ 
+@@ -2179,10 +2190,24 @@ zil_commit_waiter_timeout(zilog_t *zilog, zil_commit_waiter_t *zcw)
+ 	ASSERT3P(lwb, ==, zcw->zcw_lwb);
+ 
+ 	/*
+-	 * We've already checked this above, but since we hadn't
+-	 * acquired the zilog's zl_issuer_lock, we have to perform this
+-	 * check a second time while holding the lock. We can't call
++	 * We've already checked this above, but since we hadn't acquired
++	 * the zilog's zl_issuer_lock, we have to perform this check a
++	 * second time while holding the lock.
++	 *
++	 * We don't need to hold the zl_lock since the lwb cannot transition
++	 * from OPENED to ISSUED while we hold the zl_issuer_lock. The lwb
++	 * _can_ transition from ISSUED to DONE, but it's OK to race with
++	 * that transition since we treat the lwb the same, whether it's in
++	 * the ISSUED or DONE states.
++	 *
++	 * The important thing, is we treat the lwb differently depending on
++	 * if it's ISSUED or OPENED, and block any other threads that might
++	 * attempt to issue this lwb. For that reason we hold the
++	 * zl_issuer_lock when checking the lwb_state; we must not call
+ 	 * zil_lwb_write_issue() if the lwb had already been issued.
++	 *
++	 * See the comment above the lwb_state_t structure definition for
++	 * more details on the lwb states, and locking requirements.
+ 	 */
+ 	if (lwb->lwb_state == LWB_STATE_ISSUED ||
+ 	    lwb->lwb_state == LWB_STATE_DONE)
+@@ -2272,7 +2297,6 @@ zil_commit_waiter(zilog_t *zilog, zil_commit_waiter_t *zcw)
+ 	ASSERT(!MUTEX_HELD(&zilog->zl_lock));
+ 	ASSERT(!MUTEX_HELD(&zilog->zl_issuer_lock));
+ 	ASSERT(spa_writeable(zilog->zl_spa));
+-	ASSERT0(zilog->zl_suspend);
+ 
+ 	mutex_enter(&zcw->zcw_lock);
+ 
+@@ -2589,6 +2613,12 @@ zil_commit(zilog_t *zilog, uint64_t foid)
+ 		return;
+ 	}
+ 
++	zil_commit_impl(zilog, foid);
++}
++
++void
++zil_commit_impl(zilog_t *zilog, uint64_t foid)
++{
+ 	/*
+ 	 * Move the "async" itxs for the specified foid to the "sync"
+ 	 * queues, such that they will be later committed (or skipped)
+@@ -3001,7 +3031,22 @@ zil_suspend(const char *osname, void **cookiep)
+ 	zilog->zl_suspending = B_TRUE;
+ 	mutex_exit(&zilog->zl_lock);
+ 
+-	zil_commit(zilog, 0);
++	/*
++	 * We need to use zil_commit_impl to ensure we wait for all
++	 * LWB_STATE_OPENED and LWB_STATE_ISSUED lwb's to be committed
++	 * to disk before proceeding. If we used zil_commit instead, it
++	 * would just call txg_wait_synced(), because zl_suspend is set.
++	 * txg_wait_synced() doesn't wait for these lwb's to be
++	 * LWB_STATE_DONE before returning.
++	 */
++	zil_commit_impl(zilog, 0);
++
++	/*
++	 * Now that we've ensured all lwb's are LWB_STATE_DONE, we use
++	 * txg_wait_synced() to ensure the data from the zilog has
++	 * migrated to the main pool before calling zil_destroy().
++	 */
++	txg_wait_synced(zilog->zl_dmu_pool, 0);
+ 
+ 	zil_destroy(zilog, B_FALSE);
+ 
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zio.c b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zio.c
+index afbbae322b2..8bd3219efcf 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zio.c
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zio.c
+@@ -1815,20 +1815,6 @@ zio_reexecute(zio_t *pio)
+ }
+ 
+ void
+-zio_cancel(zio_t *zio)
+-{
+-	/*
+-	 * Disallow cancellation of a zio that's already been issued.
+-	 */
+-	VERIFY3P(zio->io_executor, ==, NULL);
+-
+-	zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+-	zio->io_done = NULL;
+-
+-	zio_nowait(zio);
+-}
+-
+-void
+ zio_suspend(spa_t *spa, zio_t *zio)
+ {
+ 	if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_PANIC)

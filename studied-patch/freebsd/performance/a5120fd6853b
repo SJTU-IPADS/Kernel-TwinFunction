@@ -1,0 +1,29 @@
+commit a5120fd6853bb5c3c5c91d932978b6bc37b8c367
+Author: kib <kib@FreeBSD.org>
+Date:   Thu Jan 4 11:44:58 2018 +0000
+
+    MFC r327316:
+    In vm_swapout_map_deactivate_pages(), it is enough to lock the map for read.
+
+diff --git a/sys/vm/vm_swapout.c b/sys/vm/vm_swapout.c
+index 7a2113203f0..c0c58d6a768 100644
+--- a/sys/vm/vm_swapout.c
++++ b/sys/vm/vm_swapout.c
+@@ -261,7 +261,7 @@ vm_swapout_map_deactivate_pages(vm_map_t map, long desired)
+ 	vm_object_t obj, bigobj;
+ 	int nothingwired;
+ 
+-	if (!vm_map_trylock(map))
++	if (!vm_map_trylock_read(map))
+ 		return;
+ 
+ 	bigobj = NULL;
+@@ -325,7 +325,7 @@ vm_swapout_map_deactivate_pages(vm_map_t map, long desired)
+ 		    vm_map_max(map));
+ 	}
+ 
+-	vm_map_unlock(map);
++	vm_map_unlock_read(map);
+ }
+ 
+ /*

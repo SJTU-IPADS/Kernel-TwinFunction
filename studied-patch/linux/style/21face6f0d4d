@@ -1,0 +1,39 @@
+commit 21face6f0d4d033d949d5517f307a15f76a9d9f2
+Author: Gustavo A. R. Silva <gustavo@embeddedor.com>
+Date:   Fri Jan 4 23:55:27 2019 -0600
+
+    ARM: integrator: impd1: use struct_size() in devm_kzalloc()
+    
+    One of the more common cases of allocation size calculations is finding
+    the size of a structure that has a zero-sized array at the end, along
+    with memory for some number of elements for that array. For example:
+    
+    struct foo {
+        int stuff;
+        void *entry[];
+    };
+    
+    instance = devm_kzalloc(dev, sizeof(struct foo) + sizeof(void *) * count, GFP_KERNEL);
+    
+    Instead of leaving these open-coded and prone to type mistakes, we can
+    now use the new struct_size() helper:
+    
+    instance = devm_kzalloc(dev, struct_size(instance, entry, count), GFP_KERNEL);
+    
+    This code was detected with the help of Coccinelle.
+    
+    Signed-off-by: Gustavo A. R. Silva <gustavo@embeddedor.com>
+
+diff --git a/arch/arm/mach-integrator/impd1.c b/arch/arm/mach-integrator/impd1.c
+index 0f916c245a2e..8dfad012dfae 100644
+--- a/arch/arm/mach-integrator/impd1.c
++++ b/arch/arm/mach-integrator/impd1.c
+@@ -390,7 +390,7 @@ static int __ref impd1_probe(struct lm_device *dev)
+ 			char *mmciname;
+ 
+ 			lookup = devm_kzalloc(&dev->dev,
+-					      sizeof(*lookup) + 3 * sizeof(struct gpiod_lookup),
++					      struct_size(lookup, table, 3),
+ 					      GFP_KERNEL);
+ 			chipname = devm_kstrdup(&dev->dev, devname, GFP_KERNEL);
+ 			mmciname = devm_kasprintf(&dev->dev, GFP_KERNEL,

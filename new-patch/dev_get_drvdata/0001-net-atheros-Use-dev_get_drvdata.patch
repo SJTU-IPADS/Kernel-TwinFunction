@@ -1,0 +1,108 @@
+From 6a2b68ec56805d7016530335074d683a5b443c12 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 21:07:33 +0800
+Subject: [PATCH] net: atheros: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/net/ethernet/atheros/alx/main.c         | 6 ++----
+ drivers/net/ethernet/atheros/atl1c/atl1c_main.c | 8 +++-----
+ drivers/net/ethernet/atheros/atlx/atl1.c        | 8 +++-----
+ 3 files changed, 8 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/net/ethernet/atheros/alx/main.c b/drivers/net/ethernet/atheros/alx/main.c
+index e3538ba7d0e7..af41a41c27f0 100644
+--- a/drivers/net/ethernet/atheros/alx/main.c
++++ b/drivers/net/ethernet/atheros/alx/main.c
+@@ -1879,8 +1879,7 @@ static void alx_remove(struct pci_dev *pdev)
+ #ifdef CONFIG_PM_SLEEP
+ static int alx_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct alx_priv *alx = pci_get_drvdata(pdev);
++	struct alx_priv *alx = dev_get_drvdata(dev);
+ 
+ 	if (!netif_running(alx->dev))
+ 		return 0;
+@@ -1891,8 +1890,7 @@ static int alx_suspend(struct device *dev)
+ 
+ static int alx_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct alx_priv *alx = pci_get_drvdata(pdev);
++	struct alx_priv *alx = dev_get_drvdata(dev);
+ 	struct alx_hw *hw = &alx->hw;
+ 	int err;
+ 
+diff --git a/drivers/net/ethernet/atheros/atl1c/atl1c_main.c b/drivers/net/ethernet/atheros/atl1c/atl1c_main.c
+index be7f9cebb675..2fd6bf6cb8f7 100644
+--- a/drivers/net/ethernet/atheros/atl1c/atl1c_main.c
++++ b/drivers/net/ethernet/atheros/atl1c/atl1c_main.c
+@@ -2422,8 +2422,7 @@ static int atl1c_close(struct net_device *netdev)
+ 
+ static int atl1c_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct net_device *netdev = pci_get_drvdata(pdev);
++	struct net_device *netdev = dev_get_drvdata(dev);
+ 	struct atl1c_adapter *adapter = netdev_priv(netdev);
+ 	struct atl1c_hw *hw = &adapter->hw;
+ 	u32 wufc = adapter->wol;
+@@ -2437,7 +2436,7 @@ static int atl1c_suspend(struct device *dev)
+ 
+ 	if (wufc)
+ 		if (atl1c_phy_to_ps_link(hw) != 0)
+-			dev_dbg(&pdev->dev, "phy power saving failed");
++			dev_dbg(dev, "phy power saving failed");
+ 
+ 	atl1c_power_saving(hw, wufc);
+ 
+@@ -2447,8 +2446,7 @@ static int atl1c_suspend(struct device *dev)
+ #ifdef CONFIG_PM_SLEEP
+ static int atl1c_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct net_device *netdev = pci_get_drvdata(pdev);
++	struct net_device *netdev = dev_get_drvdata(dev);
+ 	struct atl1c_adapter *adapter = netdev_priv(netdev);
+ 
+ 	AT_WRITE_REG(&adapter->hw, REG_WOL_CTRL, 0);
+diff --git a/drivers/net/ethernet/atheros/atlx/atl1.c b/drivers/net/ethernet/atheros/atlx/atl1.c
+index b5c6dc914720..8b9df5f8795b 100644
+--- a/drivers/net/ethernet/atheros/atlx/atl1.c
++++ b/drivers/net/ethernet/atheros/atlx/atl1.c
+@@ -2754,8 +2754,7 @@ static int atl1_close(struct net_device *netdev)
+ #ifdef CONFIG_PM_SLEEP
+ static int atl1_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct net_device *netdev = pci_get_drvdata(pdev);
++	struct net_device *netdev = dev_get_drvdata(dev);
+ 	struct atl1_adapter *adapter = netdev_priv(netdev);
+ 	struct atl1_hw *hw = &adapter->hw;
+ 	u32 ctrl = 0;
+@@ -2780,7 +2779,7 @@ static int atl1_suspend(struct device *dev)
+ 		val = atl1_get_speed_and_duplex(hw, &speed, &duplex);
+ 		if (val) {
+ 			if (netif_msg_ifdown(adapter))
+-				dev_printk(KERN_DEBUG, &pdev->dev,
++				dev_printk(KERN_DEBUG, dev,
+ 					"error getting speed/duplex\n");
+ 			goto disable_wol;
+ 		}
+@@ -2837,8 +2836,7 @@ static int atl1_suspend(struct device *dev)
+ 
+ static int atl1_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct net_device *netdev = pci_get_drvdata(pdev);
++	struct net_device *netdev = dev_get_drvdata(dev);
+ 	struct atl1_adapter *adapter = netdev_priv(netdev);
+ 
+ 	iowrite32(0, adapter->hw.hw_addr + REG_WOL_CTRL);
+-- 
+2.20.1
+

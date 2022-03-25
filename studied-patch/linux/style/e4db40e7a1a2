@@ -1,0 +1,37 @@
+commit e4db40e7a1a2cd6af3b6d5f8f3fba15533872398
+Author: Christoph Hellwig <hch@lst.de>
+Date:   Thu Oct 18 15:10:17 2018 +0200
+
+    scsi: hisi_sas: use dma_set_mask_and_coherent
+    
+    The driver currently uses pci_set_dma_mask despite otherwise using the
+    generic DMA API.  Switch it over to the better generic DMA API.
+    
+    Signed-off-by: Christoph Hellwig <hch@lst.de>
+    Acked-by: John Garry <john.garry@huawei.com>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/scsi/hisi_sas/hisi_sas_v3_hw.c b/drivers/scsi/hisi_sas/hisi_sas_v3_hw.c
+index bd4ce38b98d2..73bf45e52a0a 100644
+--- a/drivers/scsi/hisi_sas/hisi_sas_v3_hw.c
++++ b/drivers/scsi/hisi_sas/hisi_sas_v3_hw.c
+@@ -2201,14 +2201,11 @@ hisi_sas_v3_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+ 	if (rc)
+ 		goto err_out_disable_device;
+ 
+-	if ((pci_set_dma_mask(pdev, DMA_BIT_MASK(64)) != 0) ||
+-	    (pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64)) != 0)) {
+-		if ((pci_set_dma_mask(pdev, DMA_BIT_MASK(32)) != 0) ||
+-		   (pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(32)) != 0)) {
+-			dev_err(dev, "No usable DMA addressing method\n");
+-			rc = -EIO;
+-			goto err_out_regions;
+-		}
++	if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64)) ||
++	    dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32))) {
++		dev_err(dev, "No usable DMA addressing method\n");
++		rc = -EIO;
++		goto err_out_regions;
+ 	}
+ 
+ 	shost = hisi_sas_shost_alloc_pci(pdev);

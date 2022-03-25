@@ -1,0 +1,44 @@
+commit 117cc8c1ec5e8ce154269fb1357d75288a295add
+Author: emaste <emaste@FreeBSD.org>
+Date:   Mon Aug 21 12:23:11 2017 +0000
+
+    MFC r322627: arm64: return error instead of panic in unimplemented ptrace ops
+    
+    We don't need a panic as a reminder that these need to be implemented.
+    
+    Reported by:    Shawn Webb
+    Sponsored by:   The FreeBSD Foundation
+
+diff --git a/sys/arm64/arm64/machdep.c b/sys/arm64/arm64/machdep.c
+index 70cd12fa38f..7cc39273381 100644
+--- a/sys/arm64/arm64/machdep.c
++++ b/sys/arm64/arm64/machdep.c
+@@ -242,22 +242,24 @@ int
+ fill_dbregs(struct thread *td, struct dbreg *regs)
+ {
+ 
+-	panic("ARM64TODO: fill_dbregs");
++	printf("ARM64TODO: fill_dbregs");
++	return (EDOOFUS);
+ }
+ 
+ int
+ set_dbregs(struct thread *td, struct dbreg *regs)
+ {
+ 
+-	panic("ARM64TODO: set_dbregs");
++	printf("ARM64TODO: set_dbregs");
++	return (EDOOFUS);
+ }
+ 
+ int
+ ptrace_set_pc(struct thread *td, u_long addr)
+ {
+ 
+-	panic("ARM64TODO: ptrace_set_pc");
+-	return (0);
++	printf("ARM64TODO: ptrace_set_pc");
++	return (EDOOFUS);
+ }
+ 
+ int

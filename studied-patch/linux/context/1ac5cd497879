@@ -1,0 +1,89 @@
+commit 1ac5cd4978794bd060d448acc0305e9fc996ba92
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Wed Jan 2 10:46:03 2019 -0800
+
+    block: don't use un-ordered __set_current_state(TASK_UNINTERRUPTIBLE)
+    
+    This mostly reverts commit 849a370016a5 ("block: avoid ordered task
+    state change for polled IO").  It was wrongly claiming that the ordering
+    wasn't necessary.  The memory barrier _is_ necessary.
+    
+    If something is truly polling and not going to sleep, it's the whole
+    state setting that is unnecessary, not the memory barrier.  Whenever you
+    set your state to a sleeping state, you absolutely need the memory
+    barrier.
+    
+    Note that sometimes the memory barrier can be elsewhere.  For example,
+    the ordering might be provided by an external lock, or by setting the
+    process state to sleeping before adding yourself to the wait queue list
+    that is used for waking up (where the wait queue lock itself will
+    guarantee that any wakeup will correctly see the sleeping state).
+    
+    But none of those cases were true here.
+    
+    NOTE! Some of the polling paths may indeed be able to drop the state
+    setting entirely, at which point the memory barrier also goes away.
+    
+    (Also note that this doesn't revert the TASK_RUNNING cases: there is no
+    race between a wakeup and setting the process state to TASK_RUNNING,
+    since the end result doesn't depend on ordering).
+    
+    Cc: Jens Axboe <axboe@kernel.dk>
+    Cc: Christoph Hellwig <hch@lst.de>
+    Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+
+diff --git a/fs/block_dev.c b/fs/block_dev.c
+index 450be88cffef..c546cdce77e6 100644
+--- a/fs/block_dev.c
++++ b/fs/block_dev.c
+@@ -237,11 +237,9 @@ __blkdev_direct_IO_simple(struct kiocb *iocb, struct iov_iter *iter,
+ 
+ 	qc = submit_bio(&bio);
+ 	for (;;) {
+-		__set_current_state(TASK_UNINTERRUPTIBLE);
+-
++		set_current_state(TASK_UNINTERRUPTIBLE);
+ 		if (!READ_ONCE(bio.bi_private))
+ 			break;
+-
+ 		if (!(iocb->ki_flags & IOCB_HIPRI) ||
+ 		    !blk_poll(bdev_get_queue(bdev), qc, true))
+ 			io_schedule();
+@@ -426,8 +424,7 @@ __blkdev_direct_IO(struct kiocb *iocb, struct iov_iter *iter, int nr_pages)
+ 		return -EIOCBQUEUED;
+ 
+ 	for (;;) {
+-		__set_current_state(TASK_UNINTERRUPTIBLE);
+-
++		set_current_state(TASK_UNINTERRUPTIBLE);
+ 		if (!READ_ONCE(dio->waiter))
+ 			break;
+ 
+diff --git a/fs/iomap.c b/fs/iomap.c
+index 3a0cd557b4cf..a3088fae567b 100644
+--- a/fs/iomap.c
++++ b/fs/iomap.c
+@@ -1921,8 +1921,7 @@ iomap_dio_rw(struct kiocb *iocb, struct iov_iter *iter,
+ 			return -EIOCBQUEUED;
+ 
+ 		for (;;) {
+-			__set_current_state(TASK_UNINTERRUPTIBLE);
+-
++			set_current_state(TASK_UNINTERRUPTIBLE);
+ 			if (!READ_ONCE(dio->submit.waiter))
+ 				break;
+ 
+diff --git a/mm/page_io.c b/mm/page_io.c
+index 3475733b1926..d975fa3f02aa 100644
+--- a/mm/page_io.c
++++ b/mm/page_io.c
+@@ -405,8 +405,7 @@ int swap_readpage(struct page *page, bool synchronous)
+ 	bio_get(bio);
+ 	qc = submit_bio(bio);
+ 	while (synchronous) {
+-		__set_current_state(TASK_UNINTERRUPTIBLE);
+-
++		set_current_state(TASK_UNINTERRUPTIBLE);
+ 		if (!READ_ONCE(bio->bi_private))
+ 			break;
+ 

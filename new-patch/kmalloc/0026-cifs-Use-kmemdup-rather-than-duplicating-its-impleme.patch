@@ -1,0 +1,41 @@
+From f305e629ad52cd1b09f29afeb41a11d0cc2eec2f Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 3 Jul 2019 23:38:41 +0800
+Subject: [PATCH v2 26/35] cifs: Use kmemdup rather than duplicating its
+ implementation
+
+kmemdup is introduced to duplicate a region of memory in a neat way.
+Rather than kmalloc/kzalloc + memcpy, which the programmer needs to
+write the size twice (sometimes lead to mistakes), kmemdup improves
+readability, leads to smaller code and also reduce the chances of mistakes.
+Suggestion to use kmemdup rather than using kmalloc/kzalloc + memcpy.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Fix a typo in commit message (memset -> memcpy)
+
+ fs/cifs/smb2pdu.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/fs/cifs/smb2pdu.c b/fs/cifs/smb2pdu.c
+index 75311a8a68bf..ab8dc73d2282 100644
+--- a/fs/cifs/smb2pdu.c
++++ b/fs/cifs/smb2pdu.c
+@@ -2550,12 +2550,11 @@ SMB2_ioctl_init(struct cifs_tcon *tcon, struct smb_rqst *rqst,
+ 		 * indatalen is usually small at a couple of bytes max, so
+ 		 * just allocate through generic pool
+ 		 */
+-		in_data_buf = kmalloc(indatalen, GFP_NOFS);
++		in_data_buf = kmemdup(in_data, indatalen, GFP_NOFS);
+ 		if (!in_data_buf) {
+ 			cifs_small_buf_release(req);
+ 			return -ENOMEM;
+ 		}
+-		memcpy(in_data_buf, in_data, indatalen);
+ 	}
+ 
+ 	req->CtlCode = cpu_to_le32(opcode);
+-- 
+2.11.0
+

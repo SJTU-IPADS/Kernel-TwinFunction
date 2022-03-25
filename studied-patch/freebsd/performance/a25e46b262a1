@@ -1,0 +1,50 @@
+commit a25e46b262a153085c528bdcb96133e052e8d24f
+Author: hselasky <hselasky@FreeBSD.org>
+Date:   Mon Mar 26 21:04:47 2018 +0000
+
+    MFC r330659:
+    Avoid more LFENCE/SFENCe on x86 in mlx5en(4),
+    by using the FreeBSD native fences.
+    
+    Submitted by:   kib@
+    Sponsored by:   Mellanox Technologies
+
+diff --git a/sys/dev/mlx5/mlx5_en/mlx5_en_main.c b/sys/dev/mlx5/mlx5_en/mlx5_en_main.c
+index c70cf247f6e..33e62b430f2 100644
+--- a/sys/dev/mlx5/mlx5_en/mlx5_en_main.c
++++ b/sys/dev/mlx5/mlx5_en/mlx5_en_main.c
+@@ -1256,7 +1256,7 @@ mlx5e_sq_send_nops_locked(struct mlx5e_sq *sq, int can_sleep)
+ 		}
+ 		/* send a single NOP */
+ 		mlx5e_send_nop(sq, 1);
+-		wmb();
++		atomic_thread_fence_rel();
+ 	}
+ done:
+ 	/* Check if we need to write the doorbell */
+diff --git a/sys/dev/mlx5/mlx5_en/mlx5_en_tx.c b/sys/dev/mlx5/mlx5_en/mlx5_en_tx.c
+index 69b0a0161e0..b15d2c2128a 100644
+--- a/sys/dev/mlx5/mlx5_en/mlx5_en_tx.c
++++ b/sys/dev/mlx5/mlx5_en/mlx5_en_tx.c
+@@ -429,7 +429,7 @@ mlx5e_poll_tx_cq(struct mlx5e_sq *sq, int budget)
+ 	mlx5_cqwq_update_db_record(&sq->cq.wq);
+ 
+ 	/* Ensure cq space is freed before enabling more cqes */
+-	wmb();
++	atomic_thread_fence_rel();
+ 
+ 	sq->cc = sqcc;
+ 
+diff --git a/sys/dev/mlx5/mlx5_en/mlx5_en_txrx.c b/sys/dev/mlx5/mlx5_en/mlx5_en_txrx.c
+index 43bc059943d..771b4c69ffb 100644
+--- a/sys/dev/mlx5/mlx5_en/mlx5_en_txrx.c
++++ b/sys/dev/mlx5/mlx5_en/mlx5_en_txrx.c
+@@ -38,7 +38,7 @@ mlx5e_get_cqe(struct mlx5e_cq *cq)
+ 		return (NULL);
+ 
+ 	/* ensure cqe content is read after cqe ownership bit */
+-	rmb();
++	atomic_thread_fence_acq();
+ 
+ 	return (cqe);
+ }

@@ -1,0 +1,34 @@
+commit 6ab6dfa6bb500f5cbb9b7a0f23a1613417ca2d12
+Author: Cong Wang <xiyou.wangcong@gmail.com>
+Date:   Mon Nov 12 16:17:00 2018 -0800
+
+    net: get rid of __tcp_checksum_complete()
+    
+    __tcp_checksum_complete() is 100% same with __skb_checksum_complete()
+    and there is no other caller except tcp_checksum_complete().
+    So, just use __skb_checksum_complete() there.
+    
+    Signed-off-by: Cong Wang <xiyou.wangcong@gmail.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/include/net/tcp.h b/include/net/tcp.h
+index 4743836bed2e..b84b694e8b3d 100644
+--- a/include/net/tcp.h
++++ b/include/net/tcp.h
+@@ -1315,15 +1315,10 @@ static inline __sum16 tcp_v4_check(int len, __be32 saddr,
+ 	return csum_tcpudp_magic(saddr,daddr,len,IPPROTO_TCP,base);
+ }
+ 
+-static inline __sum16 __tcp_checksum_complete(struct sk_buff *skb)
+-{
+-	return __skb_checksum_complete(skb);
+-}
+-
+ static inline bool tcp_checksum_complete(struct sk_buff *skb)
+ {
+ 	return !skb_csum_unnecessary(skb) &&
+-		__tcp_checksum_complete(skb);
++		__skb_checksum_complete(skb);
+ }
+ 
+ bool tcp_add_backlog(struct sock *sk, struct sk_buff *skb);

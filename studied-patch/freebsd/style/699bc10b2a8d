@@ -1,0 +1,38 @@
+commit 699bc10b2a8d771e14cff4c5f52e21cc45436d84
+Author: tuexen <tuexen@FreeBSD.org>
+Date:   Mon Apr 16 21:18:44 2018 +0000
+
+    MFC r332271:
+    
+    Small cleanup, no functional change.
+
+diff --git a/sys/netinet/sctp_usrreq.c b/sys/netinet/sctp_usrreq.c
+index f96816d5cc2..99730935b48 100644
+--- a/sys/netinet/sctp_usrreq.c
++++ b/sys/netinet/sctp_usrreq.c
+@@ -703,22 +703,10 @@ sctp_disconnect(struct socket *so)
+ 				if (SCTP_GET_STATE(asoc) !=
+ 				    SCTP_STATE_COOKIE_WAIT) {
+ 					/* Left with Data unread */
+-					struct mbuf *err;
+-
+-					err = sctp_get_mbuf_for_msg(sizeof(struct sctp_paramhdr), 0, M_NOWAIT, 1, MT_DATA);
+-					if (err) {
+-						/*
+-						 * Fill in the user
+-						 * initiated abort
+-						 */
+-						struct sctp_paramhdr *ph;
++					struct mbuf *op_err;
+ 
+-						ph = mtod(err, struct sctp_paramhdr *);
+-						SCTP_BUF_LEN(err) = sizeof(struct sctp_paramhdr);
+-						ph->param_type = htons(SCTP_CAUSE_USER_INITIATED_ABT);
+-						ph->param_length = htons(SCTP_BUF_LEN(err));
+-					}
+-					sctp_send_abort_tcb(stcb, err, SCTP_SO_LOCKED);
++					op_err = sctp_generate_cause(SCTP_CAUSE_USER_INITIATED_ABT, "");
++					sctp_send_abort_tcb(stcb, op_err, SCTP_SO_LOCKED);
+ 					SCTP_STAT_INCR_COUNTER32(sctps_aborted);
+ 				}
+ 				SCTP_INP_RUNLOCK(inp);

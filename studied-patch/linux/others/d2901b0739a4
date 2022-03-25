@@ -1,0 +1,26 @@
+commit d2901b0739a42a5669ae33356206591a6bd3a64c
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Wed Feb 6 00:25:54 2019 +0800
+
+    net: broadcom: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called in sbdma_tx_process() when
+    skb xmit done. It makes drop profiles(dropwatch, perf) more
+    friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/broadcom/sb1250-mac.c b/drivers/net/ethernet/broadcom/sb1250-mac.c
+index 5db9f4158e62..134ae2862efa 100644
+--- a/drivers/net/ethernet/broadcom/sb1250-mac.c
++++ b/drivers/net/ethernet/broadcom/sb1250-mac.c
+@@ -1288,7 +1288,7 @@ static void sbdma_tx_process(struct sbmac_softc *sc, struct sbmacdma *d,
+ 		 * for transmits, we just free buffers.
+ 		 */
+ 
+-		dev_kfree_skb_irq(sb);
++		dev_consume_skb_irq(sb);
+ 
+ 		/*
+ 		 * .. and advance to the next buffer.

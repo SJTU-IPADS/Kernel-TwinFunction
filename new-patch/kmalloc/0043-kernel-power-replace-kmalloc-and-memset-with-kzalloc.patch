@@ -1,0 +1,33 @@
+From 41bdcca4c038e486041adb088bb5ce57f4c13e3d Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 27 Jun 2019 21:49:46 +0800
+Subject: [PATCH 43/87] kernel: power: replace kmalloc and memset with kzalloc
+
+kmalloc + memset(0) -> kzalloc
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ kernel/power/swap.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/kernel/power/swap.c b/kernel/power/swap.c
+index e1912ad13bdc..ca0fcb5ced71 100644
+--- a/kernel/power/swap.c
++++ b/kernel/power/swap.c
+@@ -974,12 +974,11 @@ static int get_swap_reader(struct swap_map_handle *handle,
+ 	last = handle->maps = NULL;
+ 	offset = swsusp_header->image;
+ 	while (offset) {
+-		tmp = kmalloc(sizeof(*handle->maps), GFP_KERNEL);
++		tmp = kzalloc(sizeof(*handle->maps), GFP_KERNEL);
+ 		if (!tmp) {
+ 			release_swap_reader(handle);
+ 			return -ENOMEM;
+ 		}
+-		memset(tmp, 0, sizeof(*tmp));
+ 		if (!handle->maps)
+ 			handle->maps = tmp;
+ 		if (last)
+-- 
+2.11.0
+https://lkml.org/lkml/2019/6/27/865

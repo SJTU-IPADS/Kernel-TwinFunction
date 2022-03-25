@@ -1,0 +1,44 @@
+commit 73aeac0e72e5108628ae01d201fcf5eb3a031b0e
+Author: alc <alc@FreeBSD.org>
+Date:   Sat Jul 22 05:26:29 2017 +0000
+
+    MFC r315621
+      Use IDX_TO_OFF(), not ptoa(), when converting the difference between two
+      vm_pindex_t's into a vm_ooffset_t.
+    
+      The length given to shm_dotruncate() must never be negative.  Assert this.
+    
+      Tidy up a comment.
+
+diff --git a/sys/kern/uipc_shm.c b/sys/kern/uipc_shm.c
+index 5228253664e..4bbdd2c7009 100644
+--- a/sys/kern/uipc_shm.c
++++ b/sys/kern/uipc_shm.c
+@@ -418,6 +418,7 @@ shm_dotruncate(struct shmfd *shmfd, off_t length)
+ 	vm_ooffset_t delta;
+ 	int base, rv;
+ 
++	KASSERT(length >= 0, ("shm_dotruncate: length < 0"));
+ 	object = shmfd->shm_object;
+ 	VM_OBJECT_WLOCK(object);
+ 	if (length == shmfd->shm_size) {
+@@ -478,7 +479,7 @@ shm_dotruncate(struct shmfd *shmfd, off_t length)
+ 				vm_pager_page_unswapped(m);
+ 			}
+ 		}
+-		delta = ptoa(object->size - nobjsize);
++		delta = IDX_TO_OFF(object->size - nobjsize);
+ 
+ 		/* Toss in memory pages. */
+ 		if (nobjsize < object->size)
+@@ -493,8 +494,8 @@ shm_dotruncate(struct shmfd *shmfd, off_t length)
+ 		swap_release_by_cred(delta, object->cred);
+ 		object->charge -= delta;
+ 	} else {
+-		/* Attempt to reserve the swap */
+-		delta = ptoa(nobjsize - object->size);
++		/* Try to reserve additional swap space. */
++		delta = IDX_TO_OFF(nobjsize - object->size);
+ 		if (!swap_reserve_by_cred(delta, object->cred)) {
+ 			VM_OBJECT_WUNLOCK(object);
+ 			return (ENOMEM);

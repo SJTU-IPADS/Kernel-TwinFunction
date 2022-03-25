@@ -1,0 +1,30 @@
+From 37e472af97f01fa6793ace99520b597fa5fd1170 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Mon, 29 Jul 2019 22:10:11 +0800
+Subject: [PATCH 02/12] kdb: Replace strncmp with str_has_prefix
+
+strncmp(str, const, len) is error-prone.
+We had better use newly introduced
+str_has_prefix() instead of it.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ kernel/debug/kdb/kdb_main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/debug/kdb/kdb_main.c b/kernel/debug/kdb/kdb_main.c
+index 9ecfa37c7fbf..4567fe998c30 100644
+--- a/kernel/debug/kdb/kdb_main.c
++++ b/kernel/debug/kdb/kdb_main.c
+@@ -830,7 +830,7 @@ static void parse_grep(const char *str)
+ 	cp++;
+ 	while (isspace(*cp))
+ 		cp++;
+-	if (strncmp(cp, "grep ", 5)) {
++	if (!str_has_prefix(cp, "grep ")) {
+ 		kdb_printf("invalid 'pipe', see grephelp\n");
+ 		return;
+ 	}
+-- 
+2.20.1
+

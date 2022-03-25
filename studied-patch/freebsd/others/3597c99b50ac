@@ -1,0 +1,28 @@
+commit 3597c99b50acaca134ab57534a1d7751fd6443bd
+Author: jtl <jtl@FreeBSD.org>
+Date:   Mon Apr 23 14:22:16 2018 +0000
+
+    MFC r331745 (by np):
+      Fix RSS build (broken in r331309).
+    
+      Sponsored by: Chelsio Communications
+    
+    PR:             227691
+    Pointy-hat to:  jtl
+
+diff --git a/sys/netinet/in_pcb.c b/sys/netinet/in_pcb.c
+index 97fdba77dcf..1652274d280 100644
+--- a/sys/netinet/in_pcb.c
++++ b/sys/netinet/in_pcb.c
+@@ -1807,9 +1807,9 @@ in_pcblookup_group(struct inpcbinfo *pcbinfo, struct inpcbgroup *pcbgroup,
+ 
+ found:
+ 	if (lookupflags & INPLOOKUP_WLOCKPCB)
+-		locked = TRY_INP_WLOCK(inp);
++		locked = INP_TRY_WLOCK(inp);
+ 	else if (lookupflags & INPLOOKUP_RLOCKPCB)
+-		locked = TRY_INP_RLOCK(inp);
++		locked = INP_TRY_RLOCK(inp);
+ 	else
+ 		panic("%s: locking bug", __func__);
+ 	if (!locked)

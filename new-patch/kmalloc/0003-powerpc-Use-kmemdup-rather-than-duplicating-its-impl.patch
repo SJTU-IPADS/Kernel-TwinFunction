@@ -1,0 +1,40 @@
+From a4cbccb04a597c40894221aad4ebde3b977c1576 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 3 Jul 2019 23:18:07 +0800
+Subject: [PATCH v2 03/35] powerpc: Use kmemdup rather than duplicating its
+ implementation
+
+kmemdup is introduced to duplicate a region of memory in a neat way.
+Rather than kmalloc/kzalloc + memcpy, which the programmer needs to
+write the size twice (sometimes lead to mistakes), kmemdup improves
+readability, leads to smaller code and also reduce the chances of mistakes.
+Suggestion to use kmemdup rather than using kmalloc/kzalloc + memcpy.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Fix a typo in commit message (memset -> memcpy)
+
+ arch/powerpc/platforms/pseries/dlpar.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/arch/powerpc/platforms/pseries/dlpar.c b/arch/powerpc/platforms/pseries/dlpar.c
+index 7488e40f5e47..20fe7b79e09e 100644
+--- a/arch/powerpc/platforms/pseries/dlpar.c
++++ b/arch/powerpc/platforms/pseries/dlpar.c
+@@ -383,11 +383,10 @@ void queue_hotplug_event(struct pseries_hp_errorlog *hp_errlog)
+ 	struct pseries_hp_work *work;
+ 	struct pseries_hp_errorlog *hp_errlog_copy;
+ 
+-	hp_errlog_copy = kmalloc(sizeof(struct pseries_hp_errorlog),
++	hp_errlog_copy = kmemdup(hp_errlog, sizeof(struct pseries_hp_errorlog),
+ 				 GFP_KERNEL);
+ 	if (!hp_errlog_copy)
+ 	      return;
+-	memcpy(hp_errlog_copy, hp_errlog, sizeof(struct pseries_hp_errorlog));
+ 
+ 	work = kmalloc(sizeof(struct pseries_hp_work), GFP_KERNEL);
+ 	if (work) {
+-- 
+2.11.0
+

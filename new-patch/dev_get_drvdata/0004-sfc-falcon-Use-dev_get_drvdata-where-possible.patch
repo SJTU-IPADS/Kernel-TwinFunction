@@ -1,0 +1,70 @@
+From 0aea2579ff3619a009cc1b79a8bc6828f36b9304 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 24 Jul 2019 16:32:26 +0800
+Subject: [PATCH net-next 04/10] sfc-falcon: Use dev_get_drvdata where possible
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/net/ethernet/sfc/falcon/efx.c           | 6 +++---
+ drivers/net/ethernet/sfc/falcon/falcon_boards.c | 4 ++--
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/net/ethernet/sfc/falcon/efx.c b/drivers/net/ethernet/sfc/falcon/efx.c
+index 9b15c39ac670..eecc348b1c32 100644
+--- a/drivers/net/ethernet/sfc/falcon/efx.c
++++ b/drivers/net/ethernet/sfc/falcon/efx.c
+@@ -2256,7 +2256,7 @@ static struct notifier_block ef4_netdev_notifier = {
+ static ssize_t
+ show_phy_type(struct device *dev, struct device_attribute *attr, char *buf)
+ {
+-	struct ef4_nic *efx = pci_get_drvdata(to_pci_dev(dev));
++	struct ef4_nic *efx = dev_get_drvdata(dev);
+ 	return sprintf(buf, "%d\n", efx->phy_type);
+ }
+ static DEVICE_ATTR(phy_type, 0444, show_phy_type, NULL);
+@@ -2999,7 +2999,7 @@ static int ef4_pci_probe(struct pci_dev *pci_dev,
+ 
+ static int ef4_pm_freeze(struct device *dev)
+ {
+-	struct ef4_nic *efx = pci_get_drvdata(to_pci_dev(dev));
++	struct ef4_nic *efx = dev_get_drvdata(dev);
+ 
+ 	rtnl_lock();
+ 
+@@ -3020,7 +3020,7 @@ static int ef4_pm_freeze(struct device *dev)
+ static int ef4_pm_thaw(struct device *dev)
+ {
+ 	int rc;
+-	struct ef4_nic *efx = pci_get_drvdata(to_pci_dev(dev));
++	struct ef4_nic *efx = dev_get_drvdata(dev);
+ 
+ 	rtnl_lock();
+ 
+diff --git a/drivers/net/ethernet/sfc/falcon/falcon_boards.c b/drivers/net/ethernet/sfc/falcon/falcon_boards.c
+index 839189dab98e..2d85d1386ed9 100644
+--- a/drivers/net/ethernet/sfc/falcon/falcon_boards.c
++++ b/drivers/net/ethernet/sfc/falcon/falcon_boards.c
+@@ -357,7 +357,7 @@ static int sfe4001_poweron(struct ef4_nic *efx)
+ static ssize_t show_phy_flash_cfg(struct device *dev,
+ 				  struct device_attribute *attr, char *buf)
+ {
+-	struct ef4_nic *efx = pci_get_drvdata(to_pci_dev(dev));
++	struct ef4_nic *efx = dev_get_drvdata(dev);
+ 	return sprintf(buf, "%d\n", !!(efx->phy_mode & PHY_MODE_SPECIAL));
+ }
+ 
+@@ -365,7 +365,7 @@ static ssize_t set_phy_flash_cfg(struct device *dev,
+ 				 struct device_attribute *attr,
+ 				 const char *buf, size_t count)
+ {
+-	struct ef4_nic *efx = pci_get_drvdata(to_pci_dev(dev));
++	struct ef4_nic *efx = dev_get_drvdata(dev);
+ 	enum ef4_phy_mode old_mode, new_mode;
+ 	int err;
+ 
+-- 
+2.20.1
+

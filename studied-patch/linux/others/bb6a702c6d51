@@ -1,0 +1,25 @@
+commit bb6a702c6d512b16a7c16a38468a14eda72f44b5
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Wed Feb 6 00:09:41 2019 +0800
+
+    net: smsc: epic100: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called in epic_tx() when skb xmit
+    done. It makes drop profiles(dropwatch, perf) more friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/smsc/epic100.c b/drivers/net/ethernet/smsc/epic100.c
+index 15c62c160953..be47d864f8b9 100644
+--- a/drivers/net/ethernet/smsc/epic100.c
++++ b/drivers/net/ethernet/smsc/epic100.c
+@@ -1037,7 +1037,7 @@ static void epic_tx(struct net_device *dev, struct epic_private *ep)
+ 		skb = ep->tx_skbuff[entry];
+ 		pci_unmap_single(ep->pci_dev, ep->tx_ring[entry].bufaddr,
+ 				 skb->len, PCI_DMA_TODEVICE);
+-		dev_kfree_skb_irq(skb);
++		dev_consume_skb_irq(skb);
+ 		ep->tx_skbuff[entry] = NULL;
+ 	}
+ 

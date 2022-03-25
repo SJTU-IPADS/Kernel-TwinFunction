@@ -1,0 +1,41 @@
+commit 38cd8a280d725cd4e0be14b0fbc2797c26cd9de5
+Author: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date:   Fri Nov 30 12:24:33 2018 -0500
+
+    drm/amdgpu/psp: Update waiting in psp mode1 reset.
+    
+    No point in use mdelay unless running from interrupt context (which we are not)
+    This is busy wait which will block the CPU for the entirety of the wait time.
+    Also, reduce wait time to 500ms as it is done in refernce code because
+    1s might cause PSP FW TO issues during XGMI hive reset.
+    
+    Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+    Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+    Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/psp_v11_0.c b/drivers/gpu/drm/amd/amdgpu/psp_v11_0.c
+index e5dd052d9e06..2b19616cb402 100644
+--- a/drivers/gpu/drm/amd/amdgpu/psp_v11_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/psp_v11_0.c
+@@ -547,7 +547,7 @@ static int psp_v11_0_mode1_reset(struct psp_context *psp)
+ 	/*send the mode 1 reset command*/
+ 	WREG32(offset, GFX_CTRL_CMD_ID_MODE1_RST);
+ 
+-	mdelay(1000);
++	msleep(500);
+ 
+ 	offset = SOC15_REG_OFFSET(MP0, 0, mmMP0_SMN_C2PMSG_33);
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/psp_v3_1.c b/drivers/gpu/drm/amd/amdgpu/psp_v3_1.c
+index 7efb823dd3b1..7357fd56e614 100644
+--- a/drivers/gpu/drm/amd/amdgpu/psp_v3_1.c
++++ b/drivers/gpu/drm/amd/amdgpu/psp_v3_1.c
+@@ -592,7 +592,7 @@ static int psp_v3_1_mode1_reset(struct psp_context *psp)
+ 	/*send the mode 1 reset command*/
+ 	WREG32(offset, GFX_CTRL_CMD_ID_MODE1_RST);
+ 
+-	mdelay(1000);
++	msleep(500);
+ 
+ 	offset = SOC15_REG_OFFSET(MP0, 0, mmMP0_SMN_C2PMSG_33);
+ 

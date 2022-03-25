@@ -1,0 +1,39 @@
+commit 8166abb1ea7d53a26ac0e2598b77a5440216811a
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Sun Nov 11 11:43:42 2018 -0800
+
+    ixgbe: Replace synchronize_sched() with synchronize_rcu()
+    
+    Now that synchronize_rcu() waits for preempt-disable regions of code
+    as well as RCU read-side critical sections, synchronize_sched() can be
+    replaced by synchronize_rcu().  This commit therefore makes this change.
+    
+    Signed-off-by: "Paul E. McKenney" <paulmck@linux.ibm.com>
+    Tested-by: Andrew Bowers <andrewx.bowers@intel.com>
+    Signed-off-by: Jeff Kirsher <jeffrey.t.kirsher@intel.com>
+
+diff --git a/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c b/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c
+index cfb83687c3d8..49a4ea38eb07 100644
+--- a/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c
++++ b/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c
+@@ -6077,9 +6077,9 @@ void ixgbe_down(struct ixgbe_adapter *adapter)
+ 	/* Disable Rx */
+ 	ixgbe_disable_rx(adapter);
+ 
+-	/* synchronize_sched() needed for pending XDP buffers to drain */
++	/* synchronize_rcu() needed for pending XDP buffers to drain */
+ 	if (adapter->xdp_ring[0])
+-		synchronize_sched();
++		synchronize_rcu();
+ 
+ 	ixgbe_irq_disable(adapter);
+ 
+@@ -10476,7 +10476,7 @@ void ixgbe_txrx_ring_disable(struct ixgbe_adapter *adapter, int ring)
+ 	ixgbe_disable_rxr_hw(adapter, rx_ring);
+ 
+ 	if (xdp_ring)
+-		synchronize_sched();
++		synchronize_rcu();
+ 
+ 	/* Rx/Tx/XDP Tx share the same napi context. */
+ 	napi_disable(&rx_ring->q_vector->napi);

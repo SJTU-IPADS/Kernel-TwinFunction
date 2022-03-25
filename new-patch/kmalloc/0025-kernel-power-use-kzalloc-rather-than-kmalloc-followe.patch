@@ -1,0 +1,35 @@
+From 76717525508c5001d061506437286945aaeb6341 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Fri, 28 Jun 2019 10:33:07 +0800
+Subject: [PATCH v2 25/27] kernel: power: use kzalloc rather than kmalloc followed
+ with memset
+
+Use zeroing allocator instead of using allocator
+followed with memset with 0
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ kernel/power/swap.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/kernel/power/swap.c b/kernel/power/swap.c
+index e1912ad13bdc..ca0fcb5ced71 100644
+--- a/kernel/power/swap.c
++++ b/kernel/power/swap.c
+@@ -974,12 +974,11 @@ static int get_swap_reader(struct swap_map_handle *handle,
+ 	last = handle->maps = NULL;
+ 	offset = swsusp_header->image;
+ 	while (offset) {
+-		tmp = kmalloc(sizeof(*handle->maps), GFP_KERNEL);
++		tmp = kzalloc(sizeof(*handle->maps), GFP_KERNEL);
+ 		if (!tmp) {
+ 			release_swap_reader(handle);
+ 			return -ENOMEM;
+ 		}
+-		memset(tmp, 0, sizeof(*tmp));
+ 		if (!handle->maps)
+ 			handle->maps = tmp;
+ 		if (last)
+-- 
+2.11.0
+

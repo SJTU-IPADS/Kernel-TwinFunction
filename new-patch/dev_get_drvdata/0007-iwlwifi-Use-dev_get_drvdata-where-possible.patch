@@ -1,0 +1,60 @@
+From 5949edd27bb7f62bf37366c16e629b516335004b Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 24 Jul 2019 17:10:45 +0800
+Subject: [PATCH net-next 07/10] iwlwifi: Use dev_get_drvdata where possible
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/net/wireless/intel/iwlwifi/pcie/drv.c | 12 ++++--------
+ 1 file changed, 4 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/net/wireless/intel/iwlwifi/pcie/drv.c b/drivers/net/wireless/intel/iwlwifi/pcie/drv.c
+index ea2a03d4bf55..fe76e1540d39 100644
+--- a/drivers/net/wireless/intel/iwlwifi/pcie/drv.c
++++ b/drivers/net/wireless/intel/iwlwifi/pcie/drv.c
+@@ -1248,8 +1248,7 @@ int iwl_pci_fw_exit_d0i3(struct iwl_trans *trans)
+ #ifdef CONFIG_IWLWIFI_PCIE_RTPM
+ static int iwl_pci_runtime_suspend(struct device *device)
+ {
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct iwl_trans *trans = pci_get_drvdata(pdev);
++	struct iwl_trans *trans = dev_get_drvdata(device);
+ 	int ret;
+ 
+ 	IWL_DEBUG_RPM(trans, "entering runtime suspend\n");
+@@ -1269,8 +1268,7 @@ static int iwl_pci_runtime_suspend(struct device *device)
+ 
+ static int iwl_pci_runtime_resume(struct device *device)
+ {
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct iwl_trans *trans = pci_get_drvdata(pdev);
++	struct iwl_trans *trans = dev_get_drvdata(device);
+ 	enum iwl_d3_status d3_status;
+ 
+ 	IWL_DEBUG_RPM(trans, "exiting runtime suspend (resume)\n");
+@@ -1285,8 +1283,7 @@ static int iwl_pci_runtime_resume(struct device *device)
+ 
+ static int iwl_pci_system_prepare(struct device *device)
+ {
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct iwl_trans *trans = pci_get_drvdata(pdev);
++	struct iwl_trans *trans = dev_get_drvdata(device);
+ 
+ 	IWL_DEBUG_RPM(trans, "preparing for system suspend\n");
+ 
+@@ -1308,8 +1305,7 @@ static int iwl_pci_system_prepare(struct device *device)
+ 
+ static void iwl_pci_system_complete(struct device *device)
+ {
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct iwl_trans *trans = pci_get_drvdata(pdev);
++	struct iwl_trans *trans = dev_get_drvdata(device);
+ 
+ 	IWL_DEBUG_RPM(trans, "completing system suspend\n");
+ 
+-- 
+2.20.1
+

@@ -1,0 +1,34 @@
+commit fbffb6b4d44f1263390130cb8b35cabc030af3f7
+Author: Alexandru Ardelean <alexandru.ardelean@analog.com>
+Date:   Mon Oct 29 11:23:36 2018 +0200
+
+    dmaengine: dmatest: use dmaengine_terminate_sync() instead
+    
+    The `dmaengine_terminate_all()` is marked as deprecated, so update the test
+    with `dmaengine_terminate_sync()` which is the recommended alternative.
+    
+    Signed-off-by: Alexandru Ardelean <alexandru.ardelean@analog.com>
+    Signed-off-by: Vinod Koul <vkoul@kernel.org>
+
+diff --git a/drivers/dma/dmatest.c b/drivers/dma/dmatest.c
+index 5d4b1e053fb7..214391ba019a 100644
+--- a/drivers/dma/dmatest.c
++++ b/drivers/dma/dmatest.c
+@@ -810,7 +810,7 @@ static int dmatest_func(void *data)
+ 
+ 	/* terminate all transfers on specified channels */
+ 	if (ret || failed_tests)
+-		dmaengine_terminate_all(chan);
++		dmaengine_terminate_sync(chan);
+ 
+ 	thread->done = true;
+ 	wake_up(&thread_wait);
+@@ -834,7 +834,7 @@ static void dmatest_cleanup_channel(struct dmatest_chan *dtc)
+ 	}
+ 
+ 	/* terminate all transfers on specified channels */
+-	dmaengine_terminate_all(dtc->chan);
++	dmaengine_terminate_sync(dtc->chan);
+ 
+ 	kfree(dtc);
+ }

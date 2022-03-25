@@ -1,0 +1,36 @@
+From b940ec5e205907b0fe6f057c7e442851c946bef9 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Mon, 8 Jul 2019 15:06:52 +0800
+Subject: [PATCH 09/14] iio: imu: mpu6050: Replace devm_add_action() followed
+ by failure action with devm_add_action_or_reset()
+
+devm_add_action_or_reset() is introduced as a helper function which 
+internally calls devm_add_action(). If devm_add_action() fails 
+then it will execute the action mentioned and return the error code.
+This reduce source code size (avoid writing the action twice) 
+and reduce the likelyhood of bugs.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/iio/imu/inv_mpu6050/inv_mpu_core.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/iio/imu/inv_mpu6050/inv_mpu_core.c b/drivers/iio/imu/inv_mpu6050/inv_mpu_core.c
+index 53a59957cc54..e067927317bd 100644
+--- a/drivers/iio/imu/inv_mpu6050/inv_mpu_core.c
++++ b/drivers/iio/imu/inv_mpu6050/inv_mpu_core.c
+@@ -1096,10 +1096,9 @@ int inv_mpu_core_probe(struct regmap *regmap, int irq, const char *name,
+ 	if (result)
+ 		return result;
+ 
+-	result = devm_add_action(dev, inv_mpu_core_disable_regulator_action,
++	result = devm_add_action_or_reset(dev, inv_mpu_core_disable_regulator_action,
+ 				 st);
+ 	if (result) {
+-		inv_mpu_core_disable_regulator_action(st);
+ 		dev_err(dev, "Failed to setup regulator cleanup action %d\n",
+ 			result);
+ 		return result;
+-- 
+2.11.0
+

@@ -1,0 +1,50 @@
+commit 85a555246e6db7b4e9803704e1e0c694dfe658a0
+Author: Thierry Reding <treding@nvidia.com>
+Date:   Thu Dec 20 18:19:58 2018 +0100
+
+    mailbox: platform-mhu: Use device-managed registration API
+    
+    Get rid of some boilerplate driver removal code by using the newly added
+    device-managed registration API.
+    
+    Acked-by: Neil Armstrong <narmstrong@baylibre.com>
+    Signed-off-by: Thierry Reding <treding@nvidia.com>
+    Signed-off-by: Jassi Brar <jaswinder.singh@linaro.org>
+
+diff --git a/drivers/mailbox/platform_mhu.c b/drivers/mailbox/platform_mhu.c
+index e13201a5cec6..d2502c5be130 100644
+--- a/drivers/mailbox/platform_mhu.c
++++ b/drivers/mailbox/platform_mhu.c
+@@ -163,7 +163,7 @@ static int platform_mhu_probe(struct platform_device *pdev)
+ 
+ 	platform_set_drvdata(pdev, mhu);
+ 
+-	err = mbox_controller_register(&mhu->mbox);
++	err = devm_mbox_controller_register(dev, &mhu->mbox);
+ 	if (err) {
+ 		dev_err(dev, "Failed to register mailboxes %d\n", err);
+ 		return err;
+@@ -173,15 +173,6 @@ static int platform_mhu_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int platform_mhu_remove(struct platform_device *pdev)
+-{
+-	struct platform_mhu *mhu = platform_get_drvdata(pdev);
+-
+-	mbox_controller_unregister(&mhu->mbox);
+-
+-	return 0;
+-}
+-
+ static const struct of_device_id platform_mhu_dt_ids[] = {
+ 	{ .compatible = "amlogic,meson-gxbb-mhu", },
+ 	{ /* sentinel */ },
+@@ -190,7 +181,6 @@ MODULE_DEVICE_TABLE(of, platform_mhu_dt_ids);
+ 
+ static struct platform_driver platform_mhu_driver = {
+ 	.probe	= platform_mhu_probe,
+-	.remove	= platform_mhu_remove,
+ 	.driver = {
+ 		.name = "platform-mhu",
+ 		.of_match_table	= platform_mhu_dt_ids,

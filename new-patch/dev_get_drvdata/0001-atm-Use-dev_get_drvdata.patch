@@ -1,0 +1,53 @@
+From 13bb3335c44bd7820b01ea1abd2593ff8e1d39a9 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 16:10:30 +0800
+Subject: [PATCH] atm: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/atm/solos-pci.c | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/atm/solos-pci.c b/drivers/atm/solos-pci.c
+index 5c4c6eeb505c..c32f7dd9879a 100644
+--- a/drivers/atm/solos-pci.c
++++ b/drivers/atm/solos-pci.c
+@@ -516,9 +516,8 @@ struct geos_gpio_attr {
+ static ssize_t geos_gpio_store(struct device *dev, struct device_attribute *attr,
+ 			       const char *buf, size_t count)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+ 	struct geos_gpio_attr *gattr = container_of(attr, struct geos_gpio_attr, attr);
+-	struct solos_card *card = pci_get_drvdata(pdev);
++	struct solos_card *card = dev_get_drvdata(dev);
+ 	uint32_t data32;
+ 
+ 	if (count != 1 && (count != 2 || buf[1] != '\n'))
+@@ -542,9 +541,8 @@ static ssize_t geos_gpio_store(struct device *dev, struct device_attribute *attr
+ static ssize_t geos_gpio_show(struct device *dev, struct device_attribute *attr,
+ 			      char *buf)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+ 	struct geos_gpio_attr *gattr = container_of(attr, struct geos_gpio_attr, attr);
+-	struct solos_card *card = pci_get_drvdata(pdev);
++	struct solos_card *card = dev_get_drvdata(dev);
+ 	uint32_t data32;
+ 
+ 	data32 = ioread32(card->config_regs + GPIO_STATUS);
+@@ -556,9 +554,8 @@ static ssize_t geos_gpio_show(struct device *dev, struct device_attribute *attr,
+ static ssize_t hardware_show(struct device *dev, struct device_attribute *attr,
+ 			     char *buf)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+ 	struct geos_gpio_attr *gattr = container_of(attr, struct geos_gpio_attr, attr);
+-	struct solos_card *card = pci_get_drvdata(pdev);
++	struct solos_card *card = dev_get_drvdata(dev);
+ 	uint32_t data32;
+ 
+ 	data32 = ioread32(card->config_regs + GPIO_STATUS);
+-- 
+2.20.1
+

@@ -1,0 +1,67 @@
+commit 042d4c70a203998697b34eaad1a99f6f09d09e4d
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Mon Oct 22 07:43:22 2018 -0700
+
+    rcu: Eliminate BUG_ON() for sync.c
+    
+    The sync.c file has a number of calls to BUG_ON(), which panics the
+    kernel, which is not a good strategy for devices (like embedded) that
+    don't have a way to capture console output.  This commit therefore
+    changes these BUG_ON() calls to WARN_ON_ONCE(), but does so quite naively.
+    
+    Reported-by: Linus Torvalds <torvalds@linux-foundation.org>
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Acked-by: Oleg Nesterov <oleg@redhat.com>
+    Cc: Peter Zijlstra <peterz@infradead.org>
+
+diff --git a/kernel/rcu/sync.c b/kernel/rcu/sync.c
+index 3f943efcf61c..a6ba446a9693 100644
+--- a/kernel/rcu/sync.c
++++ b/kernel/rcu/sync.c
+@@ -125,8 +125,7 @@ void rcu_sync_enter(struct rcu_sync *rsp)
+ 		rsp->gp_state = GP_PENDING;
+ 	spin_unlock_irq(&rsp->rss_lock);
+ 
+-	BUG_ON(need_wait && need_sync);
+-
++	WARN_ON_ONCE(need_wait && need_sync);
+ 	if (need_sync) {
+ 		gp_ops[rsp->gp_type].sync();
+ 		rsp->gp_state = GP_PASSED;
+@@ -139,7 +138,7 @@ void rcu_sync_enter(struct rcu_sync *rsp)
+ 		 * Nobody has yet been allowed the 'fast' path and thus we can
+ 		 * avoid doing any sync(). The callback will get 'dropped'.
+ 		 */
+-		BUG_ON(rsp->gp_state != GP_PASSED);
++		WARN_ON_ONCE(rsp->gp_state != GP_PASSED);
+ 	}
+ }
+ 
+@@ -166,8 +165,8 @@ static void rcu_sync_func(struct rcu_head *rhp)
+ 	struct rcu_sync *rsp = container_of(rhp, struct rcu_sync, cb_head);
+ 	unsigned long flags;
+ 
+-	BUG_ON(rsp->gp_state != GP_PASSED);
+-	BUG_ON(rsp->cb_state == CB_IDLE);
++	WARN_ON_ONCE(rsp->gp_state != GP_PASSED);
++	WARN_ON_ONCE(rsp->cb_state == CB_IDLE);
+ 
+ 	spin_lock_irqsave(&rsp->rss_lock, flags);
+ 	if (rsp->gp_count) {
+@@ -225,7 +224,7 @@ void rcu_sync_dtor(struct rcu_sync *rsp)
+ {
+ 	int cb_state;
+ 
+-	BUG_ON(rsp->gp_count);
++	WARN_ON_ONCE(rsp->gp_count);
+ 
+ 	spin_lock_irq(&rsp->rss_lock);
+ 	if (rsp->cb_state == CB_REPLAY)
+@@ -235,6 +234,6 @@ void rcu_sync_dtor(struct rcu_sync *rsp)
+ 
+ 	if (cb_state != CB_IDLE) {
+ 		gp_ops[rsp->gp_type].wait();
+-		BUG_ON(rsp->cb_state != CB_IDLE);
++		WARN_ON_ONCE(rsp->cb_state != CB_IDLE);
+ 	}
+ }

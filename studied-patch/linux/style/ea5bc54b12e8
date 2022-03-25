@@ -1,0 +1,57 @@
+commit ea5bc54b12e822a2691c8b7348fae3badb6e376c
+Author: Boris Brezillon <boris.brezillon@bootlin.com>
+Date:   Fri Oct 19 09:48:58 2018 +0200
+
+    mtd: maps: physmap: Use devm_ioremap_resource()
+    
+    Use devm_ioremap_resource() to replace the devm_request_mem_region() +
+    devm_ioremap() combination.
+    
+    Signed-off-by: Boris Brezillon <boris.brezillon@bootlin.com>
+    Reviewed-by: Ricardo Ribalda Delgado <ricardo.ribalda@gmail.com>
+    Acked-by: Linus Walleij <linus.walleij@linaro.org>
+
+diff --git a/drivers/mtd/maps/physmap.c b/drivers/mtd/maps/physmap.c
+index b98072a67d74..1d0f6f034a03 100644
+--- a/drivers/mtd/maps/physmap.c
++++ b/drivers/mtd/maps/physmap.c
+@@ -129,17 +129,15 @@ static int physmap_flash_probe(struct platform_device *dev)
+ 		if (!res)
+ 			break;
+ 
+-		dev_notice(&dev->dev, "physmap platform flash device: %pR\n",
+-			   res);
+-
+-		if (!devm_request_mem_region(&dev->dev, res->start,
+-					     resource_size(res),
+-					     dev_name(&dev->dev))) {
+-			dev_err(&dev->dev, "Could not reserve memory region\n");
+-			err = -ENOMEM;
++		info->maps[i].virt = devm_ioremap_resource(&dev->dev, res);
++		if (IS_ERR(info->maps[i].virt)) {
++			err = PTR_ERR(info->maps[i].virt);
+ 			goto err_out;
+ 		}
+ 
++		dev_notice(&dev->dev, "physmap platform flash device: %pR\n",
++			   res);
++
+ 		info->maps[i].name = dev_name(&dev->dev);
+ 		info->maps[i].phys = res->start;
+ 		info->maps[i].size = resource_size(res);
+@@ -148,15 +146,6 @@ static int physmap_flash_probe(struct platform_device *dev)
+ 		info->maps[i].pfow_base = physmap_data->pfow_base;
+ 		info->maps[i].map_priv_1 = (unsigned long)dev;
+ 
+-		info->maps[i].virt = devm_ioremap(&dev->dev,
+-						  info->maps[i].phys,
+-						  info->maps[i].size);
+-		if (info->maps[i].virt == NULL) {
+-			dev_err(&dev->dev, "Failed to ioremap flash region\n");
+-			err = -EIO;
+-			goto err_out;
+-		}
+-
+ 		simple_map_init(&info->maps[i]);
+ 
+ 		probe_type = rom_probe_types;

@@ -1,0 +1,39 @@
+commit 04547728b7b775333a4f6fbb3c55102a79dc4596
+Author: Lance Roy <ldr709@gmail.com>
+Date:   Thu Oct 4 23:45:46 2018 -0700
+
+    locking/mutex: Replace spin_is_locked() with lockdep
+    
+    lockdep_assert_held() is better suited to checking locking requirements,
+    since it only checks if the current thread holds the lock regardless of
+    whether someone else does. This is also a step towards possibly removing
+    spin_is_locked().
+    
+    Signed-off-by: Lance Roy <ldr709@gmail.com>
+    Cc: Peter Zijlstra <peterz@infradead.org>
+    Cc: Ingo Molnar <mingo@redhat.com>
+    Cc: Will Deacon <will.deacon@arm.com>
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+
+diff --git a/kernel/locking/mutex-debug.c b/kernel/locking/mutex-debug.c
+index 9aa713629387..771d4ca96dda 100644
+--- a/kernel/locking/mutex-debug.c
++++ b/kernel/locking/mutex-debug.c
+@@ -36,7 +36,7 @@ void debug_mutex_lock_common(struct mutex *lock, struct mutex_waiter *waiter)
+ 
+ void debug_mutex_wake_waiter(struct mutex *lock, struct mutex_waiter *waiter)
+ {
+-	SMP_DEBUG_LOCKS_WARN_ON(!spin_is_locked(&lock->wait_lock));
++	lockdep_assert_held(&lock->wait_lock);
+ 	DEBUG_LOCKS_WARN_ON(list_empty(&lock->wait_list));
+ 	DEBUG_LOCKS_WARN_ON(waiter->magic != waiter);
+ 	DEBUG_LOCKS_WARN_ON(list_empty(&waiter->list));
+@@ -51,7 +51,7 @@ void debug_mutex_free_waiter(struct mutex_waiter *waiter)
+ void debug_mutex_add_waiter(struct mutex *lock, struct mutex_waiter *waiter,
+ 			    struct task_struct *task)
+ {
+-	SMP_DEBUG_LOCKS_WARN_ON(!spin_is_locked(&lock->wait_lock));
++	lockdep_assert_held(&lock->wait_lock);
+ 
+ 	/* Mark the current thread as blocked on the lock: */
+ 	task->blocked_on = waiter;

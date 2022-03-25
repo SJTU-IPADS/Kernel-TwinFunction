@@ -1,0 +1,80 @@
+From 9e98773c02bc8b9203b2c99de1186dce8010704f Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 19:34:14 +0800
+Subject: [PATCH] media: pci: Use dev_get_drvdata where possible
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/media/pci/intel/ipu3/ipu3-cio2.c | 3 +--
+ drivers/media/pci/pt1/pt1.c              | 6 ++----
+ drivers/media/pci/pt3/pt3.c              | 6 ++----
+ 3 files changed, 5 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/media/pci/intel/ipu3/ipu3-cio2.c b/drivers/media/pci/intel/ipu3/ipu3-cio2.c
+index c1d133e17e4b..50a34bcd4d14 100644
+--- a/drivers/media/pci/intel/ipu3/ipu3-cio2.c
++++ b/drivers/media/pci/intel/ipu3/ipu3-cio2.c
+@@ -2000,8 +2000,7 @@ static int __maybe_unused cio2_suspend(struct device *dev)
+ 
+ static int __maybe_unused cio2_resume(struct device *dev)
+ {
+-	struct pci_dev *pci_dev = to_pci_dev(dev);
+-	struct cio2_device *cio2 = pci_get_drvdata(pci_dev);
++	struct cio2_device *cio2 = dev_get_drvdata(dev);
+ 	int r = 0;
+ 	struct cio2_queue *q = cio2->cur_queue;
+ 
+diff --git a/drivers/media/pci/pt1/pt1.c b/drivers/media/pci/pt1/pt1.c
+index e51c80bc4646..72b191cfeb54 100644
+--- a/drivers/media/pci/pt1/pt1.c
++++ b/drivers/media/pci/pt1/pt1.c
+@@ -1217,8 +1217,7 @@ static void pt1_i2c_init(struct pt1 *pt1)
+ 
+ static int pt1_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct pt1 *pt1 = pci_get_drvdata(pdev);
++	struct pt1 *pt1 = dev_get_drvdata(dev);
+ 
+ 	pt1_init_streams(pt1);
+ 	pt1_disable_ram(pt1);
+@@ -1230,8 +1229,7 @@ static int pt1_suspend(struct device *dev)
+ 
+ static int pt1_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct pt1 *pt1 = pci_get_drvdata(pdev);
++	struct pt1 *pt1 = dev_get_drvdata(dev);
+ 	int ret;
+ 	int i;
+ 
+diff --git a/drivers/media/pci/pt3/pt3.c b/drivers/media/pci/pt3/pt3.c
+index 7a7afae4c84c..c0bc86793355 100644
+--- a/drivers/media/pci/pt3/pt3.c
++++ b/drivers/media/pci/pt3/pt3.c
+@@ -626,8 +626,7 @@ static void pt3_cleanup_adapter(struct pt3_board *pt3, int index)
+ 
+ static int pt3_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct pt3_board *pt3 = pci_get_drvdata(pdev);
++	struct pt3_board *pt3 = dev_get_drvdata(dev);
+ 	int i;
+ 	struct pt3_adapter *adap;
+ 
+@@ -646,8 +645,7 @@ static int pt3_suspend(struct device *dev)
+ 
+ static int pt3_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct pt3_board *pt3 = pci_get_drvdata(pdev);
++	struct pt3_board *pt3 = dev_get_drvdata(dev);
+ 	int i, ret;
+ 	struct pt3_adapter *adap;
+ 
+-- 
+2.20.1
+

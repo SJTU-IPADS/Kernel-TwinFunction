@@ -1,0 +1,27 @@
+commit 488d040e3a3452a0dceef5d3ec4f61942262f57f
+Author: Moritz Fischer <mdf@kernel.org>
+Date:   Mon Nov 12 13:38:33 2018 -0600
+
+    fpga: of-fpga-region: Use platform_set_drvdata
+    
+    Use platform_set_drvdata rather than dev_set_drvdata
+    to match the platform_get_drvdata in the _remove()
+    function of the platform driver.
+    
+    Signed-off-by: Moritz Fischer <mdf@kernel.org>
+    Acked-by: Alan Tull <atull@kernel.org>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/fpga/of-fpga-region.c b/drivers/fpga/of-fpga-region.c
+index 122286fd255a..75f64abf9c81 100644
+--- a/drivers/fpga/of-fpga-region.c
++++ b/drivers/fpga/of-fpga-region.c
+@@ -421,7 +421,7 @@ static int of_fpga_region_probe(struct platform_device *pdev)
+ 		goto eprobe_mgr_put;
+ 
+ 	of_platform_populate(np, fpga_region_of_match, NULL, &region->dev);
+-	dev_set_drvdata(dev, region);
++	platform_set_drvdata(pdev, region);
+ 
+ 	dev_info(dev, "FPGA Region probed\n");
+ 

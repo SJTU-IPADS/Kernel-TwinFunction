@@ -1,0 +1,36 @@
+commit 7034ef87fa880defb4cfc2ca552641d26f425f21
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 22:00:59 2018 +0200
+
+    tty: serial: qcom_geni_serial: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/tty/serial/qcom_geni_serial.c b/drivers/tty/serial/qcom_geni_serial.c
+index 4bf877c1c522..3040998ac858 100644
+--- a/drivers/tty/serial/qcom_geni_serial.c
++++ b/drivers/tty/serial/qcom_geni_serial.c
+@@ -162,8 +162,7 @@ static struct qcom_geni_serial_port qcom_geni_uart_ports[GENI_UART_PORTS] = {
+ static ssize_t loopback_show(struct device *dev,
+ 				struct device_attribute *attr, char *buf)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct qcom_geni_serial_port *port = platform_get_drvdata(pdev);
++	struct qcom_geni_serial_port *port = dev_get_drvdata(dev);
+ 
+ 	return snprintf(buf, sizeof(u32), "%d\n", port->loopback);
+ }
+@@ -172,8 +171,7 @@ static ssize_t loopback_store(struct device *dev,
+ 				struct device_attribute *attr, const char *buf,
+ 				size_t size)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct qcom_geni_serial_port *port = platform_get_drvdata(pdev);
++	struct qcom_geni_serial_port *port = dev_get_drvdata(dev);
+ 	u32 loopback;
+ 
+ 	if (kstrtoint(buf, 0, &loopback) || loopback > MAX_LOOPBACK_CFG) {

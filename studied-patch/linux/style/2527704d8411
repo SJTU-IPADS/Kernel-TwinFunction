@@ -1,0 +1,80 @@
+commit 2527704d8411e2b4241916e8b22505cb4519ce08
+Author: Lukas Wunner <lukas@wunner.de>
+Date:   Thu Nov 29 16:45:24 2018 +0100
+
+    spi: bcm2835: Synchronize with callback on DMA termination
+    
+    Commit b36f09c3c441 ("dmaengine: Add transfer termination
+    synchronization support") deprecated dmaengine_terminate_all() in favor
+    of dmaengine_terminate_sync() and dmaengine_terminate_async() to avoid
+    freeing resources used by the DMA callback before its execution has
+    concluded.
+    
+    Commit de92436ac40f ("dmaengine: bcm2835-dma: Use vchan_terminate_vdesc()
+    instead of desc_free") amended the BCM2835 DMA driver with an
+    implementation of ->device_synchronize(), which is a prerequisite for
+    dmaengine_terminate_sync().  Thus, clients of the DMA driver (such as
+    the BCM2835 SPI driver) may now be converted to the new API.
+    
+    It is generally desirable to use the _sync() variant except in atomic
+    context.  There is only a single occurrence where the BCM2835 SPI driver
+    calls dmaengine_terminate_all() in atomic context and that is in
+    bcm2835_spi_dma_done() (the RX DMA channel's callback) to terminate the
+    TX DMA channel.  The TX DMA channel doesn't have a callback (yet), hence
+    it is safe to use the _async() variant there.
+    
+    Signed-off-by: Lukas Wunner <lukas@wunner.de>
+    Cc: Frank Pavlic <f.pavlic@kunbus.de>
+    Cc: Martin Sperl <kernel@martin.sperl.org>
+    Cc: Noralf Trønnes <noralf@tronnes.org>
+    Cc: Vinod Koul <vkoul@kernel.org>
+    Signed-off-by: Mark Brown <broonie@kernel.org>
+
+diff --git a/drivers/spi/spi-bcm2835.c b/drivers/spi/spi-bcm2835.c
+index 5af4cf74392c..35aebdfd3b4e 100644
+--- a/drivers/spi/spi-bcm2835.c
++++ b/drivers/spi/spi-bcm2835.c
+@@ -514,7 +514,7 @@ static void bcm2835_spi_dma_done(void *data)
+ 	 * situation otherwise...
+ 	 */
+ 	if (cmpxchg(&bs->dma_pending, true, false)) {
+-		dmaengine_terminate_all(master->dma_tx);
++		dmaengine_terminate_async(master->dma_tx);
+ 		bcm2835_spi_undo_prologue(bs);
+ 	}
+ 
+@@ -605,7 +605,7 @@ static int bcm2835_spi_transfer_one_dma(struct spi_master *master,
+ 	ret = bcm2835_spi_prepare_sg(master, tfr, false);
+ 	if (ret) {
+ 		/* need to reset on errors */
+-		dmaengine_terminate_all(master->dma_tx);
++		dmaengine_terminate_sync(master->dma_tx);
+ 		bs->dma_pending = false;
+ 		goto err_reset_hw;
+ 	}
+@@ -650,12 +650,12 @@ static bool bcm2835_spi_can_dma(struct spi_master *master,
+ static void bcm2835_dma_release(struct spi_master *master)
+ {
+ 	if (master->dma_tx) {
+-		dmaengine_terminate_all(master->dma_tx);
++		dmaengine_terminate_sync(master->dma_tx);
+ 		dma_release_channel(master->dma_tx);
+ 		master->dma_tx = NULL;
+ 	}
+ 	if (master->dma_rx) {
+-		dmaengine_terminate_all(master->dma_rx);
++		dmaengine_terminate_sync(master->dma_rx);
+ 		dma_release_channel(master->dma_rx);
+ 		master->dma_rx = NULL;
+ 	}
+@@ -864,8 +864,8 @@ static void bcm2835_spi_handle_err(struct spi_master *master,
+ 
+ 	/* if an error occurred and we have an active dma, then terminate */
+ 	if (cmpxchg(&bs->dma_pending, true, false)) {
+-		dmaengine_terminate_all(master->dma_tx);
+-		dmaengine_terminate_all(master->dma_rx);
++		dmaengine_terminate_sync(master->dma_tx);
++		dmaengine_terminate_sync(master->dma_rx);
+ 		bcm2835_spi_undo_prologue(bs);
+ 	}
+ 	/* and reset */

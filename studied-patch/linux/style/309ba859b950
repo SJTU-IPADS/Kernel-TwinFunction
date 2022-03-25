@@ -1,0 +1,79 @@
+commit 309ba859b95085f61f4f2a154df6be9cb9713a12
+Author: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+Date:   Wed Jul 11 14:36:49 2018 -0700
+
+    rcu: Eliminate synchronize_rcu_mult()
+    
+    Now that synchronize_rcu() waits for both RCU read-side critical
+    sections and preempt-disabled regions of code, the sole caller of
+    synchronize_rcu_mult() can be replaced by synchronize_rcu().
+    This patch makes this change and removes synchronize_rcu_mult().
+    Note that _wait_rcu_gp() still supports synchronize_rcu_mult(),
+    and thus might be simplified in the future to take only take
+    a single call_rcu() function rather than the current list of them.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+
+diff --git a/include/linux/rcupdate_wait.h b/include/linux/rcupdate_wait.h
+index 8a16c3eb3dd0..c0578ba23c1a 100644
+--- a/include/linux/rcupdate_wait.h
++++ b/include/linux/rcupdate_wait.h
+@@ -31,21 +31,4 @@ do {									\
+ 
+ #define wait_rcu_gp(...) _wait_rcu_gp(false, __VA_ARGS__)
+ 
+-/**
+- * synchronize_rcu_mult - Wait concurrently for multiple grace periods
+- * @...: List of call_rcu() functions for different grace periods to wait on
+- *
+- * This macro waits concurrently for multiple types of RCU grace periods.
+- * For example, synchronize_rcu_mult(call_rcu, call_rcu_tasks) would wait
+- * on concurrent RCU and RCU-tasks grace periods.  Waiting on a give SRCU
+- * domain requires you to write a wrapper function for that SRCU domain's
+- * call_srcu() function, supplying the corresponding srcu_struct.
+- *
+- * If Tiny RCU, tell _wait_rcu_gp() does not bother waiting for RCU,
+- * given that anywhere synchronize_rcu_mult() can be called is automatically
+- * a grace period.
+- */
+-#define synchronize_rcu_mult(...) \
+-	_wait_rcu_gp(IS_ENABLED(CONFIG_TINY_RCU), __VA_ARGS__)
+-
+ #endif /* _LINUX_SCHED_RCUPDATE_WAIT_H */
+diff --git a/kernel/rcu/update.c b/kernel/rcu/update.c
+index f203b94f6b5b..c729ca5e6ee2 100644
+--- a/kernel/rcu/update.c
++++ b/kernel/rcu/update.c
+@@ -335,8 +335,7 @@ void __wait_rcu_gp(bool checktiny, int n, call_rcu_func_t *crcu_array,
+ 	/* Initialize and register callbacks for each crcu_array element. */
+ 	for (i = 0; i < n; i++) {
+ 		if (checktiny &&
+-		    (crcu_array[i] == call_rcu ||
+-		     crcu_array[i] == call_rcu_bh)) {
++		    (crcu_array[i] == call_rcu)) {
+ 			might_sleep();
+ 			continue;
+ 		}
+@@ -352,8 +351,7 @@ void __wait_rcu_gp(bool checktiny, int n, call_rcu_func_t *crcu_array,
+ 	/* Wait for all callbacks to be invoked. */
+ 	for (i = 0; i < n; i++) {
+ 		if (checktiny &&
+-		    (crcu_array[i] == call_rcu ||
+-		     crcu_array[i] == call_rcu_bh))
++		    (crcu_array[i] == call_rcu))
+ 			continue;
+ 		for (j = 0; j < i; j++)
+ 			if (crcu_array[j] == crcu_array[i])
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index f12225f26b70..ea12ebc57840 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -5788,7 +5788,7 @@ int sched_cpu_deactivate(unsigned int cpu)
+ 	 *
+ 	 * Do sync before park smpboot threads to take care the rcu boost case.
+ 	 */
+-	synchronize_rcu_mult(call_rcu, call_rcu_sched);
++	synchronize_rcu();
+ 
+ 	if (!sched_smp_initialized)
+ 		return 0;

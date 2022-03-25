@@ -1,0 +1,32 @@
+commit 947d3616492cd2e7b3b380885e24b26ec198143c
+Author: ian <ian@FreeBSD.org>
+Date:   Mon Sep 11 22:35:20 2017 +0000
+
+    MFC r323132-r323133
+    
+    r323132:
+    The latest RPi firmware leaves secondary cores in a wait-for-event (WFE)
+    state to save power, so after writing the entry point address for a core to
+    the mailbox, use a dsb() to synchronize the execution pipeline to the data
+    written, then use an sev() to wake up the core.
+    
+    Submitted by:   Sylvain Garrigues <sylgar@gmail.com>
+    
+    r323133:
+    Change leading spaces to tabs, no functional change.
+
+diff --git a/sys/arm/broadcom/bcm2835/bcm2836_mp.c b/sys/arm/broadcom/bcm2835/bcm2836_mp.c
+index 1eb44373398..9013371c2b8 100644
+--- a/sys/arm/broadcom/bcm2835/bcm2836_mp.c
++++ b/sys/arm/broadcom/bcm2835/bcm2836_mp.c
+@@ -114,7 +114,9 @@ platform_mp_start_ap(void)
+ 		/* set entry point to mailbox 3 */
+ 		BSWR4(MBOX3SET_CORE(i),
+ 		    (uint32_t)pmap_kextract((vm_offset_t)mpentry));
+-		wmb();
++		/* Firmware put cores in WFE state, need SEV to wake up. */
++		dsb();
++		sev();
+ 
+ 		/* wait for bootup */
+ 		retry = 1000;

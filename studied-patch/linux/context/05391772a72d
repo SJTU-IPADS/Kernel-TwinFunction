@@ -1,0 +1,31 @@
+commit 05391772a72d49c37e6e4cb8e871be57beb66155
+Author: huang.zijiang <huang.zijiang@zte.com.cn>
+Date:   Thu Jan 3 15:26:55 2019 -0800
+
+    drivers/firmware/memmap.c: modify memblock_alloc to memblock_alloc_nopanic
+    
+    memblock_alloc() never returns NULL because panic never returns.
+    
+    Link: http://lkml.kernel.org/r/1545640882-42009-1-git-send-email-huang.zijiang@zte.com.cn
+    Signed-off-by: huang.zijiang <huang.zijiang@zte.com.cn>
+    Acked-by: Mike Rapoport <rppt@linux.ibm.com>
+    Cc: Michal Hocko <mhocko@suse.com>
+    Cc: Stephen Rothwell <sfr@canb.auug.org.au>
+    Cc: Michael Ellerman <mpe@ellerman.id.au>
+    Cc: Yi Wang <wang.yi59@zte.com.cn>
+    Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+    Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+
+diff --git a/drivers/firmware/memmap.c b/drivers/firmware/memmap.c
+index d168c87c7d30..ec4fd253a4e9 100644
+--- a/drivers/firmware/memmap.c
++++ b/drivers/firmware/memmap.c
+@@ -333,7 +333,7 @@ int __init firmware_map_add_early(u64 start, u64 end, const char *type)
+ {
+ 	struct firmware_map_entry *entry;
+ 
+-	entry = memblock_alloc(sizeof(struct firmware_map_entry),
++	entry = memblock_alloc_nopanic(sizeof(struct firmware_map_entry),
+ 			       SMP_CACHE_BYTES);
+ 	if (WARN_ON(!entry))
+ 		return -ENOMEM;

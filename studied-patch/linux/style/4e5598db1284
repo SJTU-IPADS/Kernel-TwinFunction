@@ -1,0 +1,28 @@
+commit 4e5598db12843eb5e56d4c376692b34372e81aa8
+Author: Christoph Hellwig <hch@lst.de>
+Date:   Thu Oct 18 15:10:24 2018 +0200
+
+    scsi: sym53c8xx: use dma_set_mask
+    
+    The driver currently uses pci_set_dma_mask despite otherwise using the
+    generic DMA API.
+    
+    Signed-off-by: Christoph Hellwig <hch@lst.de>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/scsi/sym53c8xx_2/sym_glue.c b/drivers/scsi/sym53c8xx_2/sym_glue.c
+index 5f10aa9bad9b..6e9b54061d7e 100644
+--- a/drivers/scsi/sym53c8xx_2/sym_glue.c
++++ b/drivers/scsi/sym53c8xx_2/sym_glue.c
+@@ -1312,9 +1312,9 @@ static struct Scsi_Host *sym_attach(struct scsi_host_template *tpnt, int unit,
+ 	sprintf(np->s.inst_name, "sym%d", np->s.unit);
+ 
+ 	if ((SYM_CONF_DMA_ADDRESSING_MODE > 0) && (np->features & FE_DAC) &&
+-			!pci_set_dma_mask(pdev, DMA_DAC_MASK)) {
++			!dma_set_mask(&pdev->dev, DMA_DAC_MASK)) {
+ 		set_dac(np);
+-	} else if (pci_set_dma_mask(pdev, DMA_BIT_MASK(32))) {
++	} else if (dma_set_mask(&pdev->dev, DMA_BIT_MASK(32))) {
+ 		printf_warning("%s: No suitable DMA available\n", sym_name(np));
+ 		goto attach_failed;
+ 	}

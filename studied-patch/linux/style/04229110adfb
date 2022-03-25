@@ -1,0 +1,30 @@
+commit 04229110adfba984950fc0209632640a76eb1de4
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Mon Nov 5 16:53:13 2018 -0800
+
+    powerpc: Convert hugepd_free() to use call_rcu()
+    
+    Now that call_rcu()'s callback is not invoked until after all
+    preempt-disable regions of code have completed (in addition to explicitly
+    marked RCU read-side critical sections), call_rcu() can be used in place
+    of call_rcu_sched().  This commit therefore makes that change.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: Benjamin Herrenschmidt <benh@kernel.crashing.org>
+    Cc: Paul Mackerras <paulus@samba.org>
+    Cc: Michael Ellerman <mpe@ellerman.id.au>
+    Cc: <linuxppc-dev@lists.ozlabs.org>
+
+diff --git a/arch/powerpc/mm/hugetlbpage.c b/arch/powerpc/mm/hugetlbpage.c
+index 8cf035e68378..4c01e9a01a74 100644
+--- a/arch/powerpc/mm/hugetlbpage.c
++++ b/arch/powerpc/mm/hugetlbpage.c
+@@ -289,7 +289,7 @@ static void hugepd_free(struct mmu_gather *tlb, void *hugepte)
+ 
+ 	(*batchp)->ptes[(*batchp)->index++] = hugepte;
+ 	if ((*batchp)->index == HUGEPD_FREELIST_SIZE) {
+-		call_rcu_sched(&(*batchp)->rcu, hugepd_free_rcu_callback);
++		call_rcu(&(*batchp)->rcu, hugepd_free_rcu_callback);
+ 		*batchp = NULL;
+ 	}
+ 	put_cpu_var(hugepd_freelist_cur);

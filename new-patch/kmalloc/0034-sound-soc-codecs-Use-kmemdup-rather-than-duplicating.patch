@@ -1,0 +1,47 @@
+From 08fd61f821d29d49145c4e9deec2b295f364cfd4 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 3 Jul 2019 23:40:24 +0800
+Subject: [PATCH v2 34/35] sound/soc/codecs: Use kmemdup rather than
+ duplicating its implementation
+
+kmemdup is introduced to duplicate a region of memory in a neat way.
+Rather than kmalloc/kzalloc + memcpy, which the programmer needs to
+write the size twice (sometimes lead to mistakes), kmemdup improves
+readability, leads to smaller code and also reduce the chances of mistakes.
+Suggestion to use kmemdup rather than using kmalloc/kzalloc + memcpy.
+
+Acked-by: Richard Fitzgerald <rf@opensource.cirrus.com>
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Fix a typo in commit message (memset -> memcpy)
+  - Split into two patches
+
+ sound/soc/codecs/wm0010.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/sound/soc/codecs/wm0010.c b/sound/soc/codecs/wm0010.c
+index 727d6703c905..807826f30f58 100644
+--- a/sound/soc/codecs/wm0010.c
++++ b/sound/soc/codecs/wm0010.c
+@@ -515,7 +515,7 @@ static int wm0010_stage2_load(struct snd_soc_component *component)
+ 	dev_dbg(component->dev, "Downloading %zu byte stage 2 loader\n", fw->size);
+ 
+ 	/* Copy to local buffer first as vmalloc causes problems for dma */
+-	img = kzalloc(fw->size, GFP_KERNEL | GFP_DMA);
++	img = kmemdup(&fw->data[0], fw->size, GFP_KERNEL | GFP_DMA);
+ 	if (!img) {
+ 		ret = -ENOMEM;
+ 		goto abort2;
+@@ -527,8 +527,6 @@ static int wm0010_stage2_load(struct snd_soc_component *component)
+ 		goto abort1;
+ 	}
+ 
+-	memcpy(img, &fw->data[0], fw->size);
+-
+ 	spi_message_init(&m);
+ 	memset(&t, 0, sizeof(t));
+ 	t.rx_buf = out;
+-- 
+2.11.0
+

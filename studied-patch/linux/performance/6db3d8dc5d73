@@ -1,0 +1,81 @@
+commit 6db3d8dc5d73b269987fae60745bb20eae97af61
+Author: Stefan Hajnoczi <stefanha@redhat.com>
+Date:   Mon Nov 5 17:33:22 2018 +0000
+
+    vhost/vsock: switch to a mutex for vhost_vsock_hash
+    
+    Now that there are no more data path users of vhost_vsock_lock, it can
+    be turned into a mutex.  It's only used by .release() and in the
+    .ioctl() path.
+    
+    Depends-on: <20181105103547.22018-1-stefanha@redhat.com>
+    Suggested-by: Jason Wang <jasowang@redhat.com>
+    Signed-off-by: Stefan Hajnoczi <stefanha@redhat.com>
+    Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+    Acked-by: Jason Wang <jasowang@redhat.com>
+
+diff --git a/drivers/vhost/vsock.c b/drivers/vhost/vsock.c
+index 98ed5be132c6..bc42d38ae031 100644
+--- a/drivers/vhost/vsock.c
++++ b/drivers/vhost/vsock.c
+@@ -27,14 +27,14 @@ enum {
+ };
+ 
+ /* Used to track all the vhost_vsock instances on the system. */
+-static DEFINE_SPINLOCK(vhost_vsock_lock);
++static DEFINE_MUTEX(vhost_vsock_mutex);
+ static DEFINE_READ_MOSTLY_HASHTABLE(vhost_vsock_hash, 8);
+ 
+ struct vhost_vsock {
+ 	struct vhost_dev dev;
+ 	struct vhost_virtqueue vqs[2];
+ 
+-	/* Link to global vhost_vsock_hash, writes use vhost_vsock_lock */
++	/* Link to global vhost_vsock_hash, writes use vhost_vsock_mutex */
+ 	struct hlist_node hash;
+ 
+ 	struct vhost_work send_pkt_work;
+@@ -51,7 +51,7 @@ static u32 vhost_transport_get_local_cid(void)
+ 	return VHOST_VSOCK_DEFAULT_HOST_CID;
+ }
+ 
+-/* Callers that dereference the return value must hold vhost_vsock_lock or the
++/* Callers that dereference the return value must hold vhost_vsock_mutex or the
+  * RCU read lock.
+  */
+ static struct vhost_vsock *vhost_vsock_get(u32 guest_cid)
+@@ -584,10 +584,10 @@ static int vhost_vsock_dev_release(struct inode *inode, struct file *file)
+ {
+ 	struct vhost_vsock *vsock = file->private_data;
+ 
+-	spin_lock_bh(&vhost_vsock_lock);
++	mutex_lock(&vhost_vsock_mutex);
+ 	if (vsock->guest_cid)
+ 		hash_del_rcu(&vsock->hash);
+-	spin_unlock_bh(&vhost_vsock_lock);
++	mutex_unlock(&vhost_vsock_mutex);
+ 
+ 	/* Wait for other CPUs to finish using vsock */
+ 	synchronize_rcu();
+@@ -631,10 +631,10 @@ static int vhost_vsock_set_cid(struct vhost_vsock *vsock, u64 guest_cid)
+ 		return -EINVAL;
+ 
+ 	/* Refuse if CID is already in use */
+-	spin_lock_bh(&vhost_vsock_lock);
++	mutex_lock(&vhost_vsock_mutex);
+ 	other = vhost_vsock_get(guest_cid);
+ 	if (other && other != vsock) {
+-		spin_unlock_bh(&vhost_vsock_lock);
++		mutex_unlock(&vhost_vsock_mutex);
+ 		return -EADDRINUSE;
+ 	}
+ 
+@@ -643,7 +643,7 @@ static int vhost_vsock_set_cid(struct vhost_vsock *vsock, u64 guest_cid)
+ 
+ 	vsock->guest_cid = guest_cid;
+ 	hash_add_rcu(vhost_vsock_hash, &vsock->hash, guest_cid);
+-	spin_unlock_bh(&vhost_vsock_lock);
++	mutex_unlock(&vhost_vsock_mutex);
+ 
+ 	return 0;
+ }

@@ -1,0 +1,90 @@
+From 580c2ac737709fc81b3e34053223ea8381b3e011 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 21:09:07 +0800
+Subject: [PATCH] net: broadcom: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/net/ethernet/broadcom/bnx2.c      | 6 ++----
+ drivers/net/ethernet/broadcom/bnxt/bnxt.c | 6 ++----
+ drivers/net/ethernet/broadcom/tg3.c       | 6 ++----
+ 3 files changed, 6 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/net/ethernet/broadcom/bnx2.c b/drivers/net/ethernet/broadcom/bnx2.c
+index dfdd14eadd57..fbc196b480b6 100644
+--- a/drivers/net/ethernet/broadcom/bnx2.c
++++ b/drivers/net/ethernet/broadcom/bnx2.c
+@@ -8673,8 +8673,7 @@ bnx2_remove_one(struct pci_dev *pdev)
+ static int
+ bnx2_suspend(struct device *device)
+ {
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct net_device *dev = pci_get_drvdata(pdev);
++	struct net_device *dev = dev_get_drvdata(device);
+ 	struct bnx2 *bp = netdev_priv(dev);
+ 
+ 	if (netif_running(dev)) {
+@@ -8693,8 +8692,7 @@ bnx2_suspend(struct device *device)
+ static int
+ bnx2_resume(struct device *device)
+ {
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct net_device *dev = pci_get_drvdata(pdev);
++	struct net_device *dev = dev_get_drvdata(device);
+ 	struct bnx2 *bp = netdev_priv(dev);
+ 
+ 	if (!netif_running(dev))
+diff --git a/drivers/net/ethernet/broadcom/bnxt/bnxt.c b/drivers/net/ethernet/broadcom/bnxt/bnxt.c
+index 7134d2c3eb1c..1aad59b8a413 100644
+--- a/drivers/net/ethernet/broadcom/bnxt/bnxt.c
++++ b/drivers/net/ethernet/broadcom/bnxt/bnxt.c
+@@ -10920,8 +10920,7 @@ static void bnxt_shutdown(struct pci_dev *pdev)
+ #ifdef CONFIG_PM_SLEEP
+ static int bnxt_suspend(struct device *device)
+ {
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct net_device *dev = pci_get_drvdata(pdev);
++	struct net_device *dev = dev_get_drvdata(device);
+ 	struct bnxt *bp = netdev_priv(dev);
+ 	int rc = 0;
+ 
+@@ -10937,8 +10936,7 @@ static int bnxt_suspend(struct device *device)
+ 
+ static int bnxt_resume(struct device *device)
+ {
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct net_device *dev = pci_get_drvdata(pdev);
++	struct net_device *dev = dev_get_drvdata(device);
+ 	struct bnxt *bp = netdev_priv(dev);
+ 	int rc = 0;
+ 
+diff --git a/drivers/net/ethernet/broadcom/tg3.c b/drivers/net/ethernet/broadcom/tg3.c
+index 4c404d2213f9..77f3511b97de 100644
+--- a/drivers/net/ethernet/broadcom/tg3.c
++++ b/drivers/net/ethernet/broadcom/tg3.c
+@@ -18041,8 +18041,7 @@ static void tg3_remove_one(struct pci_dev *pdev)
+ #ifdef CONFIG_PM_SLEEP
+ static int tg3_suspend(struct device *device)
+ {
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct net_device *dev = pci_get_drvdata(pdev);
++	struct net_device *dev = dev_get_drvdata(device);
+ 	struct tg3 *tp = netdev_priv(dev);
+ 	int err = 0;
+ 
+@@ -18098,8 +18097,7 @@ static int tg3_suspend(struct device *device)
+ 
+ static int tg3_resume(struct device *device)
+ {
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct net_device *dev = pci_get_drvdata(pdev);
++	struct net_device *dev = dev_get_drvdata(device);
+ 	struct tg3 *tp = netdev_priv(dev);
+ 	int err = 0;
+ 
+-- 
+2.20.1
+

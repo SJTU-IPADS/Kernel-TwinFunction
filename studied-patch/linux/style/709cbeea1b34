@@ -1,0 +1,48 @@
+commit 709cbeea1b34f92619140b20bf15602a7f1240d8
+Author: Thierry Reding <treding@nvidia.com>
+Date:   Thu Dec 20 18:19:46 2018 +0100
+
+    mailbox: bcm2835: Use device-managed registration API
+    
+    Get rid of some boilerplate driver removal code by using the newly added
+    device-managed registration API.
+    
+    Reviewed-by: Eric Anholt <eric@anholt.net>
+    Signed-off-by: Thierry Reding <treding@nvidia.com>
+    Signed-off-by: Jassi Brar <jaswinder.singh@linaro.org>
+
+diff --git a/drivers/mailbox/bcm2835-mailbox.c b/drivers/mailbox/bcm2835-mailbox.c
+index bb3ee728169d..39761d190545 100644
+--- a/drivers/mailbox/bcm2835-mailbox.c
++++ b/drivers/mailbox/bcm2835-mailbox.c
+@@ -172,7 +172,7 @@ static int bcm2835_mbox_probe(struct platform_device *pdev)
+ 	if (!mbox->controller.chans)
+ 		return -ENOMEM;
+ 
+-	ret = mbox_controller_register(&mbox->controller);
++	ret = devm_mbox_controller_register(dev, &mbox->controller);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -182,13 +182,6 @@ static int bcm2835_mbox_probe(struct platform_device *pdev)
+ 	return ret;
+ }
+ 
+-static int bcm2835_mbox_remove(struct platform_device *pdev)
+-{
+-	struct bcm2835_mbox *mbox = platform_get_drvdata(pdev);
+-	mbox_controller_unregister(&mbox->controller);
+-	return 0;
+-}
+-
+ static const struct of_device_id bcm2835_mbox_of_match[] = {
+ 	{ .compatible = "brcm,bcm2835-mbox", },
+ 	{},
+@@ -201,7 +194,6 @@ static struct platform_driver bcm2835_mbox_driver = {
+ 		.of_match_table = bcm2835_mbox_of_match,
+ 	},
+ 	.probe		= bcm2835_mbox_probe,
+-	.remove		= bcm2835_mbox_remove,
+ };
+ module_platform_driver(bcm2835_mbox_driver);
+ 

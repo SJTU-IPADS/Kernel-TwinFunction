@@ -1,0 +1,60 @@
+commit e202245dc38f10eaccdab9e7bfb86f05421666db
+Author: avg <avg@FreeBSD.org>
+Date:   Tue Sep 26 08:43:43 2017 +0000
+
+    MFC r323479,r323491: zfs: tighten debug versions of ZTOV and VTOZ
+    
+    Sponsored by:   Panzura
+
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zfs_znode.h b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zfs_znode.h
+index c127788b37a..6465c50e280 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zfs_znode.h
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zfs_znode.h
+@@ -227,7 +227,7 @@ ZTOV(znode_t *zp)
+ {
+ 	vnode_t *vp = zp->z_vnode;
+ 
+-	ASSERT(vp == NULL || vp->v_data == NULL || vp->v_data == zp);
++	ASSERT(vp != NULL && vp->v_data == zp);
+ 	return (vp);
+ }
+ static __inline znode_t *
+@@ -235,7 +235,7 @@ VTOZ(vnode_t *vp)
+ {
+ 	znode_t *zp = (znode_t *)vp->v_data;
+ 
+-	ASSERT(zp == NULL || zp->z_vnode == NULL || zp->z_vnode == vp);
++	ASSERT(zp != NULL && zp->z_vnode == vp);
+ 	return (zp);
+ }
+ #else
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_acl.c b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_acl.c
+index 1a9f0d47f3d..e98731442c8 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_acl.c
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_acl.c
+@@ -1602,7 +1602,10 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
+ 	boolean_t	trim = B_FALSE;
+ 	boolean_t	inherited = B_FALSE;
+ 
+-	ASSERT_VOP_ELOCKED(ZTOV(dzp), __func__);
++	if ((flag & IS_ROOT_NODE) == 0)
++		ASSERT_VOP_ELOCKED(ZTOV(dzp), __func__);
++	else
++		ASSERT(dzp->z_vnode == NULL);
+ 	bzero(acl_ids, sizeof (zfs_acl_ids_t));
+ 	acl_ids->z_mode = MAKEIMODE(vap->va_type, vap->va_mode);
+ 
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_znode.c b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_znode.c
+index 1ad0d834642..61f7041d41a 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_znode.c
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_znode.c
+@@ -143,8 +143,7 @@ zfs_znode_cache_destructor(void *buf, void *arg)
+ 	znode_t *zp = buf;
+ 
+ 	ASSERT(!POINTER_IS_VALID(zp->z_zfsvfs));
+-	ASSERT(ZTOV(zp) == NULL);
+-	vn_free(ZTOV(zp));
++	ASSERT3P(zp->z_vnode, ==, NULL);
+ 	ASSERT(!list_link_active(&zp->z_link_node));
+ 	mutex_destroy(&zp->z_acl_lock);
+ 	avl_destroy(&zp->z_range_avl);

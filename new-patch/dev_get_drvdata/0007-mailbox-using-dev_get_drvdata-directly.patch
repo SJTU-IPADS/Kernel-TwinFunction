@@ -1,0 +1,45 @@
+From 324d10531783c6c627a1d31f20adc9234ca1ab28 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 4 Jul 2019 09:20:39 +0800
+Subject: [Patch v2 07/10] mailbox: using dev_get_drvdata directly
+
+Several drivers cast a struct device pointer to a struct
+platform_device pointer only to then call platform_get_drvdata().
+To improve readability, these constructs can be simplified
+by using dev_get_drvdata() directly.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Make the commit message more clearly.
+
+ drivers/mailbox/bcm-flexrm-mailbox.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/mailbox/bcm-flexrm-mailbox.c b/drivers/mailbox/bcm-flexrm-mailbox.c
+index a64116586b4c..0cfdd53d04a1 100644
+--- a/drivers/mailbox/bcm-flexrm-mailbox.c
++++ b/drivers/mailbox/bcm-flexrm-mailbox.c
+@@ -1165,8 +1165,7 @@ static int flexrm_process_completions(struct flexrm_ring *ring)
+ 
+ static int flexrm_debugfs_conf_show(struct seq_file *file, void *offset)
+ {
+-	struct platform_device *pdev = to_platform_device(file->private);
+-	struct flexrm_mbox *mbox = platform_get_drvdata(pdev);
++	struct flexrm_mbox *mbox = dev_get_drvdata(file->private);
+ 
+ 	/* Write config in file */
+ 	flexrm_write_config_in_seqfile(mbox, file);
+@@ -1176,8 +1175,7 @@ static int flexrm_debugfs_conf_show(struct seq_file *file, void *offset)
+ 
+ static int flexrm_debugfs_stats_show(struct seq_file *file, void *offset)
+ {
+-	struct platform_device *pdev = to_platform_device(file->private);
+-	struct flexrm_mbox *mbox = platform_get_drvdata(pdev);
++	struct flexrm_mbox *mbox = dev_get_drvdata(file->private);
+ 
+ 	/* Write stats in file */
+ 	flexrm_write_stats_in_seqfile(mbox, file);
+-- 
+2.11.0
+

@@ -1,0 +1,218 @@
+commit 3aae21fc2ed4e2b6b417e81a0d39bfa590e8510d
+Author: Ramalingam C <ramalingam.c@intel.com>
+Date:   Tue Oct 23 16:11:28 2018 +0530
+
+    drm/i915: Move the DDC/AUX failure msgs to debug log
+    
+    When a HDCP authentication is in progress, if the display sink is
+    hot unplugged, all DDC/AUX transaction related to the HDCP
+    authentication will fail.
+    
+    This patch moves those kind of HDCP DDC/AUX failures into the debug
+    logs instead of errors.
+    
+    v2:
+      Bksv invalid state is provided as debug msg
+    
+    Signed-off-by: Ramalingam C <ramalingam.c@intel.com>
+    Reviewed-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+    Signed-off-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+    Link: https://patchwork.freedesktop.org/patch/msgid/1540291288-22185-1-git-send-email-ramalingam.c@intel.com
+
+diff --git a/drivers/gpu/drm/i915/intel_dp.c b/drivers/gpu/drm/i915/intel_dp.c
+index 39957c82d710..8e64f149ab09 100644
+--- a/drivers/gpu/drm/i915/intel_dp.c
++++ b/drivers/gpu/drm/i915/intel_dp.c
+@@ -5350,7 +5350,8 @@ int intel_dp_hdcp_write_an_aksv(struct intel_digital_port *intel_dig_port,
+ 	dpcd_ret = drm_dp_dpcd_write(&intel_dig_port->dp.aux, DP_AUX_HDCP_AN,
+ 				     an, DRM_HDCP_AN_LEN);
+ 	if (dpcd_ret != DRM_HDCP_AN_LEN) {
+-		DRM_ERROR("Failed to write An over DP/AUX (%zd)\n", dpcd_ret);
++		DRM_DEBUG_KMS("Failed to write An over DP/AUX (%zd)\n",
++			      dpcd_ret);
+ 		return dpcd_ret >= 0 ? -EIO : dpcd_ret;
+ 	}
+ 
+@@ -5366,10 +5367,10 @@ int intel_dp_hdcp_write_an_aksv(struct intel_digital_port *intel_dig_port,
+ 				rxbuf, sizeof(rxbuf),
+ 				DP_AUX_CH_CTL_AUX_AKSV_SELECT);
+ 	if (ret < 0) {
+-		DRM_ERROR("Write Aksv over DP/AUX failed (%d)\n", ret);
++		DRM_DEBUG_KMS("Write Aksv over DP/AUX failed (%d)\n", ret);
+ 		return ret;
+ 	} else if (ret == 0) {
+-		DRM_ERROR("Aksv write over DP/AUX was empty\n");
++		DRM_DEBUG_KMS("Aksv write over DP/AUX was empty\n");
+ 		return -EIO;
+ 	}
+ 
+@@ -5384,7 +5385,7 @@ static int intel_dp_hdcp_read_bksv(struct intel_digital_port *intel_dig_port,
+ 	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_BKSV, bksv,
+ 			       DRM_HDCP_KSV_LEN);
+ 	if (ret != DRM_HDCP_KSV_LEN) {
+-		DRM_ERROR("Read Bksv from DP/AUX failed (%zd)\n", ret);
++		DRM_DEBUG_KMS("Read Bksv from DP/AUX failed (%zd)\n", ret);
+ 		return ret >= 0 ? -EIO : ret;
+ 	}
+ 	return 0;
+@@ -5402,7 +5403,7 @@ static int intel_dp_hdcp_read_bstatus(struct intel_digital_port *intel_dig_port,
+ 	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_BINFO,
+ 			       bstatus, DRM_HDCP_BSTATUS_LEN);
+ 	if (ret != DRM_HDCP_BSTATUS_LEN) {
+-		DRM_ERROR("Read bstatus from DP/AUX failed (%zd)\n", ret);
++		DRM_DEBUG_KMS("Read bstatus from DP/AUX failed (%zd)\n", ret);
+ 		return ret >= 0 ? -EIO : ret;
+ 	}
+ 	return 0;
+@@ -5417,7 +5418,7 @@ int intel_dp_hdcp_read_bcaps(struct intel_digital_port *intel_dig_port,
+ 	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_BCAPS,
+ 			       bcaps, 1);
+ 	if (ret != 1) {
+-		DRM_ERROR("Read bcaps from DP/AUX failed (%zd)\n", ret);
++		DRM_DEBUG_KMS("Read bcaps from DP/AUX failed (%zd)\n", ret);
+ 		return ret >= 0 ? -EIO : ret;
+ 	}
+ 
+@@ -5447,7 +5448,7 @@ int intel_dp_hdcp_read_ri_prime(struct intel_digital_port *intel_dig_port,
+ 	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_RI_PRIME,
+ 			       ri_prime, DRM_HDCP_RI_LEN);
+ 	if (ret != DRM_HDCP_RI_LEN) {
+-		DRM_ERROR("Read Ri' from DP/AUX failed (%zd)\n", ret);
++		DRM_DEBUG_KMS("Read Ri' from DP/AUX failed (%zd)\n", ret);
+ 		return ret >= 0 ? -EIO : ret;
+ 	}
+ 	return 0;
+@@ -5462,7 +5463,7 @@ int intel_dp_hdcp_read_ksv_ready(struct intel_digital_port *intel_dig_port,
+ 	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_BSTATUS,
+ 			       &bstatus, 1);
+ 	if (ret != 1) {
+-		DRM_ERROR("Read bstatus from DP/AUX failed (%zd)\n", ret);
++		DRM_DEBUG_KMS("Read bstatus from DP/AUX failed (%zd)\n", ret);
+ 		return ret >= 0 ? -EIO : ret;
+ 	}
+ 	*ksv_ready = bstatus & DP_BSTATUS_READY;
+@@ -5484,8 +5485,8 @@ int intel_dp_hdcp_read_ksv_fifo(struct intel_digital_port *intel_dig_port,
+ 				       ksv_fifo + i * DRM_HDCP_KSV_LEN,
+ 				       len);
+ 		if (ret != len) {
+-			DRM_ERROR("Read ksv[%d] from DP/AUX failed (%zd)\n", i,
+-				  ret);
++			DRM_DEBUG_KMS("Read ksv[%d] from DP/AUX failed (%zd)\n",
++				      i, ret);
+ 			return ret >= 0 ? -EIO : ret;
+ 		}
+ 	}
+@@ -5505,7 +5506,7 @@ int intel_dp_hdcp_read_v_prime_part(struct intel_digital_port *intel_dig_port,
+ 			       DP_AUX_HDCP_V_PRIME(i), part,
+ 			       DRM_HDCP_V_PRIME_PART_LEN);
+ 	if (ret != DRM_HDCP_V_PRIME_PART_LEN) {
+-		DRM_ERROR("Read v'[%d] from DP/AUX failed (%zd)\n", i, ret);
++		DRM_DEBUG_KMS("Read v'[%d] from DP/AUX failed (%zd)\n", i, ret);
+ 		return ret >= 0 ? -EIO : ret;
+ 	}
+ 	return 0;
+@@ -5528,7 +5529,7 @@ bool intel_dp_hdcp_check_link(struct intel_digital_port *intel_dig_port)
+ 	ret = drm_dp_dpcd_read(&intel_dig_port->dp.aux, DP_AUX_HDCP_BSTATUS,
+ 			       &bstatus, 1);
+ 	if (ret != 1) {
+-		DRM_ERROR("Read bstatus from DP/AUX failed (%zd)\n", ret);
++		DRM_DEBUG_KMS("Read bstatus from DP/AUX failed (%zd)\n", ret);
+ 		return false;
+ 	}
+ 
+diff --git a/drivers/gpu/drm/i915/intel_hdcp.c b/drivers/gpu/drm/i915/intel_hdcp.c
+index 283b45636668..5b423a78518d 100644
+--- a/drivers/gpu/drm/i915/intel_hdcp.c
++++ b/drivers/gpu/drm/i915/intel_hdcp.c
+@@ -44,7 +44,7 @@ int intel_hdcp_read_valid_bksv(struct intel_digital_port *intel_dig_port,
+ 			break;
+ 	}
+ 	if (i == tries) {
+-		DRM_ERROR("Bksv is invalid\n");
++		DRM_DEBUG_KMS("Bksv is invalid\n");
+ 		return -ENODEV;
+ 	}
+ 
+diff --git a/drivers/gpu/drm/i915/intel_hdmi.c b/drivers/gpu/drm/i915/intel_hdmi.c
+index 72e8a73dfa1c..d3e653640ce7 100644
+--- a/drivers/gpu/drm/i915/intel_hdmi.c
++++ b/drivers/gpu/drm/i915/intel_hdmi.c
+@@ -961,13 +961,13 @@ int intel_hdmi_hdcp_write_an_aksv(struct intel_digital_port *intel_dig_port,
+ 	ret = intel_hdmi_hdcp_write(intel_dig_port, DRM_HDCP_DDC_AN, an,
+ 				    DRM_HDCP_AN_LEN);
+ 	if (ret) {
+-		DRM_ERROR("Write An over DDC failed (%d)\n", ret);
++		DRM_DEBUG_KMS("Write An over DDC failed (%d)\n", ret);
+ 		return ret;
+ 	}
+ 
+ 	ret = intel_gmbus_output_aksv(adapter);
+ 	if (ret < 0) {
+-		DRM_ERROR("Failed to output aksv (%d)\n", ret);
++		DRM_DEBUG_KMS("Failed to output aksv (%d)\n", ret);
+ 		return ret;
+ 	}
+ 	return 0;
+@@ -980,7 +980,7 @@ static int intel_hdmi_hdcp_read_bksv(struct intel_digital_port *intel_dig_port,
+ 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_BKSV, bksv,
+ 				   DRM_HDCP_KSV_LEN);
+ 	if (ret)
+-		DRM_ERROR("Read Bksv over DDC failed (%d)\n", ret);
++		DRM_DEBUG_KMS("Read Bksv over DDC failed (%d)\n", ret);
+ 	return ret;
+ }
+ 
+@@ -992,7 +992,7 @@ int intel_hdmi_hdcp_read_bstatus(struct intel_digital_port *intel_dig_port,
+ 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_BSTATUS,
+ 				   bstatus, DRM_HDCP_BSTATUS_LEN);
+ 	if (ret)
+-		DRM_ERROR("Read bstatus over DDC failed (%d)\n", ret);
++		DRM_DEBUG_KMS("Read bstatus over DDC failed (%d)\n", ret);
+ 	return ret;
+ }
+ 
+@@ -1005,7 +1005,7 @@ int intel_hdmi_hdcp_repeater_present(struct intel_digital_port *intel_dig_port,
+ 
+ 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_BCAPS, &val, 1);
+ 	if (ret) {
+-		DRM_ERROR("Read bcaps over DDC failed (%d)\n", ret);
++		DRM_DEBUG_KMS("Read bcaps over DDC failed (%d)\n", ret);
+ 		return ret;
+ 	}
+ 	*repeater_present = val & DRM_HDCP_DDC_BCAPS_REPEATER_PRESENT;
+@@ -1020,7 +1020,7 @@ int intel_hdmi_hdcp_read_ri_prime(struct intel_digital_port *intel_dig_port,
+ 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_RI_PRIME,
+ 				   ri_prime, DRM_HDCP_RI_LEN);
+ 	if (ret)
+-		DRM_ERROR("Read Ri' over DDC failed (%d)\n", ret);
++		DRM_DEBUG_KMS("Read Ri' over DDC failed (%d)\n", ret);
+ 	return ret;
+ }
+ 
+@@ -1033,7 +1033,7 @@ int intel_hdmi_hdcp_read_ksv_ready(struct intel_digital_port *intel_dig_port,
+ 
+ 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_BCAPS, &val, 1);
+ 	if (ret) {
+-		DRM_ERROR("Read bcaps over DDC failed (%d)\n", ret);
++		DRM_DEBUG_KMS("Read bcaps over DDC failed (%d)\n", ret);
+ 		return ret;
+ 	}
+ 	*ksv_ready = val & DRM_HDCP_DDC_BCAPS_KSV_FIFO_READY;
+@@ -1048,7 +1048,7 @@ int intel_hdmi_hdcp_read_ksv_fifo(struct intel_digital_port *intel_dig_port,
+ 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_KSV_FIFO,
+ 				   ksv_fifo, num_downstream * DRM_HDCP_KSV_LEN);
+ 	if (ret) {
+-		DRM_ERROR("Read ksv fifo over DDC failed (%d)\n", ret);
++		DRM_DEBUG_KMS("Read ksv fifo over DDC failed (%d)\n", ret);
+ 		return ret;
+ 	}
+ 	return 0;
+@@ -1066,7 +1066,7 @@ int intel_hdmi_hdcp_read_v_prime_part(struct intel_digital_port *intel_dig_port,
+ 	ret = intel_hdmi_hdcp_read(intel_dig_port, DRM_HDCP_DDC_V_PRIME(i),
+ 				   part, DRM_HDCP_V_PRIME_PART_LEN);
+ 	if (ret)
+-		DRM_ERROR("Read V'[%d] over DDC failed (%d)\n", i, ret);
++		DRM_DEBUG_KMS("Read V'[%d] over DDC failed (%d)\n", i, ret);
+ 	return ret;
+ }
+ 

@@ -1,0 +1,60 @@
+commit d7a86dffc280cb5a2a18975d46c7b9d89b025c7e
+Author: Gerd Hoffmann <kraxel@redhat.com>
+Date:   Wed Nov 28 16:10:21 2018 +0100
+
+    drm/virtio: virtio_gpu_cmd_resource_create_3d: drop unused fence arg
+    
+    Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+    Reviewed-by: Robert Foss <robert.foss@collabora.com>
+    Link: http://patchwork.freedesktop.org/patch/msgid/20181128151021.29565-3-kraxel@redhat.com
+
+diff --git a/drivers/gpu/drm/virtio/virtgpu_drv.h b/drivers/gpu/drm/virtio/virtgpu_drv.h
+index d6cc1a92ca88..4e522e0b59e6 100644
+--- a/drivers/gpu/drm/virtio/virtgpu_drv.h
++++ b/drivers/gpu/drm/virtio/virtgpu_drv.h
+@@ -324,8 +324,7 @@ void virtio_gpu_cmd_transfer_to_host_3d(struct virtio_gpu_device *vgdev,
+ void
+ virtio_gpu_cmd_resource_create_3d(struct virtio_gpu_device *vgdev,
+ 				  struct virtio_gpu_object *bo,
+-				  struct virtio_gpu_resource_create_3d *rc_3d,
+-				  struct virtio_gpu_fence *fence);
++				  struct virtio_gpu_resource_create_3d *rc_3d);
+ void virtio_gpu_ctrl_ack(struct virtqueue *vq);
+ void virtio_gpu_cursor_ack(struct virtqueue *vq);
+ void virtio_gpu_fence_ack(struct virtqueue *vq);
+diff --git a/drivers/gpu/drm/virtio/virtgpu_ioctl.c b/drivers/gpu/drm/virtio/virtgpu_ioctl.c
+index e9cdb4c7f654..161b80fee492 100644
+--- a/drivers/gpu/drm/virtio/virtgpu_ioctl.c
++++ b/drivers/gpu/drm/virtio/virtgpu_ioctl.c
+@@ -348,7 +348,7 @@ static int virtio_gpu_resource_create_ioctl(struct drm_device *dev, void *data,
+ 			goto fail_backoff;
+ 		}
+ 
+-		virtio_gpu_cmd_resource_create_3d(vgdev, qobj, &rc_3d, NULL);
++		virtio_gpu_cmd_resource_create_3d(vgdev, qobj, &rc_3d);
+ 		ret = virtio_gpu_object_attach(vgdev, qobj, fence);
+ 		if (ret) {
+ 			virtio_gpu_fence_cleanup(fence);
+diff --git a/drivers/gpu/drm/virtio/virtgpu_vq.c b/drivers/gpu/drm/virtio/virtgpu_vq.c
+index 97038662b926..e27c4aedb809 100644
+--- a/drivers/gpu/drm/virtio/virtgpu_vq.c
++++ b/drivers/gpu/drm/virtio/virtgpu_vq.c
+@@ -820,8 +820,7 @@ void virtio_gpu_cmd_context_detach_resource(struct virtio_gpu_device *vgdev,
+ void
+ virtio_gpu_cmd_resource_create_3d(struct virtio_gpu_device *vgdev,
+ 				  struct virtio_gpu_object *bo,
+-				  struct virtio_gpu_resource_create_3d *rc_3d,
+-				  struct virtio_gpu_fence *fence)
++				  struct virtio_gpu_resource_create_3d *rc_3d)
+ {
+ 	struct virtio_gpu_resource_create_3d *cmd_p;
+ 	struct virtio_gpu_vbuffer *vbuf;
+@@ -833,7 +832,7 @@ virtio_gpu_cmd_resource_create_3d(struct virtio_gpu_device *vgdev,
+ 	cmd_p->hdr.type = cpu_to_le32(VIRTIO_GPU_CMD_RESOURCE_CREATE_3D);
+ 	cmd_p->hdr.flags = 0;
+ 
+-	virtio_gpu_queue_fenced_ctrl_buffer(vgdev, vbuf, &cmd_p->hdr, fence);
++	virtio_gpu_queue_ctrl_buffer(vgdev, vbuf);
+ 	bo->created = true;
+ }
+ 

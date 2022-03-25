@@ -1,0 +1,57 @@
+commit a3f4f728d3bbfe4fc2a8e0d8e5d04b3812e44de0
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 21:59:59 2018 +0200
+
+    gpio: gpio-omap: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Acked-by: Grygorii Strashko <grygorii.strashko@ti.com>
+    Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+
+diff --git a/drivers/gpio/gpio-omap.c b/drivers/gpio/gpio-omap.c
+index 9887c3db6e16..6ed621a00561 100644
+--- a/drivers/gpio/gpio-omap.c
++++ b/drivers/gpio/gpio-omap.c
+@@ -984,8 +984,7 @@ omap4_gpio_disable_level_quirk(struct gpio_bank *bank)
+ 
+ static int omap_mpuio_suspend_noirq(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct gpio_bank	*bank = platform_get_drvdata(pdev);
++	struct gpio_bank	*bank = dev_get_drvdata(dev);
+ 	void __iomem		*mask_reg = bank->base +
+ 					OMAP_MPUIO_GPIO_MASKIT / bank->stride;
+ 	unsigned long		flags;
+@@ -999,8 +998,7 @@ static int omap_mpuio_suspend_noirq(struct device *dev)
+ 
+ static int omap_mpuio_resume_noirq(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct gpio_bank	*bank = platform_get_drvdata(pdev);
++	struct gpio_bank	*bank = dev_get_drvdata(dev);
+ 	void __iomem		*mask_reg = bank->base +
+ 					OMAP_MPUIO_GPIO_MASKIT / bank->stride;
+ 	unsigned long		flags;
+@@ -1688,8 +1686,7 @@ static void omap_gpio_restore_context(struct gpio_bank *bank)
+ 
+ static int __maybe_unused omap_gpio_runtime_suspend(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct gpio_bank *bank = platform_get_drvdata(pdev);
++	struct gpio_bank *bank = dev_get_drvdata(dev);
+ 	unsigned long flags;
+ 	int error = 0;
+ 
+@@ -1709,8 +1706,7 @@ static int __maybe_unused omap_gpio_runtime_suspend(struct device *dev)
+ 
+ static int __maybe_unused omap_gpio_runtime_resume(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct gpio_bank *bank = platform_get_drvdata(pdev);
++	struct gpio_bank *bank = dev_get_drvdata(dev);
+ 	unsigned long flags;
+ 	int error = 0;
+ 

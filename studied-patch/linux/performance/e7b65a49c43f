@@ -1,0 +1,25 @@
+commit e7b65a49c43fffb61c489a5e07e6d2f6c8a5efe2
+Author: Tudor.Ambarus@microchip.com <Tudor.Ambarus@microchip.com>
+Date:   Fri Nov 9 16:56:56 2018 +0000
+
+    mtd: spi-nor: remove unneeded smpt zeroization
+    
+    The entire smpt array is initialized with data read from sfdp,
+    there is no need to init it with zeroes before.
+    
+    Signed-off-by: Tudor Ambarus <tudor.ambarus@microchip.com>
+    Signed-off-by: Boris Brezillon <boris.brezillon@bootlin.com>
+
+diff --git a/drivers/mtd/spi-nor/spi-nor.c b/drivers/mtd/spi-nor/spi-nor.c
+index 1fdd2834fbcb..baa6b952e80b 100644
+--- a/drivers/mtd/spi-nor/spi-nor.c
++++ b/drivers/mtd/spi-nor/spi-nor.c
+@@ -3091,7 +3091,7 @@ static int spi_nor_parse_smpt(struct spi_nor *nor,
+ 
+ 	/* Read the Sector Map Parameter Table. */
+ 	len = smpt_header->length * sizeof(*smpt);
+-	smpt = kzalloc(len, GFP_KERNEL);
++	smpt = kmalloc(len, GFP_KERNEL);
+ 	if (!smpt)
+ 		return -ENOMEM;
+ 

@@ -1,0 +1,90 @@
+commit ac75b88a7ccfe38d02d4d2d968a974bbe5d21b10
+Author: ian <ian@FreeBSD.org>
+Date:   Sun Mar 25 01:47:17 2018 +0000
+
+    MFC r330437-r330438, r330440, r331045
+    
+    r330437:
+    Do not stop the loop that configures gpio chipselect pins on the first
+    error, just ignore pins that don't configure and keep setting up the ones
+    that do.  (But when bootverbose is on, whine about the errors.)
+    
+    r330438:
+    Defer attaching the spibus until timers and interrupts are working.  The
+    driver requires interrupts to do transfers, and the drivers for the SPI
+    devices on the bus quite reasonably expect to be able to do IO while probing
+    and attaching.
+    
+    r330440:
+    Switch imx_gpio to attach at BUS_PASS_INTERRUPT + BUS_PASS_ORDER_LATE.
+    Pretty much any other device might need to manipulate a gpio pin during its
+    probe or attach routines, so these devices must be available as early as
+    possible.
+    
+    The gpio device is an interrupt controller, but I didn't choose the
+    INTERRUPT pass for that reason (it works fine as an interrupt controller as
+    long as it attaches any time before interrupts are enabled).  That just
+    looked like the right place in the passes to ensure that it attaches before
+    any type of device that might need gpio pin manipulations.
+    
+    r331045:
+    Add required interface header.
+    
+    Reported by:    andreast@
+
+diff --git a/sys/arm/freescale/imx/imx_gpio.c b/sys/arm/freescale/imx/imx_gpio.c
+index f1c6ff36319..68674e99430 100644
+--- a/sys/arm/freescale/imx/imx_gpio.c
++++ b/sys/arm/freescale/imx/imx_gpio.c
+@@ -869,5 +869,5 @@ static driver_t imx51_gpio_driver = {
+ };
+ static devclass_t imx51_gpio_devclass;
+ 
+-DRIVER_MODULE(imx51_gpio, simplebus, imx51_gpio_driver, imx51_gpio_devclass,
+-    0, 0);
++EARLY_DRIVER_MODULE(imx51_gpio, simplebus, imx51_gpio_driver,
++    imx51_gpio_devclass, 0, 0, BUS_PASS_INTERRUPT + BUS_PASS_ORDER_LATE);
+diff --git a/sys/arm/freescale/imx/imx_spi.c b/sys/arm/freescale/imx/imx_spi.c
+index a2af7b5f533..00783d385e7 100644
+--- a/sys/arm/freescale/imx/imx_spi.c
++++ b/sys/arm/freescale/imx/imx_spi.c
+@@ -541,7 +541,7 @@ spi_attach(device_t dev)
+ 
+ 	/* Allocate gpio pins for configured chip selects. */
+ 	node = ofw_bus_get_node(sc->dev);
+-	for (err = 0, idx = 0; err == 0 && idx < nitems(sc->cspins); ++idx) {
++	for (idx = 0; idx < nitems(sc->cspins); ++idx) {
+ 		err = gpio_pin_get_by_ofw_propidx(sc->dev, node, "cs-gpios",
+ 		    idx, &sc->cspins[idx]);
+ 		if (err == 0) {
+@@ -558,9 +558,16 @@ spi_attach(device_t dev)
+ 	 */
+ 	WR4(sc, ECSPI_CTLREG, CTLREG_CMODES_MASTER);
+ 
+-	/* Attach the bus driver. */
++	/*
++	 * Add the spibus driver as a child, and setup a one-shot intrhook to
++	 * attach it after interrupts are working.  It will attach actual SPI
++	 * devices as its children, and those devices may need to do IO during
++	 * their attach. We can't do IO until timers and interrupts are working.
++	 */
+ 	sc->spibus = device_add_child(dev, "spibus", -1);
+-	return (bus_generic_attach(sc->dev));
++	config_intrhook_oneshot((ich_func_t)bus_generic_attach, dev);
++
++	return (0);
+ }
+ 
+ static int
+diff --git a/sys/modules/imx/imx_spi/Makefile b/sys/modules/imx/imx_spi/Makefile
+index 364b93d0fec..74d1c8673c8 100644
+--- a/sys/modules/imx/imx_spi/Makefile
++++ b/sys/modules/imx/imx_spi/Makefile
+@@ -9,6 +9,7 @@ SRCS=	imx_spi.c
+ SRCS+=	\
+ 	bus_if.h \
+ 	device_if.h \
++	gpio_if.h \
+ 	ofw_bus_if.h \
+ 	opt_platform.h \
+ 	spibus_if.h \

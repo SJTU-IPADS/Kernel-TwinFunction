@@ -1,0 +1,34 @@
+commit 328f75bb0db718d21124d8804cf6bd353aa7b80d
+Author: Ville Syrjälä <ville.syrjala@linux.intel.com>
+Date:   Wed Oct 24 18:52:08 2018 +0300
+
+    drm/i915: Use intel_panel_actually_set_backlight() to disable PWM backlight
+    
+    Use intel_panel_actually_set_backlight() instead of a direct
+    call to pwm_config() in pwm_disable_backlight().
+    
+    The main benefit is consistent debug logging when we turn off the
+    backlight. Currently we see nothing in dmesg which made me wonder
+    whether the backlight was even getting turned off properly.
+    
+    The second benefit is consistency; This is what we do for all
+    the other backlight implementations.
+    
+    Signed-off-by: Ville Syrjälä <ville.syrjala@linux.intel.com>
+    Link: https://patchwork.freedesktop.org/patch/msgid/20181024155208.18987-1-ville.syrjala@linux.intel.com
+    Reviewed-by: Chris Wilson <chris@chris-wilson.co.uk>
+    Acked-by: Jani Nikula <jani.nikula@intel.com>
+
+diff --git a/drivers/gpu/drm/i915/intel_panel.c b/drivers/gpu/drm/i915/intel_panel.c
+index ad88008f8dd0..e6cd7b55c018 100644
+--- a/drivers/gpu/drm/i915/intel_panel.c
++++ b/drivers/gpu/drm/i915/intel_panel.c
+@@ -763,7 +763,7 @@ static void pwm_disable_backlight(const struct drm_connector_state *old_conn_sta
+ 	struct intel_panel *panel = &connector->panel;
+ 
+ 	/* Disable the backlight */
+-	pwm_config(panel->backlight.pwm, 0, CRC_PMIC_PWM_PERIOD_NS);
++	intel_panel_actually_set_backlight(old_conn_state, 0);
+ 	usleep_range(2000, 3000);
+ 	pwm_disable(panel->backlight.pwm);
+ }

@@ -1,0 +1,30 @@
+commit d05faa5f1ac50beef77b4ceba0e8e157d41146e2
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Mon Nov 5 17:14:53 2018 -0800
+
+    drivers/vhost: Replace synchronize_rcu_bh() with synchronize_rcu()
+    
+    Now that synchronize_rcu() waits for bh-disable regions of code as well
+    as RCU read-side critical sections, synchronize_rcu_bh() can be replaced
+    by synchronize_rcu().  This commit therefore makes this change.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: "Michael S. Tsirkin" <mst@redhat.com>
+    Cc: Jason Wang <jasowang@redhat.com>
+    Cc: <kvm@vger.kernel.org>
+    Cc: <virtualization@lists.linux-foundation.org>
+    Cc: <netdev@vger.kernel.org>
+
+diff --git a/drivers/vhost/net.c b/drivers/vhost/net.c
+index ab11b2bee273..564ead864028 100644
+--- a/drivers/vhost/net.c
++++ b/drivers/vhost/net.c
+@@ -1359,7 +1359,7 @@ static int vhost_net_release(struct inode *inode, struct file *f)
+ 	if (rx_sock)
+ 		sockfd_put(rx_sock);
+ 	/* Make sure no callbacks are outstanding */
+-	synchronize_rcu_bh();
++	synchronize_rcu();
+ 	/* We do an extra flush before freeing memory,
+ 	 * since jobs can re-queue themselves. */
+ 	vhost_net_flush(n);

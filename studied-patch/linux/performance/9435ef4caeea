@@ -1,0 +1,45 @@
+commit 9435ef4caeea0a1141e461f9ee6f91b173867c05
+Author: Leon Romanovsky <leonro@mellanox.com>
+Date:   Tue Dec 11 11:41:05 2018 +0200
+
+    RDMA/uverbs: Optimize clearing of extra bytes in response
+    
+    Clear extra bytes in response in batch manner instead
+    of doing it per-byte.
+    
+    Signed-off-by: Leon Romanovsky <leonro@mellanox.com>
+    Reviewed-by: Yuval Shaia <yuval.shaia@oracle.com>
+    Signed-off-by: Jason Gunthorpe <jgg@mellanox.com>
+
+diff --git a/drivers/infiniband/core/uverbs_cmd.c b/drivers/infiniband/core/uverbs_cmd.c
+index b70749542471..7f10eade7653 100644
+--- a/drivers/infiniband/core/uverbs_cmd.c
++++ b/drivers/infiniband/core/uverbs_cmd.c
+@@ -58,19 +58,21 @@
+ static int uverbs_response(struct uverbs_attr_bundle *attrs, const void *resp,
+ 			   size_t resp_len)
+ {
+-	u8 __user *cur = attrs->ucore.outbuf + resp_len;
+-	u8 __user *end = attrs->ucore.outbuf + attrs->ucore.outlen;
+ 	int ret;
+ 
+ 	if (copy_to_user(attrs->ucore.outbuf, resp,
+ 			 min(attrs->ucore.outlen, resp_len)))
+ 		return -EFAULT;
+ 
+-	/* Zero fill any extra memory that user space might have provided */
+-	for (; cur < end; cur++) {
+-		ret = put_user(0, cur);
++	if (resp_len < attrs->ucore.outlen) {
++		/*
++		 * Zero fill any extra memory that user
++		 * space might have provided.
++		 */
++		ret = clear_user(attrs->ucore.outbuf + resp_len,
++				 attrs->ucore.outlen - resp_len);
+ 		if (ret)
+-			return ret;
++			return -EFAULT;
+ 	}
+ 
+ 	return 0;

@@ -1,0 +1,37 @@
+commit d003c346bf75f01d240c80000baf2fbf28e53782
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Fri Nov 30 11:57:41 2018 +0000
+
+    slimbus: qcom-ctrl: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/slimbus/qcom-ctrl.c b/drivers/slimbus/qcom-ctrl.c
+index db1f5135846a..ad3e2e23f56e 100644
+--- a/drivers/slimbus/qcom-ctrl.c
++++ b/drivers/slimbus/qcom-ctrl.c
+@@ -654,8 +654,7 @@ static int qcom_slim_remove(struct platform_device *pdev)
+ #ifdef CONFIG_PM
+ static int qcom_slim_runtime_suspend(struct device *device)
+ {
+-	struct platform_device *pdev = to_platform_device(device);
+-	struct qcom_slim_ctrl *ctrl = platform_get_drvdata(pdev);
++	struct qcom_slim_ctrl *ctrl = dev_get_drvdata(device);
+ 	int ret;
+ 
+ 	dev_dbg(device, "pm_runtime: suspending...\n");
+@@ -672,8 +671,7 @@ static int qcom_slim_runtime_suspend(struct device *device)
+ 
+ static int qcom_slim_runtime_resume(struct device *device)
+ {
+-	struct platform_device *pdev = to_platform_device(device);
+-	struct qcom_slim_ctrl *ctrl = platform_get_drvdata(pdev);
++	struct qcom_slim_ctrl *ctrl = dev_get_drvdata(device);
+ 	int ret = 0;
+ 
+ 	dev_dbg(device, "pm_runtime: resuming...\n");

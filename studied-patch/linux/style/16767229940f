@@ -1,0 +1,52 @@
+commit 16767229940fb18086430907d3cd46245c7398ac
+Author: Harry Cutts <hcutts@chromium.org>
+Date:   Wed Dec 5 10:42:28 2018 +1000
+
+    HID: logitech: Use LDJ_DEVICE macro for existing Logitech mice
+    
+    Signed-off-by: Harry Cutts <hcutts@chromium.org>
+    Reviewed-by: Benjamin Tissoires <benjamin.tissoires@redhat.com>
+    Signed-off-by: Peter Hutterer <peter.hutterer@who-t.net>
+    Verified-by: Harry Cutts <hcutts@chromium.org>
+    Signed-off-by: Benjamin Tissoires <benjamin.tissoires@redhat.com>
+
+diff --git a/drivers/hid/hid-logitech-hidpp.c b/drivers/hid/hid-logitech-hidpp.c
+index a66daf8acd87..15ed6177a7a3 100644
+--- a/drivers/hid/hid-logitech-hidpp.c
++++ b/drivers/hid/hid-logitech-hidpp.c
+@@ -3362,13 +3362,11 @@ static void hidpp_remove(struct hid_device *hdev)
+ 
+ static const struct hid_device_id hidpp_devices[] = {
+ 	{ /* wireless touchpad */
+-	  HID_DEVICE(BUS_USB, HID_GROUP_LOGITECH_DJ_DEVICE,
+-		USB_VENDOR_ID_LOGITECH, 0x4011),
++	  LDJ_DEVICE(0x4011),
+ 	  .driver_data = HIDPP_QUIRK_CLASS_WTP | HIDPP_QUIRK_DELAYED_INIT |
+ 			 HIDPP_QUIRK_WTP_PHYSICAL_BUTTONS },
+ 	{ /* wireless touchpad T650 */
+-	  HID_DEVICE(BUS_USB, HID_GROUP_LOGITECH_DJ_DEVICE,
+-		USB_VENDOR_ID_LOGITECH, 0x4101),
++	  LDJ_DEVICE(0x4101),
+ 	  .driver_data = HIDPP_QUIRK_CLASS_WTP | HIDPP_QUIRK_DELAYED_INIT },
+ 	{ /* wireless touchpad T651 */
+ 	  HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_LOGITECH,
+@@ -3408,16 +3406,13 @@ static const struct hid_device_id hidpp_devices[] = {
+ 	{ /* Mouse Logitech Performance MX */
+ 	  LDJ_DEVICE(0x101a), .driver_data = HIDPP_QUIRK_HI_RES_SCROLL_1P0 },
+ 	{ /* Keyboard logitech K400 */
+-	  HID_DEVICE(BUS_USB, HID_GROUP_LOGITECH_DJ_DEVICE,
+-		USB_VENDOR_ID_LOGITECH, 0x4024),
++	  LDJ_DEVICE(0x4024),
+ 	  .driver_data = HIDPP_QUIRK_CLASS_K400 },
+ 	{ /* Solar Keyboard Logitech K750 */
+-	  HID_DEVICE(BUS_USB, HID_GROUP_LOGITECH_DJ_DEVICE,
+-		USB_VENDOR_ID_LOGITECH, 0x4002),
++	  LDJ_DEVICE(0x4002),
+ 	  .driver_data = HIDPP_QUIRK_CLASS_K750 },
+ 
+-	{ HID_DEVICE(BUS_USB, HID_GROUP_LOGITECH_DJ_DEVICE,
+-		USB_VENDOR_ID_LOGITECH, HID_ANY_ID)},
++	{ LDJ_DEVICE(HID_ANY_ID) },
+ 
+ 	{ HID_USB_DEVICE(USB_VENDOR_ID_LOGITECH, USB_DEVICE_ID_LOGITECH_G920_WHEEL),
+ 		.driver_data = HIDPP_QUIRK_CLASS_G920 | HIDPP_QUIRK_FORCE_OUTPUT_REPORTS},

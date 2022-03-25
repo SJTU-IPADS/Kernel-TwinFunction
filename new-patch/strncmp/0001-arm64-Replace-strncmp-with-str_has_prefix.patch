@@ -1,0 +1,46 @@
+From 2d4ee61e89380a60a2d44b65789daa063a2183bc Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 30 Jul 2019 10:21:09 +0800
+Subject: [PATCH] arm64: Replace strncmp with str_has_prefix
+
+In commit b6b2735514bc
+("tracing: Use str_has_prefix() instead of using fixed sizes")
+the newly introduced str_has_prefix() was used
+to replace error-prone strncmp(str, const, len).
+Here fix codes with the same pattern.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ arch/arm64/kernel/module-plts.c | 2 +-
+ arch/arm64/mm/numa.c            | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/kernel/module-plts.c b/arch/arm64/kernel/module-plts.c
+index 044c0ae4d6c8..b182442b87a3 100644
+--- a/arch/arm64/kernel/module-plts.c
++++ b/arch/arm64/kernel/module-plts.c
+@@ -302,7 +302,7 @@ int module_frob_arch_sections(Elf_Ehdr *ehdr, Elf_Shdr *sechdrs,
+ 		/* sort by type, symbol index and addend */
+ 		sort(rels, numrels, sizeof(Elf64_Rela), cmp_rela, NULL);
+ 
+-		if (strncmp(secstrings + dstsec->sh_name, ".init", 5) != 0)
++		if (!str_has_prefix(secstrings + dstsec->sh_name, ".init"))
+ 			core_plts += count_plts(syms, rels, numrels,
+ 						sechdrs[i].sh_info, dstsec);
+ 		else
+diff --git a/arch/arm64/mm/numa.c b/arch/arm64/mm/numa.c
+index 4f241cc7cc3b..4decf1659700 100644
+--- a/arch/arm64/mm/numa.c
++++ b/arch/arm64/mm/numa.c
+@@ -29,7 +29,7 @@ static __init int numa_parse_early_param(char *opt)
+ {
+ 	if (!opt)
+ 		return -EINVAL;
+-	if (!strncmp(opt, "off", 3))
++	if (str_has_prefix(opt, "off"))
+ 		numa_off = true;
+ 
+ 	return 0;
+-- 
+2.20.1
+

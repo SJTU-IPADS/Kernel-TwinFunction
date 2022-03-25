@@ -1,0 +1,44 @@
+commit 2298a6f09f455f64bf253e6fb5c1ff72f38a6249
+Author: Thierry Reding <treding@nvidia.com>
+Date:   Thu Dec 20 18:20:02 2018 +0100
+
+    mailbox: ti-msgmgr: Use device-managed registration API
+    
+    Get rid of some boilerplate driver removal code by using the newly added
+    device-managed registration API.
+    
+    Signed-off-by: Thierry Reding <treding@nvidia.com>
+    Signed-off-by: Jassi Brar <jaswinder.singh@linaro.org>
+
+diff --git a/drivers/mailbox/ti-msgmgr.c b/drivers/mailbox/ti-msgmgr.c
+index 6f6addd51d14..88047d835211 100644
+--- a/drivers/mailbox/ti-msgmgr.c
++++ b/drivers/mailbox/ti-msgmgr.c
+@@ -817,26 +817,15 @@ static int ti_msgmgr_probe(struct platform_device *pdev)
+ 	mbox->of_xlate = ti_msgmgr_of_xlate;
+ 
+ 	platform_set_drvdata(pdev, inst);
+-	ret = mbox_controller_register(mbox);
++	ret = devm_mbox_controller_register(dev, mbox);
+ 	if (ret)
+ 		dev_err(dev, "Failed to register mbox_controller(%d)\n", ret);
+ 
+ 	return ret;
+ }
+ 
+-static int ti_msgmgr_remove(struct platform_device *pdev)
+-{
+-	struct ti_msgmgr_inst *inst;
+-
+-	inst = platform_get_drvdata(pdev);
+-	mbox_controller_unregister(&inst->mbox);
+-
+-	return 0;
+-}
+-
+ static struct platform_driver ti_msgmgr_driver = {
+ 	.probe = ti_msgmgr_probe,
+-	.remove = ti_msgmgr_remove,
+ 	.driver = {
+ 		   .name = "ti-msgmgr",
+ 		   .of_match_table = of_match_ptr(ti_msgmgr_of_match),

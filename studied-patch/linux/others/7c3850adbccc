@@ -1,0 +1,25 @@
+commit 7c3850adbcccc2c6c9e7ab23a7dcbc4926ee5b96
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Wed Feb 6 00:14:51 2019 +0800
+
+    net: fsl_ucc_hdlc: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called in hdlc_tx_done() when skb
+    xmit done. It makes drop profiles(dropwatch, perf) more friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/wan/fsl_ucc_hdlc.c b/drivers/net/wan/fsl_ucc_hdlc.c
+index 66d889d54e58..a08f04c3f644 100644
+--- a/drivers/net/wan/fsl_ucc_hdlc.c
++++ b/drivers/net/wan/fsl_ucc_hdlc.c
+@@ -482,7 +482,7 @@ static int hdlc_tx_done(struct ucc_hdlc_private *priv)
+ 		memset(priv->tx_buffer +
+ 		       (be32_to_cpu(bd->buf) - priv->dma_tx_addr),
+ 		       0, skb->len);
+-		dev_kfree_skb_irq(skb);
++		dev_consume_skb_irq(skb);
+ 
+ 		priv->tx_skbuff[priv->skb_dirtytx] = NULL;
+ 		priv->skb_dirtytx =

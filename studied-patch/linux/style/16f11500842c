@@ -1,0 +1,50 @@
+commit 16f11500842ce022fe654e38bd447e15790911dd
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Mon Nov 5 17:07:39 2018 -0800
+
+    ethernet/realtek: Replace synchronize_sched() with synchronize_rcu()
+    
+    Now that synchronize_rcu() waits for preempt-disable regions of code
+    as well as RCU read-side critical sections, synchronize_sched() can be
+    replaced by synchronize_rcu().  This commit therefore makes this change.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: Realtek linux nic maintainers <nic_swsd@realtek.com>
+    Cc: "David S. Miller" <davem@davemloft.net>
+    Cc: <netdev@vger.kernel.org>
+
+diff --git a/drivers/net/ethernet/realtek/8139too.c b/drivers/net/ethernet/realtek/8139too.c
+index ffd68a7bc9e1..69d752f0b621 100644
+--- a/drivers/net/ethernet/realtek/8139too.c
++++ b/drivers/net/ethernet/realtek/8139too.c
+@@ -1661,7 +1661,7 @@ static void rtl8139_tx_timeout_task (struct work_struct *work)
+ 
+ 	napi_disable(&tp->napi);
+ 	netif_stop_queue(dev);
+-	synchronize_sched();
++	synchronize_rcu();
+ 
+ 	netdev_dbg(dev, "Transmit timeout, status %02x %04x %04x media %02x\n",
+ 		   RTL_R8(ChipCmd), RTL_R16(IntrStatus),
+diff --git a/drivers/net/ethernet/realtek/r8169.c b/drivers/net/ethernet/realtek/r8169.c
+index 1fd01688d37b..4f1d89f0dc24 100644
+--- a/drivers/net/ethernet/realtek/r8169.c
++++ b/drivers/net/ethernet/realtek/r8169.c
+@@ -5866,7 +5866,7 @@ static void rtl_reset_work(struct rtl8169_private *tp)
+ 
+ 	napi_disable(&tp->napi);
+ 	netif_stop_queue(dev);
+-	synchronize_sched();
++	synchronize_rcu();
+ 
+ 	rtl8169_hw_reset(tp);
+ 
+@@ -6609,7 +6609,7 @@ static void rtl8169_down(struct net_device *dev)
+ 	rtl8169_rx_missed(dev);
+ 
+ 	/* Give a racing hard_start_xmit a few cycles to complete. */
+-	synchronize_sched();
++	synchronize_rcu();
+ 
+ 	rtl8169_tx_clear(tp);
+ 

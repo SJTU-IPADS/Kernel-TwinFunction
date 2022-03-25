@@ -1,0 +1,1367 @@
+commit 5ccb458071e4c4ade38668ea6769d2b0b532f442
+Author: kevans <kevans@FreeBSD.org>
+Date:   Thu Feb 8 02:44:21 2018 +0000
+
+    MFC r303555,r303556,r303936,r303962,r304317,r304532,r305026,r305107,r305132,
+    r305178,r305353,r305814,r306159,r306380,r306504: Loader fixes, 2016q3
+    
+    r303555: bcache should support reads shorter than sector size
+    
+    r303556: Improve boot loader quote parsing
+    
+    r303936: Add kernel environment variables under smbios.system
+    
+    r303962: Add the missing space between .asciz directive and opening quote
+    for some lines with #ifdef BTXLDR_VERBOSE/#endif
+    
+    r304317: boot1.efi Free() should check for NULL to provide consistent
+    behavior
+    
+    r304532: Replace sprintf -> snprintf for command_errbuf provisioned from
+    dynamic content.
+    
+    r305026: Emulate efi_cons_poll when WaitForKey is not available
+    
+    r305107: Create a hook 'post-initialize' for people that want to define
+    something to read in .conf files after all other .conf files for the purpose
+    of overriding.
+    
+    r305132: Remove accidentally committed stray comment.
+    
+    r305178: bd_int13probe() should check extended info if sector info is bad
+    
+    r305353: Don't use -N to set the OMAGIC with data and text writeable and
+    data not page aligned.
+    
+    r305814: ufsread: Do not cast struct direct from void *
+    
+    r306159: Consistently declare getsecs(void) with proper return type and void
+    when no arguments are present.
+    
+    r306380: loader command interpreter should reset command_errmsg
+    
+    r306504: Fix a cluster of bugs in list EFI environment variables
+    
+    PR:             204602, 211958, 211958
+    Relnotes:       yes ("Improve boot loader quote parsing")
+
+diff --git a/sys/boot/common/bcache.c b/sys/boot/common/bcache.c
+index 3023db00160..a95c99fc15c 100644
+--- a/sys/boot/common/bcache.c
++++ b/sys/boot/common/bcache.c
+@@ -302,7 +302,9 @@ read_strategy(void *devdata, int rw, daddr_t blk, size_t size,
+ 	    break;
+     }
+ 
+-    size = i * bcache_blksize;
++    if (size > i * bcache_blksize)
++	size = i * bcache_blksize;
++
+     if (size != 0) {
+ 	bcopy(bc->bcache_data + (bcache_blksize * BHASH(bc, blk)), buf, size);
+ 	result = 0;
+diff --git a/sys/boot/common/boot.c b/sys/boot/common/boot.c
+index 8ea06dd577d..5ee95215283 100644
+--- a/sys/boot/common/boot.c
++++ b/sys/boot/common/boot.c
+@@ -61,7 +61,8 @@ command_boot(int argc, char *argv[])
+ 
+ 	/* XXX maybe we should discard everything and start again? */
+ 	if (file_findfile(NULL, NULL) != NULL) {
+-	    sprintf(command_errbuf, "can't boot '%s', kernel module already loaded", argv[1]);
++	    snprintf(command_errbuf, sizeof(command_errbuf),
++		"can't boot '%s', kernel module already loaded", argv[1]);
+ 	    return(CMD_ERROR);
+ 	}
+ 
+@@ -129,7 +130,8 @@ command_autoboot(int argc, char *argv[])
+     case 2:
+ 	howlong = strtol(argv[1], &cp, 0);
+ 	if (*cp != 0) {
+-	    sprintf(command_errbuf, "bad delay '%s'", argv[1]);
++	    snprintf(command_errbuf, sizeof(command_errbuf),
++		"bad delay '%s'", argv[1]);
+ 	    return(CMD_ERROR);
+ 	}
+ 	/* FALLTHROUGH */
+diff --git a/sys/boot/common/bootstrap.h b/sys/boot/common/bootstrap.h
+index a4c8939904d..3d1f044788d 100644
+--- a/sys/boot/common/bootstrap.h
++++ b/sys/boot/common/bootstrap.h
+@@ -35,8 +35,9 @@
+ 
+ /* Commands and return values; nonzero return sets command_errmsg != NULL */
+ typedef int	(bootblk_cmd_t)(int argc, char *argv[]);
++#define	COMMAND_ERRBUFSZ	(256)
+ extern char	*command_errmsg;	
+-extern char	command_errbuf[];	/* XXX blah, length */
++extern char	command_errbuf[COMMAND_ERRBUFSZ];
+ #define CMD_OK		0
+ #define CMD_WARN	1
+ #define CMD_ERROR	2
+diff --git a/sys/boot/common/commands.c b/sys/boot/common/commands.c
+index 0f4907bc453..2b0e8cbe0ac 100644
+--- a/sys/boot/common/commands.c
++++ b/sys/boot/common/commands.c
+@@ -33,7 +33,8 @@ __FBSDID("$FreeBSD$");
+ #include "bootstrap.h"
+ 
+ char		*command_errmsg;
+-char		command_errbuf[256];	/* XXX should have procedural interface for setting, size limit? */
++/* XXX should have procedural interface for setting, size limit? */
++char		command_errbuf[COMMAND_ERRBUFSZ];
+ 
+ static int page_file(char *filename);
+ 
+@@ -196,7 +197,8 @@ command_help(int argc, char *argv[])
+     pager_close();
+     close(hfd);
+     if (!matched) {
+-	sprintf(command_errbuf, "no help available for '%s'", topic);
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "no help available for '%s'", topic);
+ 	free(topic);
+ 	if (subtopic)
+ 	    free(subtopic);
+@@ -276,7 +278,8 @@ command_show(int argc, char *argv[])
+ 	if ((cp = getenv(argv[1])) != NULL) {
+ 	    printf("%s\n", cp);
+ 	} else {
+-	    sprintf(command_errbuf, "variable '%s' not found", argv[1]);
++	    snprintf(command_errbuf, sizeof(command_errbuf),
++		"variable '%s' not found", argv[1]);
+ 	    return(CMD_ERROR);
+ 	}
+     }
+@@ -386,7 +389,8 @@ command_read(int argc, char *argv[])
+ 	case 't':
+ 	    timeout = strtol(optarg, &cp, 0);
+ 	    if (cp == optarg) {
+-		sprintf(command_errbuf, "bad timeout '%s'", optarg);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "bad timeout '%s'", optarg);
+ 		return(CMD_ERROR);
+ 	    }
+ 	    break;
+@@ -454,8 +458,10 @@ page_file(char *filename)
+ 
+     result = pager_file(filename);
+ 
+-    if (result == -1)
+-	sprintf(command_errbuf, "error showing %s", filename);
++    if (result == -1) {
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "error showing %s", filename);
++    }
+ 
+     return result;
+ }   
+diff --git a/sys/boot/common/interp.c b/sys/boot/common/interp.c
+index 6866643eeac..a683847945c 100644
+--- a/sys/boot/common/interp.c
++++ b/sys/boot/common/interp.c
+@@ -214,7 +214,8 @@ include(const char *filename)
+ #endif
+ 
+     if (((fd = open(filename, O_RDONLY)) == -1)) {
+-	sprintf(command_errbuf,"can't open '%s': %s", filename, strerror(errno));
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "can't open '%s': %s", filename, strerror(errno));
+ 	return(CMD_ERROR);
+     }
+ 
+@@ -256,8 +257,9 @@ include(const char *filename)
+ 			script = script->next;
+ 			free(se);
+ 		}
+-		sprintf(command_errbuf, "file '%s' line %d: memory allocation "
+-		    "failure - aborting", filename, line);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "file '%s' line %d: memory allocation failure - aborting",
++		    filename, line);
+ 		return (CMD_ERROR);
+ 	}
+ 	strcpy(sp->text, cp);
+@@ -291,7 +293,9 @@ include(const char *filename)
+ #ifdef BOOT_FORTH
+ 	res = bf_run(sp->text);
+ 	if (res != VM_OUTOFTEXT) {
+-		sprintf(command_errbuf, "Error while including %s, in the line:\n%s", filename, sp->text);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "Error while including %s, in the line:\n%s",
++		    filename, sp->text);
+ 		res = CMD_ERROR;
+ 		break;
+ 	} else
+diff --git a/sys/boot/common/interp_forth.c b/sys/boot/common/interp_forth.c
+index c5763b69544..72517b8694b 100644
+--- a/sys/boot/common/interp_forth.c
++++ b/sys/boot/common/interp_forth.c
+@@ -324,13 +324,15 @@ bf_run(char *line)
+ 	printf("Parse error!\n");
+ 	break;
+     default:
+-        /* Hopefully, all other codes filled this buffer */
+-	printf("%s\n", command_errmsg);
++	if (command_errmsg != NULL) {
++	    printf("%s\n", command_errmsg);
++	    command_errmsg = NULL;
++	}
+     }
+     
+     if (result == VM_USEREXIT)
+ 	panic("interpreter exit");
+     setenv("interpret", bf_vm->state ? "" : "OK", 1);
+ 
+-    return result;
++    return (result);
+ }
+diff --git a/sys/boot/common/interp_parse.c b/sys/boot/common/interp_parse.c
+index 32d4f48240e..8d8a2e29098 100644
+--- a/sys/boot/common/interp_parse.c
++++ b/sys/boot/common/interp_parse.c
+@@ -72,7 +72,13 @@ isdelim(int ch)
+ static int
+ isquote(int ch)
+ {
+-    return (ch == '\'' || ch == '"');
++    return (ch == '\'');
++}
++
++static int
++isdquote(int ch)
++{
++    return (ch == '"');
+ }
+ 
+ int
+@@ -81,11 +87,11 @@ parse(int *argc, char ***argv, char *str)
+     int ac;
+     char *val, *p, *q, *copy = NULL;
+     size_t i = 0;
+-    char token, tmp, quote, *buf;
++    char token, tmp, quote, dquote, *buf;
+     enum { STR, VAR, WHITE } state;
+ 
+     ac = *argc = 0;
+-    quote = 0;
++    dquote = quote = 0;
+     if (!str || (p = copy = backslash(str)) == NULL)
+ 	return 1;
+ 
+@@ -105,9 +111,19 @@ parse(int *argc, char ***argv, char *str)
+ 		buf[i++] = *p++;
+ 	    } else if (isquote(*p)) {
+ 		quote = quote ? 0 : *p;
+-		++p;
+-	    }
+-	    else if (isspace(*p) && !quote) {
++		if (dquote) { /* keep quote */
++			PARSE_FAIL(i == (PARSE_BUFSIZE - 1));
++			buf[i++] = *p++;
++		} else
++			++p;
++	    } else if (isdquote(*p)) {
++		dquote = dquote ? 0 : *p;
++		if (quote) { /* keep dquote */
++			PARSE_FAIL(i == (PARSE_BUFSIZE - 1));
++			buf[i++] = *p++;
++		} else
++			++p;
++	    } else if (isspace(*p) && !quote && !dquote) {
+ 		state = WHITE;
+ 		if (i) {
+ 		    buf[i] = '\0';
+@@ -115,7 +131,7 @@ parse(int *argc, char ***argv, char *str)
+ 		    i = 0;
+ 		}
+ 		++p;
+-	    } else if (*p == '$') {
++	    } else if (*p == '$' && !quote) {
+ 		token = isdelim(*(p + 1));
+ 		if (token)
+ 		    p += 2;
+@@ -157,6 +173,8 @@ parse(int *argc, char ***argv, char *str)
+ 	    break;
+ 	}
+     }
++    /* missing terminating ' or " */
++    PARSE_FAIL(quote || dquote);
+     /* If at end of token, add it */
+     if (i && state == STR) {
+ 	buf[i] = '\0';
+diff --git a/sys/boot/common/ls.c b/sys/boot/common/ls.c
+index 50fab4ad031..70334ff3aad 100644
+--- a/sys/boot/common/ls.c
++++ b/sys/boot/common/ls.c
+@@ -149,7 +149,8 @@ ls_getdir(char **pathp)
+ 
+     /* Make sure the path is respectable to begin with */
+     if (archsw.arch_getdev(NULL, path, &cp)) {
+-	sprintf(command_errbuf, "bad path '%s'", path);
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "bad path '%s'", path);
+ 	goto out;
+     }
+     
+@@ -159,15 +160,18 @@ ls_getdir(char **pathp)
+ 
+     fd = open(path, O_RDONLY);
+     if (fd < 0) {
+-	sprintf(command_errbuf, "open '%s' failed: %s", path, strerror(errno));
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "open '%s' failed: %s", path, strerror(errno));
+ 	goto out;
+     }
+     if (fstat(fd, &sb) < 0) {
+-	sprintf(command_errbuf, "stat failed: %s", strerror(errno));
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "stat failed: %s", strerror(errno));
+ 	goto out;
+     }
+     if (!S_ISDIR(sb.st_mode)) {
+-	sprintf(command_errbuf, "%s: %s", path, strerror(ENOTDIR));
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "%s: %s", path, strerror(ENOTDIR));
+ 	goto out;
+     }
+ 
+diff --git a/sys/boot/common/module.c b/sys/boot/common/module.c
+index c1592bc3310..d651ad10bc8 100644
+--- a/sys/boot/common/module.c
++++ b/sys/boot/common/module.c
+@@ -143,7 +143,8 @@ command_load(int argc, char *argv[])
+ 
+ 	fp = file_findfile(argv[1], typestr);
+ 	if (fp) {
+-		sprintf(command_errbuf, "warning: file '%s' already loaded", argv[1]);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "warning: file '%s' already loaded", argv[1]);
+ 		return (CMD_WARN);
+ 	}
+ 
+@@ -162,7 +163,8 @@ command_load(int argc, char *argv[])
+     if (dokld || file_havepath(argv[1])) {
+ 	error = mod_loadkld(argv[1], argc - 2, argv + 2);
+ 	if (error == EEXIST) {
+-	    sprintf(command_errbuf, "warning: KLD '%s' already loaded", argv[1]);
++	    snprintf(command_errbuf, sizeof(command_errbuf),
++		"warning: KLD '%s' already loaded", argv[1]);
+ 	    return (CMD_WARN);
+ 	}
+ 	
+@@ -173,7 +175,8 @@ command_load(int argc, char *argv[])
+      */
+     error = mod_load(argv[1], NULL, argc - 2, argv + 2);
+     if (error == EEXIST) {
+-	sprintf(command_errbuf, "warning: module '%s' already loaded", argv[1]);
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "warning: module '%s' already loaded", argv[1]);
+ 	return (CMD_WARN);
+     }
+ 
+@@ -203,7 +206,8 @@ command_load_geli(int argc, char *argv[])
+ 	case 'n':
+ 	    num = strtol(optarg, &cp, 0);
+ 	    if (cp == optarg) {
+-		    sprintf(command_errbuf, "bad key index '%s'", optarg);
++		    snprintf(command_errbuf, sizeof(command_errbuf),
++			"bad key index '%s'", optarg);
+ 		    return(CMD_ERROR);
+ 	    }
+ 	    break;
+@@ -342,8 +346,8 @@ file_load(char *filename, vm_offset_t dest, struct preloaded_file **result)
+ 	if (error == EFTYPE)
+ 	    continue;		/* Unknown to this handler? */
+ 	if (error) {
+-	    sprintf(command_errbuf, "can't load file '%s': %s",
+-		filename, strerror(error));
++	    snprintf(command_errbuf, sizeof(command_errbuf),
++		"can't load file '%s': %s", filename, strerror(error));
+ 	    break;
+ 	}
+     }
+@@ -379,8 +383,8 @@ file_load_dependencies(struct preloaded_file *base_file)
+ 	     */
+ 	    mp = file_findmodule(NULL, dmodname, verinfo);
+ 	    if (mp == NULL) {
+-		sprintf(command_errbuf, "module '%s' exists but with wrong version",
+-		    dmodname);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "module '%s' exists but with wrong version", dmodname);
+ 		error = ENOENT;
+ 		break;
+ 	    }
+@@ -419,12 +423,14 @@ file_loadraw(const char *fname, char *type, int insert)
+     /* locate the file on the load path */
+     name = file_search(fname, NULL);
+     if (name == NULL) {
+-	sprintf(command_errbuf, "can't find '%s'", fname);
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "can't find '%s'", fname);
+ 	return(NULL);
+     }
+ 
+     if ((fd = open(name, O_RDONLY)) < 0) {
+-	sprintf(command_errbuf, "can't open '%s': %s", name, strerror(errno));
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "can't open '%s': %s", name, strerror(errno));
+ 	free(name);
+ 	return(NULL);
+     }
+@@ -441,7 +447,8 @@ file_loadraw(const char *fname, char *type, int insert)
+ 	if (got == 0)				/* end of file */
+ 	    break;
+ 	if (got < 0) {				/* error */
+-	    sprintf(command_errbuf, "error reading '%s': %s", name, strerror(errno));
++	    snprintf(command_errbuf, sizeof(command_errbuf),
++		"error reading '%s': %s", name, strerror(errno));
+ 	    free(name);
+ 	    close(fd);
+ 	    return(NULL);
+@@ -495,13 +502,15 @@ mod_load(char *modname, struct mod_depend *verinfo, int argc, char *argv[])
+ 	    free(mp->m_args);
+ 	mp->m_args = unargv(argc, argv);
+ #endif
+-	sprintf(command_errbuf, "warning: module '%s' already loaded", mp->m_name);
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "warning: module '%s' already loaded", mp->m_name);
+ 	return (0);
+     }
+     /* locate file with the module on the search path */
+     filename = mod_searchmodule(modname, verinfo);
+     if (filename == NULL) {
+-	sprintf(command_errbuf, "can't find '%s'", modname);
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "can't find '%s'", modname);
+ 	return (ENOENT);
+     }
+     err = mod_loadkld(filename, argc, argv);
+@@ -524,7 +533,8 @@ mod_loadkld(const char *kldname, int argc, char *argv[])
+      */
+     filename = file_search(kldname, kld_ext_list);
+     if (filename == NULL) {
+-	sprintf(command_errbuf, "can't find '%s'", kldname);
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "can't find '%s'", kldname);
+ 	return (ENOENT);
+     }
+     /*
+@@ -532,7 +542,8 @@ mod_loadkld(const char *kldname, int argc, char *argv[])
+      */
+     fp = file_findfile(filename, NULL);
+     if (fp) {
+-	sprintf(command_errbuf, "warning: KLD '%s' already loaded", filename);
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "warning: KLD '%s' already loaded", filename);
+ 	free(filename);
+ 	return (0);
+     }
+@@ -556,8 +567,10 @@ mod_loadkld(const char *kldname, int argc, char *argv[])
+ 	    break;
+ 	}
+     } while(0);
+-    if (err == EFTYPE)
+-	sprintf(command_errbuf, "don't know how to load module '%s'", filename);
++    if (err == EFTYPE) {
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "don't know how to load module '%s'", filename);
++    }
+     if (err && fp)
+ 	file_discard(fp);
+     free(filename);
+diff --git a/sys/boot/common/ufsread.c b/sys/boot/common/ufsread.c
+index 6f499f98437..5ba65a4a444 100644
+--- a/sys/boot/common/ufsread.c
++++ b/sys/boot/common/ufsread.c
+@@ -97,21 +97,21 @@ static __inline uint8_t
+ fsfind(const char *name, ufs_ino_t * ino)
+ {
+ 	static char buf[DEV_BSIZE];
+-	struct direct *d;
++	static struct direct d;
+ 	char *s;
+ 	ssize_t n;
+ 
+ 	fs_off = 0;
+ 	while ((n = fsread(*ino, buf, DEV_BSIZE)) > 0)
+ 		for (s = buf; s < buf + DEV_BSIZE;) {
+-			d = (void *)s;
++			memcpy(&d, s, sizeof(struct direct));
+ 			if (ls)
+-				printf("%s ", d->d_name);
+-			else if (!strcmp(name, d->d_name)) {
+-				*ino = d->d_ino;
+-				return d->d_type;
++				printf("%s ", d.d_name);
++			else if (!strcmp(name, d.d_name)) {
++				*ino = d.d_ino;
++				return d.d_type;
+ 			}
+-			s += d->d_reclen;
++			s += d.d_reclen;
+ 		}
+ 	if (n != -1 && ls)
+ 		printf("\n");
+diff --git a/sys/boot/efi/boot1/boot1.c b/sys/boot/efi/boot1/boot1.c
+index 38b7ca535b6..5bbbaf5305e 100644
+--- a/sys/boot/efi/boot1/boot1.c
++++ b/sys/boot/efi/boot1/boot1.c
+@@ -77,7 +77,8 @@ Malloc(size_t len, const char *file __unused, int line __unused)
+ void
+ Free(void *buf, const char *file __unused, int line __unused)
+ {
+-	(void)bs->FreePool(buf);
++	if (buf != NULL)
++		(void)bs->FreePool(buf);
+ }
+ 
+ /*
+diff --git a/sys/boot/efi/libefi/efi_console.c b/sys/boot/efi/libefi/efi_console.c
+index 6ad5d3c1e14..450ed46a23f 100644
+--- a/sys/boot/efi/libefi/efi_console.c
++++ b/sys/boot/efi/libefi/efi_console.c
+@@ -51,6 +51,9 @@ void HO(void);
+ void end_term(void);
+ #endif
+ 
++static EFI_INPUT_KEY key_cur;
++static int key_pending;
++
+ static void efi_cons_probe(struct console *);
+ static int efi_cons_init(int);
+ void efi_cons_putchar(int);
+@@ -436,14 +439,20 @@ efi_cons_getchar()
+ 	EFI_STATUS status;
+ 	UINTN junk;
+ 
+-	/* Try to read a key stroke. We wait for one if none is pending. */
+-	status = conin->ReadKeyStroke(conin, &key);
+-	while (status == EFI_NOT_READY) {
+-		/* Some EFI implementation (u-boot for example) do not support WaitForKey */
+-		if (conin->WaitForKey != NULL)
+-			BS->WaitForEvent(1, &conin->WaitForKey, &junk);
++	if (key_pending) {
++		key = key_cur;
++		key_pending = 0;
++	} else {
++		/* Try to read a key stroke. We wait for one if none is pending. */
+ 		status = conin->ReadKeyStroke(conin, &key);
++		while (status == EFI_NOT_READY) {
++			/* Some EFI implementation (u-boot for example) do not support WaitForKey */
++			if (conin->WaitForKey != NULL)
++				BS->WaitForEvent(1, &conin->WaitForKey, &junk);
++			status = conin->ReadKeyStroke(conin, &key);
++		}
+ 	}
++
+ 	switch (key.ScanCode) {
+ 	case 0x17: /* ESC */
+ 		return (0x1b);  /* esc */
+@@ -456,9 +465,20 @@ efi_cons_getchar()
+ int
+ efi_cons_poll()
+ {
++	EFI_INPUT_KEY key;
++	EFI_STATUS status;
++
++	if (conin->WaitForKey == NULL) {
++		if (key_pending)
++			return (1);
++		status = conin->ReadKeyStroke(conin, &key);
++		if (status == EFI_SUCCESS) {
++			key_cur = key;
++			key_pending = 1;
++		}
++		return (key_pending);
++	}
+ 
+-	if (conin->WaitForKey == NULL)
+-		return (1);
+ 	/* This can clear the signaled state. */
+ 	return (BS->CheckEvent(conin->WaitForKey) == EFI_SUCCESS);
+ }
+diff --git a/sys/boot/efi/libefi/time.c b/sys/boot/efi/libefi/time.c
+index b73c8ccf2c9..99831e1cf1a 100644
+--- a/sys/boot/efi/libefi/time.c
++++ b/sys/boot/efi/libefi/time.c
+@@ -228,7 +228,7 @@ time(time_t *tloc)
+ }
+ 
+ time_t
+-getsecs()
++getsecs(void)
+ {
+     return time(0);
+ }
+diff --git a/sys/boot/efi/libefi/time_event.c b/sys/boot/efi/libefi/time_event.c
+index 370a73c0ede..f96f1d845f6 100644
+--- a/sys/boot/efi/libefi/time_event.c
++++ b/sys/boot/efi/libefi/time_event.c
+@@ -76,7 +76,7 @@ time(time_t *tloc)
+ }
+ 
+ time_t
+-getsecs()
++getsecs(void)
+ {
+     return time(0);
+ }
+diff --git a/sys/boot/efi/loader/arch/amd64/framebuffer.c b/sys/boot/efi/loader/arch/amd64/framebuffer.c
+index d861ee4ecdc..37999ea1d37 100644
+--- a/sys/boot/efi/loader/arch/amd64/framebuffer.c
++++ b/sys/boot/efi/loader/arch/amd64/framebuffer.c
+@@ -474,8 +474,9 @@ command_gop(int argc, char *argv[])
+ 
+ 	status = BS->LocateProtocol(&gop_guid, NULL, (VOID **)&gop);
+ 	if (EFI_ERROR(status)) {
+-		sprintf(command_errbuf, "%s: Graphics Output Protocol not "
+-		    "present (error=%lu)", argv[0], EFI_ERROR_CODE(status));
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "%s: Graphics Output Protocol not present (error=%lu)",
++		    argv[0], EFI_ERROR_CODE(status));
+ 		return (CMD_ERROR);
+ 	}
+ 
+@@ -494,9 +495,9 @@ command_gop(int argc, char *argv[])
+ 		}
+ 		status = gop->SetMode(gop, mode);
+ 		if (EFI_ERROR(status)) {
+-			sprintf(command_errbuf, "%s: Unable to set mode to "
+-			    "%u (error=%lu)", argv[0], mode,
+-			    EFI_ERROR_CODE(status));
++			snprintf(command_errbuf, sizeof(command_errbuf),
++			    "%s: Unable to set mode to %u (error=%lu)",
++			    argv[0], mode, EFI_ERROR_CODE(status));
+ 			return (CMD_ERROR);
+ 		}
+ 	} else if (!strcmp(argv[1], "get")) {
+@@ -526,8 +527,8 @@ command_gop(int argc, char *argv[])
+ 	return (CMD_OK);
+ 
+  usage:
+-	sprintf(command_errbuf, "usage: %s [list | get | set <mode>]",
+-	    argv[0]);
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "usage: %s [list | get | set <mode>]", argv[0]);
+ 	return (CMD_ERROR);
+ }
+ 
+@@ -542,8 +543,9 @@ command_uga(int argc, char *argv[])
+ 
+ 	status = BS->LocateProtocol(&uga_guid, NULL, (VOID **)&uga);
+ 	if (EFI_ERROR(status)) {
+-		sprintf(command_errbuf, "%s: UGA Protocol not present "
+-		    "(error=%lu)", argv[0], EFI_ERROR_CODE(status));
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "%s: UGA Protocol not present (error=%lu)",
++		    argv[0], EFI_ERROR_CODE(status));
+ 		return (CMD_ERROR);
+ 	}
+ 
+@@ -551,8 +553,8 @@ command_uga(int argc, char *argv[])
+ 		goto usage;
+ 
+ 	if (efifb_from_uga(&efifb, uga) != CMD_OK) {
+-		sprintf(command_errbuf, "%s: Unable to get UGA information",
+-		    argv[0]);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "%s: Unable to get UGA information", argv[0]);
+ 		return (CMD_ERROR);
+ 	}
+ 
+@@ -561,6 +563,6 @@ command_uga(int argc, char *argv[])
+ 	return (CMD_OK);
+ 
+  usage:
+-	sprintf(command_errbuf, "usage: %s", argv[0]);
++	snprintf(command_errbuf, sizeof(command_errbuf), "usage: %s", argv[0]);
+ 	return (CMD_ERROR);
+ }
+diff --git a/sys/boot/efi/loader/main.c b/sys/boot/efi/loader/main.c
+index 408f6319f33..5602a7e0417 100644
+--- a/sys/boot/efi/loader/main.c
++++ b/sys/boot/efi/loader/main.c
+@@ -828,8 +828,10 @@ command_efi_show(int argc, char *argv[])
+ 	EFI_GUID	varguid = { 0,0,0,{0,0,0,0,0,0,0,0} };
+ 	EFI_GUID	matchguid = { 0,0,0,{0,0,0,0,0,0,0,0} };
+ 	uint32_t	uuid_status;
+-	CHAR16		varname[128];
++	CHAR16		*varname;
++	CHAR16		*newnm;
+ 	CHAR16		varnamearg[128];
++	UINTN		varalloc;
+ 	UINTN		varsz;
+ 
+ 	while ((ch = getopt(argc, argv, "ag:lv:")) != -1) {
+@@ -924,10 +926,33 @@ command_efi_show(int argc, char *argv[])
+ 	 * to specify the initial call must be a poiner to a NULL
+ 	 * character.
+ 	 */
+-	varsz = nitems(varname);
++	varalloc = 1024;
++	varname = malloc(varalloc);
++	if (varname == NULL) {
++		printf("Can't allocate memory to get variables\n");
++		pager_close();
++		return (CMD_ERROR);
++	}
+ 	varname[0] = 0;
+-	while ((status = RS->GetNextVariableName(&varsz, varname, &varguid)) !=
+-	    EFI_NOT_FOUND) {
++	while (1) {
++		varsz = varalloc;
++		status = RS->GetNextVariableName(&varsz, varname, &varguid);
++		if (status == EFI_BUFFER_TOO_SMALL) {
++			varalloc = varsz;
++			newnm = malloc(varalloc);
++			if (newnm == NULL) {
++				printf("Can't allocate memory to get variables\n");
++				free(varname);
++				pager_close();
++				return (CMD_ERROR);
++			}
++			memcpy(newnm, varname, varsz);
++			free(varname);
++			varname = newnm;
++			continue; /* Try again with bigger buffer */
++		}
++		if (status != EFI_SUCCESS)
++			break;
+ 		if (aflag) {
+ 			if (efi_print_var(varname, &varguid, lflag) != CMD_OK)
+ 				break;
+@@ -948,6 +973,7 @@ command_efi_show(int argc, char *argv[])
+ 			}
+ 		}
+ 	}
++	free(varname);
+ 	pager_close();
+ 
+ 	return (CMD_OK);
+diff --git a/sys/boot/fdt/fdt_loader_cmd.c b/sys/boot/fdt/fdt_loader_cmd.c
+index 710b6cb2372..1b2737a9a97 100644
+--- a/sys/boot/fdt/fdt_loader_cmd.c
++++ b/sys/boot/fdt/fdt_loader_cmd.c
+@@ -195,14 +195,14 @@ fdt_load_dtb(vm_offset_t va)
+ 	COPYOUT(va, &header, sizeof(header));
+ 	err = fdt_check_header(&header);
+ 	if (err < 0) {
+-		if (err == -FDT_ERR_BADVERSION)
+-			sprintf(command_errbuf,
++		if (err == -FDT_ERR_BADVERSION) {
++			snprintf(command_errbuf, sizeof(command_errbuf),
+ 			    "incompatible blob version: %d, should be: %d",
+ 			    fdt_version(fdtp), FDT_LAST_SUPPORTED_VERSION);
+-
+-		else
+-			sprintf(command_errbuf, "error validating blob: %s",
+-			    fdt_strerror(err));
++		} else {
++			snprintf(command_errbuf, sizeof(command_errbuf),
++			    "error validating blob: %s", fdt_strerror(err));
++		}
+ 		return (1);
+ 	}
+ 
+@@ -237,8 +237,8 @@ fdt_load_dtb_addr(struct fdt_header *header)
+ 	fdtp_size = fdt_totalsize(header);
+ 	err = fdt_check_header(header);
+ 	if (err < 0) {
+-		sprintf(command_errbuf, "error validating blob: %s",
+-		    fdt_strerror(err));
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "error validating blob: %s", fdt_strerror(err));
+ 		return (err);
+ 	}
+ 	free(fdtp);
+@@ -264,7 +264,8 @@ fdt_load_dtb_file(const char * filename)
+ 
+ 	/* Attempt to load and validate a new dtb from a file. */
+ 	if ((bfp = file_loadraw(filename, "dtb", 1)) == NULL) {
+-		sprintf(command_errbuf, "failed to load file '%s'", filename);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "failed to load file '%s'", filename);
+ 		return (1);
+ 	}
+ 	if ((err = fdt_load_dtb(bfp->f_addr)) != 0) {
+@@ -659,7 +660,8 @@ fdt_fixup_memory(struct fdt_mem_region *region, size_t num)
+ 		/* Create proper '/memory' node. */
+ 		memory = fdt_add_subnode(fdtp, root, "memory");
+ 		if (memory <= 0) {
+-			sprintf(command_errbuf, "Could not fixup '/memory' "
++			snprintf(command_errbuf, sizeof(command_errbuf),
++			    "Could not fixup '/memory' "
+ 			    "node, error code : %d!\n", memory);
+ 			return;
+ 		}
+@@ -676,7 +678,8 @@ fdt_fixup_memory(struct fdt_mem_region *region, size_t num)
+ 	size_cellsp = (uint32_t *)fdt_getprop(fdtp, root, "#size-cells", NULL);
+ 
+ 	if (addr_cellsp == NULL || size_cellsp == NULL) {
+-		sprintf(command_errbuf, "Could not fixup '/memory' node : "
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "Could not fixup '/memory' node : "
+ 		    "%s %s property not found in root node!\n",
+ 		    (!addr_cellsp) ? "#address-cells" : "",
+ 		    (!size_cellsp) ? "#size-cells" : "");
+@@ -975,7 +978,8 @@ fdt_cmd_addr(int argc, char *argv[])
+ 
+ 	hdr = (struct fdt_header *)strtoul(addr, &cp, 16);
+ 	if (cp == addr) {
+-		sprintf(command_errbuf, "Invalid address: %s", addr);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "Invalid address: %s", addr);
+ 		return (CMD_ERROR);
+ 	}
+ 
+@@ -1014,7 +1018,8 @@ fdt_cmd_cd(int argc, char *argv[])
+ 
+ 	o = fdt_path_offset(fdtp, path);
+ 	if (o < 0) {
+-		sprintf(command_errbuf, "could not find node: '%s'", path);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "could not find node: '%s'", path);
+ 		return (CMD_ERROR);
+ 	}
+ 
+@@ -1022,8 +1027,8 @@ fdt_cmd_cd(int argc, char *argv[])
+ 	return (CMD_OK);
+ 
+ fail:
+-	sprintf(command_errbuf, "path too long: %d, max allowed: %d",
+-	    len, FDT_CWD_LEN - 1);
++	snprintf(command_errbuf, sizeof(command_errbuf),
++	    "path too long: %d, max allowed: %d", len, FDT_CWD_LEN - 1);
+ 	return (CMD_ERROR);
+ }
+ 
+@@ -1106,7 +1111,8 @@ fdt_cmd_ls(int argc, char *argv[])
+ 
+ 	o = fdt_path_offset(fdtp, path);
+ 	if (o < 0) {
+-		sprintf(command_errbuf, "could not find node: '%s'", path);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "could not find node: '%s'", path);
+ 		return (CMD_ERROR);
+ 	}
+ 
+@@ -1552,7 +1558,8 @@ fdt_extract_nameloc(char **pathp, char **namep, int *nodeoff)
+ 		return (1);
+ 	}
+ 	if (o < 0) {
+-		sprintf(command_errbuf, "could not find node: '%s'", path);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "could not find node: '%s'", path);
+ 		return (1);
+ 	}
+ 	*namep = name;
+@@ -1599,7 +1606,8 @@ fdt_cmd_prop(int argc, char *argv[])
+ 	o = fdt_path_offset(fdtp, path);
+ 
+ 	if (o < 0) {
+-		sprintf(command_errbuf, "could not find node: '%s'", path);
++		snprintf(command_errbuf, sizeof(command_errbuf),
++		    "could not find node: '%s'", path);
+ 		rv = CMD_ERROR;
+ 		goto out;
+ 	}
+@@ -1692,8 +1700,9 @@ fdt_cmd_rm(int argc, char *argv[])
+ 			return (CMD_ERROR);
+ 
+ 		if ((rv = fdt_delprop(fdtp, o, propname)) != 0) {
+-			sprintf(command_errbuf, "could not delete"
+-			    "%s\n", (rv == -FDT_ERR_NOTFOUND) ?
++			snprintf(command_errbuf, sizeof(command_errbuf),
++			    "could not delete %s\n",
++			    (rv == -FDT_ERR_NOTFOUND) ?
+ 			    "(property/node does not exist)" : "");
+ 			return (CMD_ERROR);
+ 
+diff --git a/sys/boot/forth/loader.4th b/sys/boot/forth/loader.4th
+index a18fa1e351b..6c2f7b378f6 100644
+--- a/sys/boot/forth/loader.4th
++++ b/sys/boot/forth/loader.4th
+@@ -143,6 +143,8 @@ only forth definitions also support-functions
+   s" /boot/defaults/loader.conf" initialize
+   include_conf_files
+   include_nextboot_file
++  \ If the user defined a post-initialize hook, call it now
++  s" post-initialize" sfind if execute else drop then
+   \ Will *NOT* try to load kernel and modules if no configuration file
+   \ was successfully loaded!
+   any_conf_read? if
+@@ -165,12 +167,14 @@ only forth definitions also support-functions
+ \
+ \	Overrides support.4th initialization word with one that does
+ \	everything start one does, short of loading the kernel and
+-\	modules. Returns a flag
++\	modules. Returns a flag.
+ 
+ : initialize ( -- flag )
+   s" /boot/defaults/loader.conf" initialize
+   include_conf_files
+   include_nextboot_file
++  \ If the user defined a post-initialize hook, call it now
++  s" post-initialize" sfind if execute else drop then
+   any_conf_read?
+ ;
+ 
+diff --git a/sys/boot/i386/Makefile.inc b/sys/boot/i386/Makefile.inc
+index d209b5f28bb..312a374b9b9 100644
+--- a/sys/boot/i386/Makefile.inc
++++ b/sys/boot/i386/Makefile.inc
+@@ -28,4 +28,9 @@ BTXLDR=		${BTXDIR}/btxldr/btxldr
+ BTXKERN=	${BTXDIR}/btx/btx
+ BTXCRT=		${BTXDIR}/lib/crt0.o
+ 
++# compact binary with no padding between text, data, bss
++LDSCRIPT=	${SRCTOP}/sys/boot/i386/boot.ldscript
++LDFLAGS_BIN=-e start -Ttext ${ORG} -Wl,-T,${LDSCRIPT},-S,--oformat,binary
++LD_FLAGS_BIN=-static -T ${LDSCRIPT} --gc-sections
++
+ .include "../Makefile.inc"
+diff --git a/sys/boot/i386/boot.ldscript b/sys/boot/i386/boot.ldscript
+new file mode 100644
+index 00000000000..04ea39d4769
+--- /dev/null
++++ b/sys/boot/i386/boot.ldscript
+@@ -0,0 +1,11 @@
++/* $FreeBSD$ */
++/* Merge text, data and bss together almost no padding */
++OUTPUT_FORMAT("elf32-i386-freebsd")
++OUTPUT_ARCH(i386)
++ENTRY(_start)
++SECTIONS {
++  . = 0x08048000 + SIZEOF_HEADERS;
++  .text : { *(.text) } =0x90909090	/* Pad with nops, if needed */
++  .data : { *(.data) } _edata = .;
++  .bss  : { *(.bss) }  _end = .;
++}
+diff --git a/sys/boot/i386/boot0/Makefile b/sys/boot/i386/boot0/Makefile
+index f5faef39338..db761c2f266 100644
+--- a/sys/boot/i386/boot0/Makefile
++++ b/sys/boot/i386/boot0/Makefile
+@@ -40,6 +40,7 @@ BOOT_BOOT0_TICKS?=	0xb6
+ # The base address that we the boot0 code to to run it.  Don't change this
+ # unless you are glutton for punishment.
+ BOOT_BOOT0_ORG?=	0x600
++ORG=${BOOT_BOOT0_ORG}
+ 
+ # Comm settings for boot0sio.
+ # Bit(s) Description
+@@ -74,7 +75,7 @@ CFLAGS+=-DFLAGS=${BOOT_BOOT0_FLAGS} \
+ 	-DTICKS=${BOOT_BOOT0_TICKS} \
+ 	-DCOMSPEED=${BOOT_BOOT0_COMCONSOLE_SPEED}
+ 
+-LDFLAGS=-e start -Ttext ${BOOT_BOOT0_ORG} -Wl,-N,-S,--oformat,binary
++LDFLAGS=${LDFLAGS_BIN}
+ 
+ .include <bsd.prog.mk>
+ 
+diff --git a/sys/boot/i386/boot2/Makefile b/sys/boot/i386/boot2/Makefile
+index bb3ecdc067c..5f248b924c0 100644
+--- a/sys/boot/i386/boot2/Makefile
++++ b/sys/boot/i386/boot2/Makefile
+@@ -49,7 +49,7 @@ CFLAGS.gcc+=   -mno-align-long-strings
+ 
+ CFLAGS.clang+=	-Oz ${CLANG_OPT_SMALL}
+ 
+-LD_FLAGS=-static -N --gc-sections
++LD_FLAGS=${LD_FLAGS_BIN}
+ 
+ # Pick up ../Makefile.inc early.
+ .include <bsd.init.mk>
+diff --git a/sys/boot/i386/btx/btx/Makefile b/sys/boot/i386/btx/btx/Makefile
+index a07e00001d4..11fd9c7d96a 100644
+--- a/sys/boot/i386/btx/btx/Makefile
++++ b/sys/boot/i386/btx/btx/Makefile
+@@ -25,7 +25,7 @@ CFLAGS+=-DBTX_SERIAL -DSIOPRT=${BOOT_COMCONSOLE_PORT} \
+ 
+ ORG=	0x9000
+ 
+-LDFLAGS=-e start -Ttext ${ORG} -Wl,-N,-S,--oformat,binary
++LDFLAGS=${LDFLAGS_BIN}
+ 
+ .include <bsd.prog.mk>
+ 
+diff --git a/sys/boot/i386/btx/btxldr/Makefile b/sys/boot/i386/btx/btxldr/Makefile
+index bf7833dc545..c785b60ffeb 100644
+--- a/sys/boot/i386/btx/btxldr/Makefile
++++ b/sys/boot/i386/btx/btxldr/Makefile
+@@ -12,7 +12,8 @@ CFLAGS+=-I${.CURDIR}/../../common
+ CFLAGS+=-DBTXLDR_VERBOSE
+ .endif
+ 
+-LDFLAGS=-e start -Ttext ${LOADER_ADDRESS} -Wl,-N,-S,--oformat,binary
++ORG=${LOADER_ADDRESS}
++LDFLAGS=${LDFLAGS_BIN}
+ 
+ .include <bsd.prog.mk>
+ 
+diff --git a/sys/boot/i386/btx/btxldr/btxldr.S b/sys/boot/i386/btx/btxldr/btxldr.S
+index 7f2b909f95f..1a0f5f40ff0 100644
+--- a/sys/boot/i386/btx/btxldr/btxldr.S
++++ b/sys/boot/i386/btx/btxldr/btxldr.S
+@@ -376,12 +376,12 @@ e_fmt:		.asciz "Error: Client format not supported\n"
+ #ifdef BTXLDR_VERBOSE
+ m_mem:		.asciz "Starting in protected mode (base mem=\0)\n"
+ m_esp:		.asciz "Arguments passed (esp=\0):\n"
+-m_args: 	.asciz"<howto="
+-		.asciz" bootdev="
+-		.asciz" junk="
+-		.asciz" "
+-		.asciz" "
+-		.asciz" bootinfo=\0>\n"
++m_args: 	.asciz "<howto="
++		.asciz " bootdev="
++		.asciz " junk="
++		.asciz " "
++		.asciz " "
++		.asciz " bootinfo=\0>\n"
+ m_rel_bi:	.asciz "Relocated bootinfo (size=48) to \0\n"
+ m_rel_args:	.asciz "Relocated arguments (size=18) to \0\n"
+ m_rel_btx:	.asciz "Relocated kernel (size=\0) to \0\n"
+diff --git a/sys/boot/i386/cdboot/Makefile b/sys/boot/i386/cdboot/Makefile
+index e9e046b6866..e2fec39d0e1 100644
+--- a/sys/boot/i386/cdboot/Makefile
++++ b/sys/boot/i386/cdboot/Makefile
+@@ -10,7 +10,7 @@ CFLAGS+=-I${.CURDIR}/../common
+ 
+ ORG=	0x7c00
+ 
+-LDFLAGS=-e start -Ttext ${ORG} -Wl,-N,-S,--oformat,binary
++LDFLAGS=${LDFLAGS_BIN}
+ 
+ .include <bsd.prog.mk>
+ 
+diff --git a/sys/boot/i386/gptboot/Makefile b/sys/boot/i386/gptboot/Makefile
+index b89a4727208..626a42a7bd8 100644
+--- a/sys/boot/i386/gptboot/Makefile
++++ b/sys/boot/i386/gptboot/Makefile
+@@ -47,7 +47,7 @@ LIBGELIBOOT=	${.OBJDIR}/../../geli/libgeliboot.a
+ OPENCRYPTO_XTS=	xform_aes_xts.o
+ .endif
+ 
+-LD_FLAGS=-static -N --gc-sections
++LD_FLAGS=${LD_FLAGS_BIN}
+ 
+ LIBSTAND=	${.OBJDIR}/../../libstand32/libstand.a
+ 
+diff --git a/sys/boot/i386/gptzfsboot/Makefile b/sys/boot/i386/gptzfsboot/Makefile
+index 0278508a532..1d6297c2bbf 100644
+--- a/sys/boot/i386/gptzfsboot/Makefile
++++ b/sys/boot/i386/gptzfsboot/Makefile
+@@ -56,7 +56,7 @@ OPENCRYPTO_XTS=	xform_aes_xts.o
+ 
+ CFLAGS.gcc+=	--param max-inline-insns-single=100
+ 
+-LD_FLAGS=-static -N --gc-sections
++LD_FLAGS=${LD_FLAGS_BIN}
+ 
+ LIBSTAND=	${.OBJDIR}/../../libstand32/libstand.a
+ 
+diff --git a/sys/boot/i386/libi386/biosdisk.c b/sys/boot/i386/libi386/biosdisk.c
+index 8a755827067..2081d06b040 100644
+--- a/sys/boot/i386/libi386/biosdisk.c
++++ b/sys/boot/i386/libi386/biosdisk.c
+@@ -244,6 +244,7 @@ static int
+ bd_int13probe(struct bdinfo *bd)
+ {
+ 	struct edd_params params;
++	int ret = 1;	/* assume success */
+ 
+ 	v86.ctl = V86_FLAGS;
+ 	v86.addr = 0x13;
+@@ -251,11 +252,14 @@ bd_int13probe(struct bdinfo *bd)
+ 	v86.edx = bd->bd_unit;
+ 	v86int();
+ 
++	/* Don't error out if we get bad sector number, try EDD as well */
+ 	if (V86_CY(v86.efl) ||	/* carry set */
+-	    (v86.ecx & 0x3f) == 0 || /* absurd sector number */
+ 	    (v86.edx & 0xff) <= (unsigned)(bd->bd_unit & 0x7f))	/* unit # bad */
+ 		return (0);	/* skip device */
+ 
++	if ((v86.ecx & 0x3f) == 0) /* absurd sector number */
++		ret = 0;	/* set error */
++
+ 	/* Convert max cyl # -> # of cylinders */
+ 	bd->bd_cyl = ((v86.ecx & 0xc0) << 2) + ((v86.ecx & 0xff00) >> 8) + 1;
+ 	/* Convert max head # -> # of heads */
+@@ -280,7 +284,8 @@ bd_int13probe(struct bdinfo *bd)
+ 	if (V86_CY(v86.efl) ||	/* carry set */
+ 	    (v86.ebx & 0xffff) != 0xaa55 || /* signature */
+ 	    (v86.ecx & EDD_INTERFACE_FIXED_DISK) == 0)
+-		return (1);
++		return (ret);	/* return code from int13 AH=08 */
++
+ 	/* EDD supported */
+ 	bd->bd_flags |= BD_MODEEDD1;
+ 	if ((v86.eax & 0xff00) >= 0x3000)
+@@ -295,12 +300,22 @@ bd_int13probe(struct bdinfo *bd)
+ 	v86.esi = VTOPOFF(&params);
+ 	v86int();
+ 	if (!V86_CY(v86.efl)) {
+-		bd->bd_sectors = params.sectors;
++		uint64_t total;
++
++		if (params.sectors != 0)
++			bd->bd_sectors = params.sectors;
++
++		total = (uint64_t)params.cylinders *
++		    params.heads * params.sectors_per_track;
++		if (bd->bd_sectors < total)
++			bd->bd_sectors = total;
++
+ 		bd->bd_sectorsize = params.sector_size;
++		ret = 1;
+ 	}
+ 	DEBUG("unit 0x%x flags %x, sectors %llu, sectorsize %u",
+ 	    bd->bd_unit, bd->bd_flags, bd->bd_sectors, bd->bd_sectorsize);
+-	return (1);
++	return (ret);
+ }
+ 
+ /*
+diff --git a/sys/boot/i386/libi386/pxe.c b/sys/boot/i386/libi386/pxe.c
+index 87ceeb26388..4ccdd01ce8d 100644
+--- a/sys/boot/i386/libi386/pxe.c
++++ b/sys/boot/i386/libi386/pxe.c
+@@ -596,7 +596,7 @@ bangpxe_call(int func)
+ 
+ 
+ time_t
+-getsecs()
++getsecs(void)
+ {
+ 	time_t n = 0;
+ 	time(&n);
+diff --git a/sys/boot/i386/libi386/smbios.c b/sys/boot/i386/libi386/smbios.c
+index 7a7ce4ba4f5..4a8f3bc4ef0 100644
+--- a/sys/boot/i386/libi386/smbios.c
++++ b/sys/boot/i386/libi386/smbios.c
+@@ -238,6 +238,10 @@ smbios_parse_table(const caddr_t addr)
+ 		smbios_setenv("smbios.system.serial", addr, 0x07);
+ 		smbios_setuuid("smbios.system.uuid", addr + 0x08, smbios.ver);
+ #endif
++		if (smbios.major >= 2 && smbios.minor >= 4) {
++			smbios_setenv("smbios.system.sku", addr, 0x19);
++			smbios_setenv("smbios.system.family", addr, 0x1a);
++		}
+ 		break;
+ 
+ 	case 2:		/* 3.3.3 Base Board (or Module) Information (Type 2) */
+@@ -246,7 +250,9 @@ smbios_parse_table(const caddr_t addr)
+ 		smbios_setenv("smbios.planar.version", addr, 0x06);
+ #ifdef SMBIOS_SERIAL_NUMBERS
+ 		smbios_setenv("smbios.planar.serial", addr, 0x07);
++		smbios_setenv("smbios.planar.tag", addr, 0x08);
+ #endif
++		smbios_setenv("smbios.planar.location", addr, 0x0a);
+ 		break;
+ 
+ 	case 3:		/* 3.3.4 System Enclosure or Chassis (Type 3) */
+diff --git a/sys/boot/i386/mbr/Makefile b/sys/boot/i386/mbr/Makefile
+index d1a652cbeae..ac10723059f 100644
+--- a/sys/boot/i386/mbr/Makefile
++++ b/sys/boot/i386/mbr/Makefile
+@@ -12,6 +12,6 @@ BOOT_MBR_FLAGS?=	0x80
+ ORG=	0x600
+ 
+ AFLAGS+=--defsym FLAGS=${BOOT_MBR_FLAGS}
+-LDFLAGS=-e start -Ttext ${ORG} -Wl,-N,-S,--oformat,binary
++LDFLAGS=${LDFLAGS_BIN}
+ 
+ .include <bsd.prog.mk>
+diff --git a/sys/boot/i386/pmbr/Makefile b/sys/boot/i386/pmbr/Makefile
+index cc12f4919ca..243167a2177 100644
+--- a/sys/boot/i386/pmbr/Makefile
++++ b/sys/boot/i386/pmbr/Makefile
+@@ -9,6 +9,6 @@ SRCS=	${PROG}.s
+ ORG=	0x600
+ 
+ AFLAGS+=--defsym FLAGS=${BOOT_MBR_FLAGS}
+-LDFLAGS=-e start -Ttext ${ORG} -Wl,-N,-S,--oformat,binary
++LDFLAGS=${LDFLAGS_BIN}
+ 
+ .include <bsd.prog.mk>
+diff --git a/sys/boot/i386/pxeldr/Makefile b/sys/boot/i386/pxeldr/Makefile
+index c0b7504b285..fea62a5aaa4 100644
+--- a/sys/boot/i386/pxeldr/Makefile
++++ b/sys/boot/i386/pxeldr/Makefile
+@@ -34,7 +34,7 @@ ${BOOT}: ${LDR} ${LOADER}
+ 	${DD} if=${.TARGET}.tmp of=${.TARGET} obs=2k conv=osync
+ 	rm ${.TARGET}.tmp
+ 
+-LDFLAGS+=-e start -Ttext ${ORG} -Wl,-N,-S,--oformat,binary
++LDFLAGS+=${LDFLAGS_BIN}
+ 
+ CLEANFILES+= ${LOADER}
+ 
+diff --git a/sys/boot/i386/zfsboot/Makefile b/sys/boot/i386/zfsboot/Makefile
+index 9786b7b9c60..f9719ce6e9c 100644
+--- a/sys/boot/i386/zfsboot/Makefile
++++ b/sys/boot/i386/zfsboot/Makefile
+@@ -38,7 +38,7 @@ CFLAGS.gcc+=	--param max-inline-insns-single=100
+ # Do not unroll skein loops, reduce code size
+ CFLAGS+=	-DSKEIN_LOOP=111
+ 
+-LD_FLAGS=-static -N --gc-sections
++LD_FLAGS=${LD_FLAGS_BIN}
+ 
+ LIBSTAND=	${.OBJDIR}/../../libstand32/libstand.a
+ 
+diff --git a/sys/boot/ofw/libofw/ofw_time.c b/sys/boot/ofw/libofw/ofw_time.c
+index f53997dc059..d5ca271564d 100644
+--- a/sys/boot/ofw/libofw/ofw_time.c
++++ b/sys/boot/ofw/libofw/ofw_time.c
+@@ -41,8 +41,8 @@ time(time_t *tloc)
+ 	return secs;
+ }
+ 
+-int
+-getsecs()
++time_t
++getsecs(void)
+ {
+ 	time_t	n = 0;
+ 	time(&n);
+diff --git a/sys/boot/pc98/Makefile.inc b/sys/boot/pc98/Makefile.inc
+index 76774b3b6b2..829793d63bd 100644
+--- a/sys/boot/pc98/Makefile.inc
++++ b/sys/boot/pc98/Makefile.inc
+@@ -21,4 +21,9 @@ BTXLDR=		${BTXDIR}/btxldr/btxldr
+ BTXKERN=	${BTXDIR}/btx/btx
+ BTXCRT=		${BTXDIR}/lib/crt0.o
+ 
++# compact binary with no padding between text, data, bss
++LDSCRIPT=	${SRCTOP}/sys/boot/i386/boot.ldscript
++LDFLAGS_BIN=-e start -Ttext ${ORG} -Wl,-T,${LDSCRIPT},-S,--oformat,binary
++LD_FLAGS_BIN=-static -T ${LDSCRIPT} --gc-sections
++
+ .include "../Makefile.inc"
+diff --git a/sys/boot/pc98/boot0/Makefile b/sys/boot/pc98/boot0/Makefile
+index fd92a5d9cd6..d348f6020e4 100644
+--- a/sys/boot/pc98/boot0/Makefile
++++ b/sys/boot/pc98/boot0/Makefile
+@@ -1,6 +1,6 @@
+ # $FreeBSD$
+ 
+-PROG=	${BOOT}.out
++PROG=	${BOOT}
+ INTERNALPROG=
+ FILES=	${BOOT}
+ MAN=
+@@ -12,10 +12,8 @@ BOOT=	boot0
+ # The base address that we the boot0 code to to run it.  Don't change this
+ # unless you are glutton for punishment.
+ BOOT_BOOT0_ORG?=	0x0000
++ORG=${BOOT_BOOT0_ORG}
+ 
+-LDFLAGS=-e start -Ttext ${BOOT_BOOT0_ORG} -Wl,-N
+-
+-${BOOT}: ${BOOT}.out
+-	${OBJCOPY} -S -O binary ${BOOT}.out ${.TARGET}
++LDFLAGS=${LDFLAGS_BIN}
+ 
+ .include <bsd.prog.mk>
+diff --git a/sys/boot/pc98/boot2/Makefile b/sys/boot/pc98/boot2/Makefile
+index 2c26468dcec..2db0590964a 100644
+--- a/sys/boot/pc98/boot2/Makefile
++++ b/sys/boot/pc98/boot2/Makefile
+@@ -52,7 +52,7 @@ CFLAGS.gcc+=   -mno-align-long-strings
+ 
+ CFLAGS.clang+=	-Oz ${CLANG_OPT_SMALL}
+ 
+-LD_FLAGS=-static -N --gc-sections
++LD_FLAGS=${LD_FLAGS_BIN}
+ 
+ # Pick up ../Makefile.inc early.
+ .include <bsd.init.mk>
+diff --git a/sys/boot/pc98/btx/btx/Makefile b/sys/boot/pc98/btx/btx/Makefile
+index 9046d351212..27554606828 100644
+--- a/sys/boot/pc98/btx/btx/Makefile
++++ b/sys/boot/pc98/btx/btx/Makefile
+@@ -25,7 +25,7 @@ CFLAGS+=-DBTX_SERIAL -DSIOPRT=${BOOT_COMCONSOLE_PORT} \
+ 
+ ORG=	0x9000
+ 
+-LDFLAGS=-e start -Ttext ${ORG} -Wl,-N,-S,--oformat,binary
++LDFLAGS=${LDFLAGS_BIN}
+ 
+ .include <bsd.prog.mk>
+ 
+diff --git a/sys/boot/pc98/btx/btxldr/Makefile b/sys/boot/pc98/btx/btxldr/Makefile
+index b0c8996aa7e..47e83a08305 100644
+--- a/sys/boot/pc98/btx/btxldr/Makefile
++++ b/sys/boot/pc98/btx/btxldr/Makefile
+@@ -12,7 +12,8 @@ CFLAGS+=-I${.CURDIR}/../../../i386/common
+ CFLAGS+=-DBTXLDR_VERBOSE
+ .endif
+ 
+-LDFLAGS=-e start -Ttext ${LOADER_ADDRESS} -Wl,-N,-S,--oformat,binary
++ORG=${LOADER_ADDRESS}
++LDFLAGS=${LDFLAGS_BIN}
+ 
+ .include <bsd.prog.mk>
+ 
+diff --git a/sys/boot/pc98/cdboot/Makefile b/sys/boot/pc98/cdboot/Makefile
+index 3b91c1285f0..ba94111362c 100644
+--- a/sys/boot/pc98/cdboot/Makefile
++++ b/sys/boot/pc98/cdboot/Makefile
+@@ -10,7 +10,7 @@ CFLAGS+=-I${.CURDIR}/../../i386/common
+ 
+ ORG=	0x0000
+ 
+-LDFLAGS=-e start -Ttext ${ORG} -Wl,-N,-S,--oformat,binary
++LDFLAGS=${LDFLAGS_BIN}
+ 
+ .include <bsd.prog.mk>
+ 
+diff --git a/sys/boot/powerpc/kboot/main.c b/sys/boot/powerpc/kboot/main.c
+index ecc2622f64d..7a24c163d5c 100644
+--- a/sys/boot/powerpc/kboot/main.c
++++ b/sys/boot/powerpc/kboot/main.c
+@@ -146,8 +146,8 @@ delay(int usecs)
+ 	} while (t < ti + usecs);
+ }
+ 
+-int
+-getsecs()
++time_t
++getsecs(void)
+ {
+ 	struct host_timeval tv;
+ 	host_gettimeofday(&tv, NULL);
+diff --git a/sys/boot/powerpc/ps3/main.c b/sys/boot/powerpc/ps3/main.c
+index 76fdfa4c6a1..be8708aadef 100644
+--- a/sys/boot/powerpc/ps3/main.c
++++ b/sys/boot/powerpc/ps3/main.c
+@@ -174,10 +174,10 @@ delay(int usecs)
+ 		tb = mftb();
+ }
+ 
+-int
+-getsecs()
++time_t
++getsecs(void)
+ {
+-	return ((mftb() - basetb)*ns_per_tick/1000000000);
++	return ((time_t)((mftb() - basetb)*ns_per_tick/1000000000));
+ }
+ 
+ time_t
+diff --git a/sys/boot/uboot/lib/time.c b/sys/boot/uboot/lib/time.c
+index 9083675b75d..a3c73f471a2 100644
+--- a/sys/boot/uboot/lib/time.c
++++ b/sys/boot/uboot/lib/time.c
+@@ -47,7 +47,7 @@ time(time_t *tloc)
+ 	return (secs);
+ }
+ 
+-int
++time_t
+ getsecs(void)
+ {
+ 

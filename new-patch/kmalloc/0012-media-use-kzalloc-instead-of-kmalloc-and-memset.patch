@@ -1,0 +1,61 @@
+From 156cda2d815aa863a84e2be4e1004b1f975b84ab Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Fri, 28 Jun 2019 09:58:30 +0800
+Subject: [PATCH v3 12/27] media: use kzalloc instead of kmalloc and memset
+
+Replace kmalloc followed by a memset with kzalloc.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v3:
+  - Resend
+
+ drivers/media/usb/pvrusb2/pvrusb2-eeprom.c | 3 +--
+ drivers/media/usb/pvrusb2/pvrusb2-hdw.c    | 3 +--
+ 2 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/media/usb/pvrusb2/pvrusb2-eeprom.c b/drivers/media/usb/pvrusb2/pvrusb2-eeprom.c
+index 79f0e0c6df37..fac90af8b537 100644
+--- a/drivers/media/usb/pvrusb2/pvrusb2-eeprom.c
++++ b/drivers/media/usb/pvrusb2/pvrusb2-eeprom.c
+@@ -39,7 +39,7 @@ static u8 *pvr2_eeprom_fetch(struct pvr2_hdw *hdw)
+ 	int ret;
+ 	int mode16 = 0;
+ 	unsigned pcnt,tcnt;
+-	eeprom = kmalloc(EEPROM_SIZE,GFP_KERNEL);
++	eeprom = kzalloc(EEPROM_SIZE,GFP_KERNEL);
+ 	if (!eeprom) {
+ 		pvr2_trace(PVR2_TRACE_ERROR_LEGS,
+ 			   "Failed to allocate memory required to read eeprom");
+@@ -74,7 +74,6 @@ static u8 *pvr2_eeprom_fetch(struct pvr2_hdw *hdw)
+ 	   (1) we're only fetching part of the eeprom, and (2) if we were
+ 	   getting the whole thing our I2C driver can't grab it in one
+ 	   pass - which is what tveeprom is otherwise going to attempt */
+-	memset(eeprom,0,EEPROM_SIZE);
+ 	for (tcnt = 0; tcnt < EEPROM_SIZE; tcnt += pcnt) {
+ 		pcnt = 16;
+ 		if (pcnt + tcnt > EEPROM_SIZE) pcnt = EEPROM_SIZE-tcnt;
+diff --git a/drivers/media/usb/pvrusb2/pvrusb2-hdw.c b/drivers/media/usb/pvrusb2/pvrusb2-hdw.c
+index 70b5cb08d65b..ff75b4a53dfa 100644
+--- a/drivers/media/usb/pvrusb2/pvrusb2-hdw.c
++++ b/drivers/media/usb/pvrusb2/pvrusb2-hdw.c
+@@ -3309,7 +3309,7 @@ static u8 *pvr2_full_eeprom_fetch(struct pvr2_hdw *hdw)
+ 	int ret;
+ 	int mode16 = 0;
+ 	unsigned pcnt,tcnt;
+-	eeprom = kmalloc(EEPROM_SIZE,GFP_KERNEL);
++	eeprom = kzalloc(EEPROM_SIZE,GFP_KERNEL);
+ 	if (!eeprom) {
+ 		pvr2_trace(PVR2_TRACE_ERROR_LEGS,
+ 			   "Failed to allocate memory required to read eeprom");
+@@ -3344,7 +3344,6 @@ static u8 *pvr2_full_eeprom_fetch(struct pvr2_hdw *hdw)
+ 	   (1) we're only fetching part of the eeprom, and (2) if we were
+ 	   getting the whole thing our I2C driver can't grab it in one
+ 	   pass - which is what tveeprom is otherwise going to attempt */
+-	memset(eeprom,0,EEPROM_SIZE);
+ 	for (tcnt = 0; tcnt < EEPROM_SIZE; tcnt += pcnt) {
+ 		pcnt = 16;
+ 		if (pcnt + tcnt > EEPROM_SIZE) pcnt = EEPROM_SIZE-tcnt;
+-- 
+2.11.0
+

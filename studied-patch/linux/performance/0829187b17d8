@@ -1,0 +1,33 @@
+commit 0829187b17d8019f9bb40c56d47f37b1991a2189
+Author: Stefan Wahren <stefan.wahren@i2se.com>
+Date:   Sat Oct 6 13:31:56 2018 +0200
+
+    firmware: raspberrypi: Define timeout for transactions
+    
+    We should never assume to get a reply from the firmware otherwise
+    the call could block forever and the user don't get informed. So
+    define a timeout of 1 sec and print a stacktrace once in the unlikely
+    case the timeout expired.
+    
+    Signed-off-by: Stefan Wahren <stefan.wahren@i2se.com>
+    Reviewed-by: Eric Anholt <eric@anholt.net>
+
+diff --git a/drivers/firmware/raspberrypi.c b/drivers/firmware/raspberrypi.c
+index a200a2174611..bf45ac450954 100644
+--- a/drivers/firmware/raspberrypi.c
++++ b/drivers/firmware/raspberrypi.c
+@@ -56,8 +56,12 @@ rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data)
+ 	reinit_completion(&fw->c);
+ 	ret = mbox_send_message(fw->chan, &message);
+ 	if (ret >= 0) {
+-		wait_for_completion(&fw->c);
+-		ret = 0;
++		if (wait_for_completion_timeout(&fw->c, HZ)) {
++			ret = 0;
++		} else {
++			ret = -ETIMEDOUT;
++			WARN_ONCE(1, "Firmware transaction timeout");
++		}
+ 	} else {
+ 		dev_err(fw->cl.dev, "mbox_send_message returned %d\n", ret);
+ 	}

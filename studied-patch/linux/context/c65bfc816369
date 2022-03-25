@@ -1,0 +1,29 @@
+commit c65bfc8163696dd171e081488b0321beb630b708
+Author: Shivasharan S <shivasharan.srikanteshwara@broadcom.com>
+Date:   Wed Jan 9 05:08:37 2019 -0800
+
+    scsi: megaraid_sas: Retry reads of outbound_intr_status reg
+    
+    commit 272652fcbf1a ("scsi: megaraid_sas: add retry logic in megasas_readl")
+    missed changing readl to megasas_readl in megasas_clear_intr_fusion().  For
+    Aero controllers, reads of outbound_intr_status register needs to be
+    retried.
+    
+    Reported-by: Tomas Henzl <thenzl@redhat.com>
+    Signed-off-by: Shivasharan S <shivasharan.srikanteshwara@broadcom.com>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/scsi/megaraid/megaraid_sas_fusion.c b/drivers/scsi/megaraid/megaraid_sas_fusion.c
+index 211c17c33aa0..2665dbdcf2f8 100644
+--- a/drivers/scsi/megaraid/megaraid_sas_fusion.c
++++ b/drivers/scsi/megaraid/megaraid_sas_fusion.c
+@@ -175,7 +175,8 @@ megasas_clear_intr_fusion(struct megasas_instance *instance)
+ 	/*
+ 	 * Check if it is our interrupt
+ 	 */
+-	status = readl(&regs->outbound_intr_status);
++	status = megasas_readl(instance,
++			       &regs->outbound_intr_status);
+ 
+ 	if (status & 1) {
+ 		writel(status, &regs->outbound_intr_status);

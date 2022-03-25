@@ -1,0 +1,26 @@
+commit 98afdd565f3cf0dfa2bd62e801bbfb7ee1698f6d
+Author: Sergio Paracuellos <sergio.paracuellos@gmail.com>
+Date:   Sun Nov 4 11:49:59 2018 +0100
+
+    staging: mt7621-pci: replace 'mdelay()' with 'msleep()'
+    
+    Function 'mt7621_pcie_init_ports' is never called in atomic context.
+    It calls mdelay() to busily wait, which is not necessary. mdelay()
+    can be replaced with msleep().
+    
+    Signed-off-by: Sergio Paracuellos <sergio.paracuellos@gmail.com>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/staging/mt7621-pci/pci-mt7621.c b/drivers/staging/mt7621-pci/pci-mt7621.c
+index fb9aa6bbd5dc..14cec231946c 100644
+--- a/drivers/staging/mt7621-pci/pci-mt7621.c
++++ b/drivers/staging/mt7621-pci/pci-mt7621.c
+@@ -632,7 +632,7 @@ static void mt7621_pcie_init_ports(struct mt7621_pcie *pcie)
+ 	rt_sysc_m32(PCIE_CLK_GEN_EN, PCIE_CLK_GEN_DIS, RALINK_PCIE_CLK_GEN);
+ 	rt_sysc_m32(PCIE_CLK_GEN1_DIS, PCIE_CLK_GEN1_EN, RALINK_PCIE_CLK_GEN1);
+ 	rt_sysc_m32(PCIE_CLK_GEN_DIS, PCIE_CLK_GEN_EN, RALINK_PCIE_CLK_GEN);
+-	mdelay(50);
++	msleep(50);
+ 	rt_sysc_m32(RALINK_PCIE_RST, 0, RALINK_RSTCTRL);
+ }
+ 

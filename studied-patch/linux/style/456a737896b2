@@ -1,0 +1,29 @@
+commit 456a737896b25e4853bbf3d6ca5a1c8ee4df4ee9
+Author: Lance Roy <ldr709@gmail.com>
+Date:   Thu Oct 4 23:45:44 2018 -0700
+
+    userfaultfd: Replace spin_is_locked() with lockdep
+    
+    lockdep_assert_held() is better suited to checking locking requirements,
+    since it only checks if the current thread holds the lock regardless of
+    whether someone else does. This is also a step towards possibly removing
+    spin_is_locked().
+    
+    Signed-off-by: Lance Roy <ldr709@gmail.com>
+    Cc: Alexander Viro <viro@zeniv.linux.org.uk>
+    Cc: <linux-fsdevel@vger.kernel.org>
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+
+diff --git a/fs/userfaultfd.c b/fs/userfaultfd.c
+index 356d2b8568c1..681881dc8a9d 100644
+--- a/fs/userfaultfd.c
++++ b/fs/userfaultfd.c
+@@ -926,7 +926,7 @@ static inline struct userfaultfd_wait_queue *find_userfault_in(
+ 	wait_queue_entry_t *wq;
+ 	struct userfaultfd_wait_queue *uwq;
+ 
+-	VM_BUG_ON(!spin_is_locked(&wqh->lock));
++	lockdep_assert_held(&wqh->lock);
+ 
+ 	uwq = NULL;
+ 	if (!waitqueue_active(wqh))

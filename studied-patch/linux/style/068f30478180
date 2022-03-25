@@ -1,0 +1,34 @@
+commit 068f304781804e208f901d8f6083189e0e28c420
+Author: Souptick Joarder <jrdr.linux@gmail.com>
+Date:   Tue Oct 23 09:32:22 2018 +0530
+
+    drm/drm_pci.c: Use dma_zalloc_coherent
+    
+    Replace dma_alloc_coherent + memset with dma_zalloc_coherent.
+    
+    Signed-off-by: Souptick Joarder <jrdr.linux@gmail.com>
+    Signed-off-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+    Link: https://patchwork.freedesktop.org/patch/msgid/20181023040222.GA1540@jordon-HP-15-Notebook-PC
+
+diff --git a/drivers/gpu/drm/drm_pci.c b/drivers/gpu/drm/drm_pci.c
+index 48f615d38931..a9d9df6c85ad 100644
+--- a/drivers/gpu/drm/drm_pci.c
++++ b/drivers/gpu/drm/drm_pci.c
+@@ -61,15 +61,14 @@ drm_dma_handle_t *drm_pci_alloc(struct drm_device * dev, size_t size, size_t ali
+ 		return NULL;
+ 
+ 	dmah->size = size;
+-	dmah->vaddr = dma_alloc_coherent(&dev->pdev->dev, size, &dmah->busaddr, GFP_KERNEL | __GFP_COMP);
++	dmah->vaddr = dma_zalloc_coherent(&dev->pdev->dev, size, &dmah->busaddr,
++						GFP_KERNEL | __GFP_COMP);
+ 
+ 	if (dmah->vaddr == NULL) {
+ 		kfree(dmah);
+ 		return NULL;
+ 	}
+ 
+-	memset(dmah->vaddr, 0, size);
+-
+ 	/* XXX - Is virt_to_page() legal for consistent mem? */
+ 	/* Reserve */
+ 	for (addr = (unsigned long)dmah->vaddr, sz = size;

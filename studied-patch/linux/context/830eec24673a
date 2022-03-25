@@ -1,0 +1,68 @@
+commit 830eec24673a982bff4df85ba4d17e4a6ff201a7
+Author: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Date:   Tue Dec 11 22:23:22 2018 +0100
+
+    ARM: versatile: convert boot_lock to raw
+    
+    The arm boot_lock is used by the secondary processor startup code.  The locking
+    task is the idle thread, which has idle->sched_class == &idle_sched_class.
+    idle_sched_class->enqueue_task == NULL, so if the idle task blocks on the
+    lock, the attempt to wake it when the lock becomes available will fail:
+    
+    try_to_wake_up()
+       ...
+          activate_task()
+             enqueue_task()
+                p->sched_class->enqueue_task(rq, p, flags)
+    
+    Fix by converting boot_lock to a raw spin lock.
+    
+    Cc: Linus Walleij <linus.walleij@linaro.org>
+    Signed-off-by: Frank Rowand <frank.rowand@am.sony.com>
+    Link: http://lkml.kernel.org/r/4E77B952.3010606@am.sony.com
+    Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+    Signed-off-by: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+    Signed-off-by: Russell King <rmk+kernel@armlinux.org.uk>
+
+diff --git a/arch/arm/plat-versatile/platsmp.c b/arch/arm/plat-versatile/platsmp.c
+index c2366510187a..6b60f582b738 100644
+--- a/arch/arm/plat-versatile/platsmp.c
++++ b/arch/arm/plat-versatile/platsmp.c
+@@ -32,7 +32,7 @@ static void write_pen_release(int val)
+ 	sync_cache_w(&pen_release);
+ }
+ 
+-static DEFINE_SPINLOCK(boot_lock);
++static DEFINE_RAW_SPINLOCK(boot_lock);
+ 
+ void versatile_secondary_init(unsigned int cpu)
+ {
+@@ -45,8 +45,8 @@ void versatile_secondary_init(unsigned int cpu)
+ 	/*
+ 	 * Synchronise with the boot thread.
+ 	 */
+-	spin_lock(&boot_lock);
+-	spin_unlock(&boot_lock);
++	raw_spin_lock(&boot_lock);
++	raw_spin_unlock(&boot_lock);
+ }
+ 
+ int versatile_boot_secondary(unsigned int cpu, struct task_struct *idle)
+@@ -57,7 +57,7 @@ int versatile_boot_secondary(unsigned int cpu, struct task_struct *idle)
+ 	 * Set synchronisation state between this boot processor
+ 	 * and the secondary one
+ 	 */
+-	spin_lock(&boot_lock);
++	raw_spin_lock(&boot_lock);
+ 
+ 	/*
+ 	 * This is really belt and braces; we hold unintended secondary
+@@ -87,7 +87,7 @@ int versatile_boot_secondary(unsigned int cpu, struct task_struct *idle)
+ 	 * now the secondary core is starting up let it run its
+ 	 * calibrations, then wait for it to finish
+ 	 */
+-	spin_unlock(&boot_lock);
++	raw_spin_unlock(&boot_lock);
+ 
+ 	return pen_release != -1 ? -ENOSYS : 0;
+ }

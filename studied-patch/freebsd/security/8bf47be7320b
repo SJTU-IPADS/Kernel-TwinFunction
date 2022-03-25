@@ -1,0 +1,600 @@
+commit 8bf47be7320b433e53495c4a8a026a749d215fa7
+Author: asomers <asomers@FreeBSD.org>
+Date:   Mon Apr 16 16:24:36 2018 +0000
+
+    MFC r329845, r329872
+    
+    r329845:
+    Fix numerous Coverity issues in mptutil
+    
+    Most are memory or file descriptor leaks. Three were unannotated
+    fallthroughs in a switch/case statement. One was an integer overflow before
+    widen.
+    
+    Reported by:    Coverity
+    CID:            1007463 1007462 1007461 1007460 1007459 1007458 1007457
+    CID:            1006855 1006854 1006853 1006852 1006851 1006850 1006849
+    CID:            1006848 1006845 1006844 1006843 1006842 1006841 1006840
+    CID:            1006839 1006838 1006837 1006836 1006835 1006834 1006833
+    CID:            1006832 1006831 1006831 1006830 1006829 1008334 1008170
+    CID:            1008169 1008168
+    Sponsored by:   Spectra Logic Corp
+    Differential Revision:  https://reviews.freebsd.org/D11013
+    
+    r329872:
+    Delete copypasta
+    
+    Reported by:    rpokala
+    X-MFC-With:     329845
+    Sponsored by:   Spectra Logic Corp
+
+diff --git a/usr.sbin/mptutil/mpt_config.c b/usr.sbin/mptutil/mpt_config.c
+index 17b9945a662..a24c7a59701 100644
+--- a/usr.sbin/mptutil/mpt_config.c
++++ b/usr.sbin/mptutil/mpt_config.c
+@@ -65,12 +65,16 @@ dehumanize(const char *value)
+         switch (vtp[0]) {
+         case 't': case 'T':
+                 iv *= 1024;
++                /* FALLTHROUGH */
+         case 'g': case 'G':
+                 iv *= 1024;
++                /* FALLTHROUGH */
+         case 'm': case 'M':
+                 iv *= 1024;
++                /* FALLTHROUGH */
+         case 'k': case 'K':
+                 iv *= 1024;
++                /* FALLTHROUGH */
+         case '\0':
+                 break;
+         default:
+@@ -242,6 +246,7 @@ clear_config(int ac, char **av)
+ 	if (ioc2 == NULL) {
+ 		error = errno;
+ 		warn("Failed to fetch volume list");
++		close(fd);
+ 		return (error);
+ 	}
+ 
+@@ -251,6 +256,8 @@ clear_config(int ac, char **av)
+ 		if (mpt_lock_volume(vol->VolumeBus, vol->VolumeID) < 0) {
+ 			warnx("Volume %s is busy and cannot be deleted",
+ 			    mpt_volume_name(vol->VolumeBus, vol->VolumeID));
++			free(ioc2);
++			close(fd);
+ 			return (EBUSY);
+ 		}
+ 	}
+@@ -261,6 +268,8 @@ clear_config(int ac, char **av)
+ 	ch = getchar();
+ 	if (ch != 'y' && ch != 'Y') {
+ 		printf("\nAborting\n");
++		free(ioc2);
++		close(fd);
+ 		return (0);
+ 	}
+ 
+@@ -555,16 +564,16 @@ build_volume(int fd, struct volume_info *info, int raid_type, long stripe_size,
+ 	case RT_RAID0:
+ 		vol->VolumeType = MPI_RAID_VOL_TYPE_IS;
+ 		vol->StripeSize = stripe_size / 512;
+-		MaxLBA = MinLBA * info->drive_count;
++		MaxLBA = (uint64_t)MinLBA * info->drive_count;
+ 		break;
+ 	case RT_RAID1:
+ 		vol->VolumeType = MPI_RAID_VOL_TYPE_IM;
+-		MaxLBA = MinLBA * (info->drive_count / 2);
++		MaxLBA = (uint64_t)MinLBA * (info->drive_count / 2);
+ 		break;
+ 	case RT_RAID1E:
+ 		vol->VolumeType = MPI_RAID_VOL_TYPE_IME;
+ 		vol->StripeSize = stripe_size / 512;
+-		MaxLBA = MinLBA * info->drive_count / 2;
++		MaxLBA = (uint64_t)MinLBA * info->drive_count / 2;
+ 		break;
+ 	default:
+ 		/* Pacify gcc. */
+@@ -643,6 +652,7 @@ create_volume(int ac, char **av)
+ 
+ 	if (raid_type == -1) {
+ 		warnx("Unknown or unsupported volume type %s", av[1]);
++		close(fd);
+ 		return (EINVAL);
+ 	}
+ 
+@@ -669,6 +679,7 @@ create_volume(int ac, char **av)
+ 			stripe_size = dehumanize(optarg);
+ 			if ((stripe_size < 512) || (!powerof2(stripe_size))) {
+ 				warnx("Invalid stripe size %s", optarg);
++				close(fd);
+ 				return (EINVAL);
+ 			}
+ 			break;
+@@ -677,6 +688,7 @@ create_volume(int ac, char **av)
+ 			break;
+ 		case '?':
+ 		default:
++			close(fd);
+ 			return (EINVAL);
+ 		}
+ 	}
+@@ -688,14 +700,18 @@ create_volume(int ac, char **av)
+ 	if (state.ioc2 == NULL) {
+ 		error = errno;
+ 		warn("Failed to read volume list");
++		close(fd);
+ 		return (error);
+ 	}
+ 	state.list = mpt_pd_list(fd);
+-	if (state.list == NULL)
++	if (state.list == NULL) {
++		close(fd);
+ 		return (errno);
++	}
+ 	error = mpt_fetch_disks(fd, &state.nsdisks, &state.sdisks);
+ 	if (error) {
+ 		warn("Failed to fetch standalone disk list");
++		close(fd);
+ 		return (error);
+ 	}	
+ 	state.target_id = 0xff;
+@@ -703,24 +719,36 @@ create_volume(int ac, char **av)
+ 	/* Parse the drive list. */
+ 	if (ac != 1) {
+ 		warnx("Exactly one drive list is required");
++		close(fd);
+ 		return (EINVAL);
+ 	}
+ 	info = calloc(1, sizeof(*info));
+-	if (info == NULL)
++	if (info == NULL) {
++		close(fd);
+ 		return (ENOMEM);
++	}
+ 	error = parse_volume(fd, raid_type, &state, av[0], info);
+-	if (error)
++	if (error) {
++		free(info);
++		close(fd);
+ 		return (error);
++	}
+ 
+ 	/* Create RAID physdisk pages for standalone disks. */
+ 	error = add_drives(fd, info, verbose);
+-	if (error)
++	if (error) {
++		free(info);
++		close(fd);
+ 		return (error);
++	}
+ 
+ 	/* Build the volume. */
+ 	vol = build_volume(fd, info, raid_type, stripe_size, &state, verbose);
+-	if (vol == NULL)
++	if (vol == NULL) {
++		free(info);
++		close(fd);
+ 		return (errno);
++	}
+ 
+ #ifdef DEBUG
+ 	if (dump) {
+@@ -736,6 +764,8 @@ create_volume(int ac, char **av)
+ 	if (error) {
+ 		errno = error;
+ 		warn("Failed to add volume");
++		free(info);
++		close(fd);
+ 		return (error);
+ 	}
+ 
+@@ -777,11 +807,14 @@ delete_volume(int ac, char **av)
+ 	error = mpt_lookup_volume(fd, av[1], &VolumeBus, &VolumeID);
+ 	if (error) {
+ 		warnc(error, "Invalid volume %s", av[1]);
++		close(fd);
+ 		return (error);
+ 	}
+ 
+-	if (mpt_lock_volume(VolumeBus, VolumeID) < 0)
++	if (mpt_lock_volume(VolumeBus, VolumeID) < 0) {
++		close(fd);
+ 		return (errno);
++	}
+ 
+ 	error = mpt_raid_action(fd, MPI_RAID_ACTION_DELETE_VOLUME, VolumeBus,
+ 	    VolumeID, 0, MPI_RAID_ACTION_ADATA_DEL_PHYS_DISKS |
+@@ -789,6 +822,7 @@ delete_volume(int ac, char **av)
+ 	    NULL, 0);
+ 	if (error) {
+ 		warnc(error, "Failed to delete volume");
++		close(fd);
+ 		return (error);
+ 	}
+ 
+@@ -826,6 +860,7 @@ find_volume_spare_pool(int fd, const char *name, int *pool)
+ 	    0) {
+ 		*pool = 1 << (ffs(info->VolumeSettings.HotSparePool &
+ 		    ~MPI_RAID_HOT_SPARE_POOL_0) - 1);
++		free(info);
+ 		return (0);
+ 	}
+ 	free(info);
+@@ -871,6 +906,7 @@ find_volume_spare_pool(int fd, const char *name, int *pool)
+ 	if (error) {
+ 		warnx("Failed to add spare pool %d to %s", new_pool,
+ 		    mpt_volume_name(VolumeBus, VolumeID));
++		free(info);
+ 		return (error);
+ 	}
+ 	free(info);
+@@ -906,8 +942,10 @@ add_spare(int ac, char **av)
+ 
+ 	if (ac == 3) {
+ 		error = find_volume_spare_pool(fd, av[2], &pool);
+-		if (error)
++		if (error) {
++			close(fd);
+ 			return (error);
++		}
+ 	} else
+ 		pool = MPI_RAID_HOT_SPARE_POOL_0;
+ 
+@@ -920,6 +958,8 @@ add_spare(int ac, char **av)
+ 		error = mpt_fetch_disks(fd, &nsdisks, &sdisks);
+ 		if (error != 0) {
+ 			warn("Failed to fetch standalone disk list");
++			mpt_free_pd_list(list);
++			close(fd);
+ 			return (error);
+ 		}
+ 
+@@ -927,15 +967,22 @@ add_spare(int ac, char **av)
+ 		    0) {
+ 			error = errno;
+ 			warn("Unable to lookup drive %s", av[1]);
++			mpt_free_pd_list(list);
++			close(fd);
+ 			return (error);
+ 		}
+ 
+-		if (mpt_lock_physdisk(&sdisks[i]) < 0)
++		if (mpt_lock_physdisk(&sdisks[i]) < 0) {
++			mpt_free_pd_list(list);
++			close(fd);
+ 			return (errno);
++		}
+ 
+ 		if (mpt_create_physdisk(fd, &sdisks[i], &PhysDiskNum) < 0) {
+ 			error = errno;
+ 			warn("Failed to create physical disk page");
++			mpt_free_pd_list(list);
++			close(fd);
+ 			return (error);
+ 		}
+ 		free(sdisks);
+@@ -946,6 +993,7 @@ add_spare(int ac, char **av)
+ 	if (info == NULL) {
+ 		error = errno;
+ 		warn("Failed to fetch drive info");
++		close(fd);
+ 		return (error);
+ 	}
+ 
+@@ -955,6 +1003,7 @@ add_spare(int ac, char **av)
+ 	    NULL, 0, NULL, NULL, 0);
+ 	if (error) {
+ 		warnc(error, "Failed to assign spare");
++		close(fd);
+ 		return (error);
+ 	}
+ 
+@@ -986,12 +1035,15 @@ remove_spare(int ac, char **av)
+ 	}
+ 
+ 	list = mpt_pd_list(fd);
+-	if (list == NULL)
++	if (list == NULL) {
++		close(fd);
+ 		return (errno);
++	}
+ 
+ 	error = mpt_lookup_drive(list, av[1], &PhysDiskNum);
+ 	if (error) {
+ 		warn("Failed to find drive %s", av[1]);
++		close(fd);
+ 		return (error);
+ 	}
+ 	mpt_free_pd_list(list);
+@@ -1001,17 +1053,22 @@ remove_spare(int ac, char **av)
+ 	if (info == NULL) {
+ 		error = errno;
+ 		warn("Failed to fetch drive info");
++		close(fd);
+ 		return (error);
+ 	}
+ 
+ 	if (info->PhysDiskSettings.HotSparePool == 0) {
+ 		warnx("Drive %u is not a hot spare", PhysDiskNum);
++		free(info);
++		close(fd);
+ 		return (EINVAL);
+ 	}
+ 
+ 	if (mpt_delete_physdisk(fd, PhysDiskNum) < 0) {
+ 		error = errno;
+ 		warn("Failed to delete physical disk page");
++		free(info);
++		close(fd);
+ 		return (error);
+ 	}
+ 
+diff --git a/usr.sbin/mptutil/mpt_drive.c b/usr.sbin/mptutil/mpt_drive.c
+index 049ce7178c9..14466f663c0 100644
+--- a/usr.sbin/mptutil/mpt_drive.c
++++ b/usr.sbin/mptutil/mpt_drive.c
+@@ -147,6 +147,7 @@ mpt_pd_list(int fd)
+ 	IOC_5_HOT_SPARE *spare;
+ 	struct mpt_drive_list *list;
+ 	int count, error, i, j;
++	size_t listsize;
+ 
+ 	ioc2 = mpt_read_ioc_page(fd, 2, NULL);
+ 	if (ioc2 == NULL) {
+@@ -189,6 +190,10 @@ mpt_pd_list(int fd)
+ 			error = errno;
+ 			warn("Failed to read volume info");
+ 			errno = error;
++			free(volumes);
++			free(ioc5);
++			free(ioc3);
++			free(ioc2);
+ 			return (NULL);
+ 		}
+ 		count += volumes[i]->NumPhysDisks;
+@@ -197,15 +202,20 @@ mpt_pd_list(int fd)
+ 	count += ioc5->NumHotSpares;
+ 
+ 	/* Walk the various lists enumerating drives. */
+-	list = malloc(sizeof(*list) + sizeof(CONFIG_PAGE_RAID_PHYS_DISK_0) *
+-	    count);
+-	list->ndrives = 0;
++	listsize = sizeof(*list) + sizeof(CONFIG_PAGE_RAID_PHYS_DISK_0) * count;
++	list = calloc(1, listsize);
+ 
+ 	for (i = 0; i < ioc2->NumActiveVolumes; i++) {
+ 		rdisk = volumes[i]->PhysDisk;
+ 		for (j = 0; j < volumes[i]->NumPhysDisks; rdisk++, j++)
+-			if (mpt_pd_insert(fd, list, rdisk->PhysDiskNum) < 0)
++			if (mpt_pd_insert(fd, list, rdisk->PhysDiskNum) < 0) {
++				mpt_free_pd_list(list);
++				free(volumes);
++				free(ioc5);
++				free(ioc3);
++				free(ioc2);
+ 				return (NULL);
++			}
+ 		free(volumes[i]);
+ 	}
+ 	free(ioc2);
+@@ -213,14 +223,21 @@ mpt_pd_list(int fd)
+ 
+ 	spare = ioc5->HotSpare;
+ 	for (i = 0; i < ioc5->NumHotSpares; spare++, i++)
+-		if (mpt_pd_insert(fd, list, spare->PhysDiskNum) < 0)
++		if (mpt_pd_insert(fd, list, spare->PhysDiskNum) < 0) {
++			mpt_free_pd_list(list);
++			free(ioc5);
++			free(ioc3);
+ 			return (NULL);
++		}
+ 	free(ioc5);
+ 
+ 	disk = ioc3->PhysDisk;
+ 	for (i = 0; i < ioc3->NumPhysDisks; disk++, i++)
+-		if (mpt_pd_insert(fd, list, disk->PhysDiskNum) < 0)
++		if (mpt_pd_insert(fd, list, disk->PhysDiskNum) < 0) {
++			mpt_free_pd_list(list);
++			free(ioc3);
+ 			return (NULL);
++		}
+ 	free(ioc3);
+ 
+ 	return (list);
+@@ -322,12 +339,15 @@ drive_set_state(char *drive, U8 Action, U8 State, const char *name)
+ 	}
+ 
+ 	list = mpt_pd_list(fd);
+-	if (list == NULL)
++	if (list == NULL) {
++		close(fd);
+ 		return (errno);
++	}
+ 
+ 	if (mpt_lookup_drive(list, drive, &PhysDiskNum) < 0) {
+ 		error = errno;
+ 		warn("Failed to find drive %s", drive);
++		close(fd);
+ 		return (error);
+ 	}
+ 	mpt_free_pd_list(list);
+@@ -337,12 +357,15 @@ drive_set_state(char *drive, U8 Action, U8 State, const char *name)
+ 	if (info == NULL) {
+ 		error = errno;
+ 		warn("Failed to fetch info for drive %u", PhysDiskNum);
++		close(fd);
+ 		return (error);
+ 	}
+ 
+ 	/* Try to change the state. */
+ 	if (info->PhysDiskStatus.State == State) {
+ 		warnx("Drive %u is already in the desired state", PhysDiskNum);
++		free(info);
++		close(fd);
+ 		return (EINVAL);
+ 	}
+ 
+@@ -350,6 +373,8 @@ drive_set_state(char *drive, U8 Action, U8 State, const char *name)
+ 	    NULL, 0, NULL, NULL, 0);
+ 	if (error) {
+ 		warnc(error, "Failed to set drive %u to %s", PhysDiskNum, name);
++		free(info);
++		close(fd);
+ 		return (error);
+ 	}
+ 
+diff --git a/usr.sbin/mptutil/mpt_evt.c b/usr.sbin/mptutil/mpt_evt.c
+index 9ccdebd424f..e8f68250bf4 100644
+--- a/usr.sbin/mptutil/mpt_evt.c
++++ b/usr.sbin/mptutil/mpt_evt.c
+@@ -122,6 +122,8 @@ show_events(int ac, char **av)
+ 			break;
+ 		case '?':
+ 		default:
++			free(log);
++			close(fd);
+ 			return (EINVAL);
+ 		}
+ 	}
+@@ -130,8 +132,11 @@ show_events(int ac, char **av)
+ 
+ 	/* Build a list of valid entries and sort them by sequence. */
+ 	entries = malloc(sizeof(MPI_LOG_0_ENTRY *) * log->NumLogEntries);
+-	if (entries == NULL)
++	if (entries == NULL) {
++		free(log);
++		close(fd);
+ 		return (ENOMEM);
++	}
+ 	num_events = 0;
+ 	for (i = 0; i < log->NumLogEntries; i++) {
+ 		if (log->LogEntry[i].LogEntryQualifier ==
+@@ -152,6 +157,7 @@ show_events(int ac, char **av)
+ 	}
+ 	
+ 	free(entries);
++	free(log);
+ 	close(fd);
+ 
+ 	return (0);
+diff --git a/usr.sbin/mptutil/mpt_show.c b/usr.sbin/mptutil/mpt_show.c
+index 153d73e0097..decb0b29b1c 100644
+--- a/usr.sbin/mptutil/mpt_show.c
++++ b/usr.sbin/mptutil/mpt_show.c
+@@ -97,10 +97,13 @@ show_adapter(int ac, char **av)
+ 	if (man0 == NULL) {
+ 		error = errno;
+ 		warn("Failed to get controller info");
++		close(fd);
+ 		return (error);
+ 	}
+ 	if (man0->Header.PageLength < sizeof(*man0) / 4) {
+ 		warnx("Invalid controller info");
++		free(man0);
++		close(fd);
+ 		return (EINVAL);
+ 	}
+ 	printf("mpt%d Adapter:\n", mpt_unit);
+@@ -305,11 +308,16 @@ show_config(int ac, char **av)
+ 	if (ioc2 == NULL || ioc5 == NULL) {
+ 		error = errno;
+ 		warn("Failed to get config");
++		free(ioc2);
++		close(fd);
+ 		return (error);
+ 	}
+ 	if (mpt_fetch_disks(fd, &nsdisks, &sdisks) < 0) {
+ 		error = errno;
+ 		warn("Failed to get standalone drive list");
++		free(ioc5);
++		free(ioc2);
++		close(fd);
+ 		return (error);
+ 	}
+ 
+@@ -461,6 +469,7 @@ show_volumes(int ac, char **av)
+ 		}
+ 		printf("\n");
+ 	}
++	free(volumes);
+ 	free(ioc2);
+ 	close(fd);
+ 
+@@ -491,6 +500,7 @@ show_drives(int ac, char **av)
+ 	list = mpt_pd_list(fd);
+ 	if (list == NULL) {
+ 		error = errno;
++		close(fd);
+ 		warn("Failed to get drive list");
+ 		return (error);
+ 	}
+diff --git a/usr.sbin/mptutil/mpt_volume.c b/usr.sbin/mptutil/mpt_volume.c
+index 2b273c73cf0..3b12f9e186d 100644
+--- a/usr.sbin/mptutil/mpt_volume.c
++++ b/usr.sbin/mptutil/mpt_volume.c
+@@ -98,11 +98,14 @@ volume_name(int ac, char **av)
+ 	if (vnames == NULL) {
+ 		error = errno;
+ 		warn("Failed to fetch volume names");
++		close(fd);
+ 		return (error);
+ 	}
+ 
+ 	if (vnames->Header.PageType != MPI_CONFIG_PAGEATTR_CHANGEABLE) {
+ 		warnx("Volume name is read only");
++		free(vnames);
++		close(fd);
+ 		return (EOPNOTSUPP);
+ 	}
+ 	printf("mpt%u changing volume %s name from \"%s\" to \"%s\"\n",
+@@ -114,6 +117,8 @@ volume_name(int ac, char **av)
+ 	if (mpt_write_config_page(fd, vnames, NULL) < 0) {
+ 		error = errno;
+ 		warn("Failed to set volume name");
++		free(vnames);
++		close(fd);
+ 		return (error);
+ 	}
+ 
+@@ -150,6 +155,7 @@ volume_status(int ac, char **av)
+ 	error = mpt_lookup_volume(fd, av[1], &VolumeBus, &VolumeID);
+ 	if (error) {
+ 		warnc(error, "Invalid volume: %s", av[1]);
++		close(fd);
+ 		return (error);
+ 	}
+ 
+@@ -158,6 +164,7 @@ volume_status(int ac, char **av)
+ 	    NULL, NULL, 0);
+ 	if (error) {
+ 		warnc(error, "Fetching volume status failed");
++		close(fd);
+ 		return (error);
+ 	}
+ 
+@@ -224,12 +231,15 @@ volume_cache(int ac, char **av)
+ 	error = mpt_lookup_volume(fd, av[1], &VolumeBus, &VolumeID);
+ 	if (error) {
+ 		warnc(error, "Invalid volume: %s", av[1]);
++		close(fd);
+ 		return (error);
+ 	}
+ 
+ 	volume = mpt_vol_info(fd, VolumeBus, VolumeID, NULL);
+-	if (volume == NULL)
++	if (volume == NULL) {
++		close(fd);
+ 		return (errno);
++	}
+ 
+ 	Settings = volume->VolumeSettings.Settings;
+ 
+@@ -241,6 +251,7 @@ volume_cache(int ac, char **av)
+ 
+ 	if (NewSettings == Settings) {
+ 		warnx("volume cache unchanged");
++		free(volume);
+ 		close(fd);
+ 		return (0);
+ 	}

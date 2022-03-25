@@ -1,0 +1,36 @@
+commit 461e557b97277b693cd8008c32a9d01c7f8f453b
+Author: Alexandre Belloni <alexandre.belloni@bootlin.com>
+Date:   Sat Nov 10 21:29:02 2018 +0100
+
+    rtc: nvmem: use devm_nvmem_register()
+    
+    Use the resource managed variant of nvmem_register().
+    
+    Signed-off-by: Alexandre Belloni <alexandre.belloni@bootlin.com>
+
+diff --git a/drivers/rtc/nvmem.c b/drivers/rtc/nvmem.c
+index 36ab183c42f1..2a7220d8b02d 100644
+--- a/drivers/rtc/nvmem.c
++++ b/drivers/rtc/nvmem.c
+@@ -93,7 +93,7 @@ int rtc_nvmem_register(struct rtc_device *rtc,
+ 
+ 	nvmem_config->dev = rtc->dev.parent;
+ 	nvmem_config->owner = rtc->owner;
+-	rtc->nvmem = nvmem_register(nvmem_config);
++	rtc->nvmem = devm_nvmem_register(rtc->dev.parent, nvmem_config);
+ 	if (IS_ERR(rtc->nvmem))
+ 		return PTR_ERR(rtc->nvmem);
+ 
+@@ -107,12 +107,7 @@ EXPORT_SYMBOL_GPL(rtc_nvmem_register);
+ 
+ void rtc_nvmem_unregister(struct rtc_device *rtc)
+ {
+-	if (IS_ERR_OR_NULL(rtc->nvmem))
+-		return;
+-
+ 	/* unregister the old ABI */
+ 	if (rtc->nvram)
+ 		rtc_nvram_unregister(rtc);
+-
+-	nvmem_unregister(rtc->nvmem);
+ }

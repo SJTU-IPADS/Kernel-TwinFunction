@@ -1,0 +1,38 @@
+From dfee07c61ad2923c67b42b8ce34010a12d66290d Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 27 Jun 2019 21:28:55 +0800
+Subject: [PATCH 32/87] usb: pvrusb2: replace kmalloc and memset with kzalloc
+ in pvrusb2-eeprom.c
+
+kmalloc + memset(0) -> kzalloc
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/media/usb/pvrusb2/pvrusb2-eeprom.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/media/usb/pvrusb2/pvrusb2-eeprom.c b/drivers/media/usb/pvrusb2/pvrusb2-eeprom.c
+index 79f0e0c6df37..fac90af8b537 100644
+--- a/drivers/media/usb/pvrusb2/pvrusb2-eeprom.c
++++ b/drivers/media/usb/pvrusb2/pvrusb2-eeprom.c
+@@ -39,7 +39,7 @@ static u8 *pvr2_eeprom_fetch(struct pvr2_hdw *hdw)
+ 	int ret;
+ 	int mode16 = 0;
+ 	unsigned pcnt,tcnt;
+-	eeprom = kmalloc(EEPROM_SIZE,GFP_KERNEL);
++	eeprom = kzalloc(EEPROM_SIZE,GFP_KERNEL);
+ 	if (!eeprom) {
+ 		pvr2_trace(PVR2_TRACE_ERROR_LEGS,
+ 			   "Failed to allocate memory required to read eeprom");
+@@ -74,7 +74,6 @@ static u8 *pvr2_eeprom_fetch(struct pvr2_hdw *hdw)
+ 	   (1) we're only fetching part of the eeprom, and (2) if we were
+ 	   getting the whole thing our I2C driver can't grab it in one
+ 	   pass - which is what tveeprom is otherwise going to attempt */
+-	memset(eeprom,0,EEPROM_SIZE);
+ 	for (tcnt = 0; tcnt < EEPROM_SIZE; tcnt += pcnt) {
+ 		pcnt = 16;
+ 		if (pcnt + tcnt > EEPROM_SIZE) pcnt = EEPROM_SIZE-tcnt;
+-- 
+2.11.0
+https://lkml.org/lkml/2019/6/27/1277
+

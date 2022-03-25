@@ -1,0 +1,38 @@
+From f2da56923efc02ad59c21d2339ab21ac3d41e1d4 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 1 Aug 2019 14:24:56 +0800
+Subject: [PATCH v4 1/4] iio: tsl2772: Use devm_add_action_or_reset
+
+Use devm_add_action_or_reset to remove the call to
+tsl2772_disable_regulators_action to simplify the error path.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v4:
+  - Split v3 into three patches.
+  - Revise description to make it more precise.
+
+ drivers/iio/light/tsl2772.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/iio/light/tsl2772.c b/drivers/iio/light/tsl2772.c
+index 83cece921843..29cfd8ae2700 100644
+--- a/drivers/iio/light/tsl2772.c
++++ b/drivers/iio/light/tsl2772.c
+@@ -1807,10 +1807,10 @@ static int tsl2772_probe(struct i2c_client *clientp,
+ 		return PTR_ERR(chip->vdd_supply);
+ 	}
+ 
+-	ret = devm_add_action(&clientp->dev, tsl2772_disable_regulators_action,
+-			      chip);
++	ret = devm_add_action_or_reset(&clientp->dev,
++					tsl2772_disable_regulators_action,
++					chip);
+ 	if (ret < 0) {
+-		tsl2772_disable_regulators_action(chip);
+ 		dev_err(&clientp->dev, "Failed to setup regulator cleanup action %d\n",
+ 			ret);
+ 		return ret;
+-- 
+2.20.1
+

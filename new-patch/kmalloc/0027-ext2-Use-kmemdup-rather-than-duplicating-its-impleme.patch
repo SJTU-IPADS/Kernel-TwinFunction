@@ -1,0 +1,40 @@
+From 532231543e28673dfaa097e519a0da734c75a80c Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 3 Jul 2019 23:38:54 +0800
+Subject: [PATCH v2 27/35] ext2: Use kmemdup rather than duplicating its
+ implementation
+
+kmemdup is introduced to duplicate a region of memory in a neat way.
+Rather than kmalloc/kzalloc + memcpy, which the programmer needs to
+write the size twice (sometimes lead to mistakes), kmemdup improves
+readability, leads to smaller code and also reduce the chances of mistakes.
+Suggestion to use kmemdup rather than using kmalloc/kzalloc + memcpy.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Fix a typo in commit message (memset -> memcpy)
+
+ fs/ext2/xattr.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/fs/ext2/xattr.c b/fs/ext2/xattr.c
+index 1e33e0ac8cf1..a9c641cd5484 100644
+--- a/fs/ext2/xattr.c
++++ b/fs/ext2/xattr.c
+@@ -506,11 +506,10 @@ bad_block:		ext2_error(sb, "ext2_xattr_set",
+ 
+ 			unlock_buffer(bh);
+ 			ea_bdebug(bh, "cloning");
+-			header = kmalloc(bh->b_size, GFP_KERNEL);
++			header = kmemdup(HDR(bh), bh->b_size, GFP_KERNEL);
+ 			error = -ENOMEM;
+ 			if (header == NULL)
+ 				goto cleanup;
+-			memcpy(header, HDR(bh), bh->b_size);
+ 			header->h_refcount = cpu_to_le32(1);
+ 
+ 			offset = (char *)here - bh->b_data;
+-- 
+2.11.0
+

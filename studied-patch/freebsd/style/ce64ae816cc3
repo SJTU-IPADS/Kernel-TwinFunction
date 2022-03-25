@@ -1,0 +1,4096 @@
+commit ce64ae816cc338cd0d507a32e6c38268127da375
+Author: ian <ian@FreeBSD.org>
+Date:   Mon Sep 11 22:21:15 2017 +0000
+
+    MFC r321708-r321712, r321721, r321726-r321727, r321746, r321751,
+        r321791-r321792, r321795, r321798, r321821, r321823, r321826,
+        r321828, r321841, r321934, r322025-r322026, r322282, r322431,
+        r322473, r322475-r322479
+    
+    Lots of i2c RTC driver stuff...
+    
+    r321708:
+    Replace the pcf8563 i2c RTC driver with a new nxprtc driver which handles
+    all the chips in the NXP PCA212x and PCA/PCF85xx series.  In addition to
+    supporting more chips, this driver uses the countdown timer on the chips as
+    a fractional seconds counter, giving it a resolution of about 15 milliseconds.
+    
+    r321709:
+    Fix building this driver on non-FDT platforms.
+    
+    r321710:
+    Add a few missing i2c devices that build fine on all arches.
+    
+    r321711:
+    Move the device descriptions onto the device lines, so they cut and paste
+    nicely into other config files.
+    
+    r321712:
+    Add the i2c RTC drivers found on various arm systems.
+    
+    r321721:
+    Switch from using iic_transfer() to iicdev_readfrom/writeto(), mostly so
+    that transfers will be done with proper ownership of the bus. No
+    behavioral changes.
+    
+    r321726:
+    Bugfixes and enhancements...
+    
+    Don't enable the oscillator when it is found to be stopped at init time,
+    just let the first setting of valid time start it.  But still report a dead
+    battery if it's stopped at init time.
+    
+    Don't force the chip into 24hr mode, just cope with whatever mode it is
+    already in.
+    
+    Align the RTC clock to top of second when setting it.
+    
+    r321727:
+    Fix AM/PM mode handling.  The bits to mask off in the hours register changes
+    between 12/24 hour mode.  Also fix conversion between 12 and 24 hour mode.
+    It's not as easy as adding/subtracting 12, because the clock doesn't roll
+    over 11->0, it rolls over 12->1; 0 isn't a valid hour in AM/PM mode.
+    
+    r321746:
+    Use the new clock_schedule() to arrange for clock_settime() to be called
+    at the right time to keep the RTC hardware time in sync, instead of using
+    pause_sbt() to sleep until the right time.
+    
+    r321751:
+    Remove now-unused variable.
+    
+    r321791:
+    Switch from using iic_transfer() to iicdev_readfrom/writeto(), mostly so
+    that transfers will be done with proper ownership of the bus. No
+    behavioral changes.  Also add a detach() method.
+    
+    r321792:
+    Add a detach() method.
+    
+    r321795:
+    Check the clock-halted flag every time the clock is read, not just once
+    at startup.  The flag stays set until the clock is loaded with good time,
+    so we need to keep saying the time is invalid until that happens.
+    
+    r321798:
+    Restore a few rather important lines of code that got fumbled in r321746.
+    
+    r321821:
+    No need to call getnanotime() now that the waiting is done by the central
+    subr_rtc code, switch from CLOCKF_SETTIME_NO_TS to CLOCKF_SETTIME_NO_ADJ
+    so that we get fed a timestamp, but it's not adjusted to compensate for
+    inaccuracy in setting time.
+    
+    r321823:
+    Bugfixes and enhancements...
+    
+    Don't enable the oscillator when it is found to be stopped at init time,
+    just let the first setting of valid time start it.  But still report a dead
+    battery if it's stopped at init time.
+    
+    Don't force the chip into 24hr mode, just cope with whatever mode it is
+    already in.
+    
+    Schedule the clock_settime() callbacks to align the RTC clock to top of
+    second when setting it.
+    
+    r321826:
+    Restructure the SUBDIR list as 1-per-line and alphabetize, so it will be
+    easier to add new things (and see what changed) in the future.
+    
+    r321828:
+    Build iicbus/{ds1307,ds3231,nxprtc} as modules.
+    
+    r321841:
+    Add a driver for the Intersil ISL12xx family of i2c RTC chips.
+    
+    Supports ISL1209, ISL1218, ISL1219, ISL1220, ISL1221 (just basic RTC
+    functionality, not all the other fancy stuff the chips can do).
+    
+    r321934:
+    Add missing ofw_bus_if.h src file.
+    
+    r322025:
+    Switch to iicdev_readfrom/writeto() to do xfers with proper bus ownership.
+    
+    Tested by:      manu@
+    
+    r322026:
+    Add missing header file to SRCS.
+    
+    Reported by:    manu@
+    
+    r322282:
+    Remove the ds133x and s35390a i2c RTC drivers for now.  They both do i2c
+    transfers in their probe() or attach() routines, and that doesn't work
+    when the low-level controller requires interrupts to be functional.
+    
+    The DS133x family of chips is nearly identical to the DS1307 and support
+    for them should be added to that driver, then the ds133x driver can be
+    deleted.  The s35390a driver just needs a non-trivial workover.  In both
+    cases that work will be done and committed separately.
+    
+    r322431:
+    Bid for the device with BUS_PROBE_GENERIC, because this is very much a
+    generic driver with minimal feature support for a large number of chips.
+    More featureful per-chip drivers might exist (especially out-of-tree) and
+    those should win the bidding even if they use BUS_PROBE_DEFAULT.
+    
+    r322473:
+    Add a new driver, ds13rtc, that handles all DS13xx series i2c RTC chips.
+    
+    This driver supports only basic timekeeping functionality.  It completely
+    replaces the ds133x driver.  It can also replace the ds1374 driver, but that
+    will take a few other changes in MIPS code and config, and will be committed
+    separately.  It does NOT replace the existing ds1307 driver, which provides
+    access to some of the extended features on the 1307 chip, such as controlling
+    the square wave output signal.  If both ds1307 and ds13rtc drivers are
+    present, the ds1307 driver will outbid and win control of the device.
+    
+    This driver can be configured with FDT data, or by using hints on non-FDT
+    systems.  In addition to the standard hints for i2c devices, it requires
+    a "chiptype" string of the form "dallas,ds13xx" where 'xx' is the chip id
+    (i.e., the same format as FDT compat strings).
+    
+    r322475:
+    Change "chiptype" to "compatible".  Making the hint name the same as the FDT
+    property name should make it easier to document the list of names accepted
+    by both configuration mechanisms.
+    
+    r322476:
+    Remove the old ds1374 driver and use the ds13rtc driver instead.  Adjust
+    several mips config files accordingly.
+    
+    r322477:
+    Minor fixes and enhancements for the s35390a i2c RTC driver...
+    
+    - Add FDT probe code.
+    - Do i2c transfers with exclusive bus ownership.
+    - Use config_intrhook_oneshot() to defer chip setup because some i2c
+      busses can't do transfers without interrupts.
+    - Add a detach() routine.
+    - Add to module build.
+    
+    r322478:
+    Add back the drivers for Dallas/Maxim ds13xx and Seiko S35390x now that
+    they've been rewritten/fixed to not cause panics by doing i2c transfers
+    before interrupts are available.
+    
+    PR:             221227
+    
+    r322479:
+    Add hinted attachment for non-FDT systems.  Also, print a message if
+    setting up the timer fails, because on some types of chips that's the
+    first attempt to access the device.  If the chip is missing/non-responsive
+    then you'd get a driver that attached and didn't register the rtc, with
+    no clue about why.  On other chip types there are inits that come before
+    timer setup, and they already print messages about errors.
+
+diff --git a/sys/arm/allwinner/axp209.c b/sys/arm/allwinner/axp209.c
+index 845c316ca03..8957a991ddc 100644
+--- a/sys/arm/allwinner/axp209.c
++++ b/sys/arm/allwinner/axp209.c
+@@ -47,7 +47,6 @@ __FBSDID("$FreeBSD$");
+ #include <sys/rman.h>
+ #include <sys/sysctl.h>
+ 
+-#include <dev/iicbus/iicbus.h>
+ #include <dev/iicbus/iiconf.h>
+ 
+ #include <dev/gpio/gpiobusvar.h>
+@@ -59,7 +58,6 @@ __FBSDID("$FreeBSD$");
+ 
+ #include <arm/allwinner/axp209reg.h>
+ 
+-#include "iicbus_if.h"
+ #include "gpio_if.h"
+ #include "regdev_if.h"
+ 
+@@ -602,7 +600,6 @@ enum AXP2XX_TYPE {
+ 
+ struct axp2xx_softc {
+ 	device_t		dev;
+-	uint32_t		addr;
+ 	struct resource *	res[1];
+ 	void *			intrcookie;
+ 	struct intr_config_hook	intr_hook;
+@@ -641,57 +638,15 @@ static struct resource_spec axp_res_spec[] = {
+ static int
+ axp2xx_read(device_t dev, uint8_t reg, uint8_t *data, uint8_t size)
+ {
+-	struct axp2xx_softc *sc = device_get_softc(dev);
+-	struct iic_msg msg[2];
+ 
+-	msg[0].slave = sc->addr;
+-	msg[0].flags = IIC_M_WR;
+-	msg[0].len = 1;
+-	msg[0].buf = &reg;
+-
+-	msg[1].slave = sc->addr;
+-	msg[1].flags = IIC_M_RD;
+-	msg[1].len = size;
+-	msg[1].buf = data;
+-
+-	return (iicbus_transfer(dev, msg, 2));
++	return (iicdev_readfrom(dev, reg, data, size, IIC_INTRWAIT));
+ }
+ 
+ static int
+ axp2xx_write(device_t dev, uint8_t reg, uint8_t data)
+ {
+-	uint8_t buffer[2];
+-	struct axp2xx_softc *sc = device_get_softc(dev);
+-	struct iic_msg msg[2];
+-	int nmsgs = 0;
+-
+-	if (sc->type == AXP209) {
+-		buffer[0] = reg;
+-		buffer[1] = data;
+-
+-		msg[0].slave = sc->addr;
+-		msg[0].flags = IIC_M_WR;
+-		msg[0].len = 2;
+-		msg[0].buf = buffer;
+-
+-		nmsgs = 1;
+-	}
+-	else if (sc->type == AXP221) {
+-		msg[0].slave = sc->addr;
+-		msg[0].flags = IIC_M_WR;
+-		msg[0].len = 1;
+-		msg[0].buf = &reg;
+-
+-		msg[1].slave = sc->addr;
+-		msg[1].flags = IIC_M_WR;
+-		msg[1].len = 1;
+-		msg[1].buf = &data;
+-		nmsgs = 2;
+-	}
+-	else
+-		return (EINVAL);
+ 
+-	return (iicbus_transfer(dev, msg, nmsgs));
++	return (iicdev_writeto(dev, reg, &data, sizeof(data), IIC_INTRWAIT));
+ }
+ 
+ static int
+@@ -1239,7 +1194,6 @@ axp2xx_start(void *pdev)
+ 	dev = pdev;
+ 
+ 	sc = device_get_softc(dev);
+-	sc->addr = iicbus_get_addr(dev);
+ 	sc->dev = dev;
+ 
+ 	if (bootverbose) {
+@@ -1451,4 +1405,4 @@ EARLY_DRIVER_MODULE(ofw_gpiobus, axp2xx_pmu, ofw_gpiobus_driver,
+ DRIVER_MODULE(gpioc, axp2xx_pmu, gpioc_driver, gpioc_devclass,
+     0, 0);
+ MODULE_VERSION(axp2xx, 1);
+-MODULE_DEPEND(axp2xx, iicbus, 1, 1, 1);
++MODULE_DEPEND(axp2xx, iicbus, IICBUS_MINVER, IICBUS_PREFVER, IICBUS_MAXVER);
+diff --git a/sys/conf/NOTES b/sys/conf/NOTES
+index 90cd1450975..e6c534001d0 100644
+--- a/sys/conf/NOTES
++++ b/sys/conf/NOTES
+@@ -2567,15 +2567,14 @@ device		iicoc		# OpenCores I2C controller support
+ 
+ # I2C peripheral devices
+ #
+-# ds133x	Dallas Semiconductor DS1337, DS1338 and DS1339 RTC
+-# ds1374	Dallas Semiconductor DS1374 RTC
+-# ds1672	Dallas Semiconductor DS1672 RTC
+-# s35390a	Seiko Instruments S-35390A RTC
+-#
+-device		ds133x
+-device		ds1374
+-device		ds1672
+-device		s35390a
++device		ds1307		# Dallas DS1307 RTC and compatible
++device		ds13rtc		# All Dallas/Maxim ds13xx chips
++device		ds1672		# Dallas DS1672 RTC
++device		ds3231		# Dallas DS3231 RTC + temperature
++device		icee		# AT24Cxxx and compatible EEPROMs
++device		lm75		# LM75 compatible temperature sensor
++device		nxprtc		# NXP RTCs: PCA/PFC212x PCA/PCF85xx
++device		s35390a		# Seiko Instruments S-35390A RTC
+ 
+ # Parallel-Port Bus
+ #
+diff --git a/sys/conf/files b/sys/conf/files
+index 82eee151d39..58bbc02a10f 100644
+--- a/sys/conf/files
++++ b/sys/conf/files
+@@ -1686,8 +1686,7 @@ dev/ie/if_ie.c			optional ie isa nowerror
+ dev/ie/if_ie_isa.c		optional ie isa
+ dev/iicbus/ad7418.c		optional ad7418
+ dev/iicbus/ds1307.c		optional ds1307
+-dev/iicbus/ds133x.c		optional ds133x
+-dev/iicbus/ds1374.c		optional ds1374
++dev/iicbus/ds13rtc.c		optional ds13rtc | ds133x | ds1374
+ dev/iicbus/ds1672.c		optional ds1672
+ dev/iicbus/ds3231.c		optional ds3231
+ dev/iicbus/icee.c		optional icee
+@@ -1702,9 +1701,10 @@ dev/iicbus/iiconf.c		optional iicbus
+ dev/iicbus/iicsmb.c		optional iicsmb				\
+ 	dependency	"iicbus_if.h"
+ dev/iicbus/iicoc.c		optional iicoc
++dev/iicbus/isl12xx.c		optional isl12xx
+ dev/iicbus/lm75.c		optional lm75
++dev/iicbus/nxprtc.c		optional nxprtc | pcf8563
+ dev/iicbus/ofw_iicbus.c		optional fdt iicbus
+-dev/iicbus/pcf8563.c		optional pcf8563
+ dev/iicbus/s35390a.c		optional s35390a
+ dev/iir/iir.c			optional iir
+ dev/iir/iir_ctrl.c		optional iir
+diff --git a/sys/dev/iicbus/ds1307.c b/sys/dev/iicbus/ds1307.c
+index 987db0d0e75..83edbe5f241 100644
+--- a/sys/dev/iicbus/ds1307.c
++++ b/sys/dev/iicbus/ds1307.c
+@@ -56,43 +56,36 @@ __FBSDID("$FreeBSD$");
+ 
+ struct ds1307_softc {
+ 	device_t	sc_dev;
+-	int		sc_year0;
+-	struct intr_config_hook	enum_hook;
+-	uint16_t	sc_addr;	/* DS1307 slave address. */
++	struct intr_config_hook
++			enum_hook;
+ 	uint8_t		sc_ctrl;
+-	int		sc_mcp7941x;
++	bool		sc_mcp7941x;
++	bool		sc_use_ampm;
+ };
+ 
+ static void ds1307_start(void *);
+ 
+ #ifdef FDT
+ static const struct ofw_compat_data ds1307_compat_data[] = {
+-    {"dallas,ds1307", (uintptr_t)"Maxim DS1307 RTC"},
+-    {"maxim,ds1307", (uintptr_t)"Maxim DS1307 RTC"},
+-    {"microchip,mcp7941x", (uintptr_t)"Microchip MCP7941x RTC"},
++    {"dallas,ds1307",		(uintptr_t)"Dallas DS1307 RTC"},
++    {"maxim,ds1307",		(uintptr_t)"Maxim DS1307 RTC"},
++    {"microchip,mcp7941x",	(uintptr_t)"Microchip MCP7941x RTC"},
+     { NULL, 0 }
+ };
+ #endif
+ 
+ static int
+-ds1307_read(device_t dev, uint16_t addr, uint8_t reg, uint8_t *data, size_t len)
++ds1307_read1(device_t dev, uint8_t reg, uint8_t *data)
+ {
+-	struct iic_msg msg[2] = {
+-	    { addr, IIC_M_WR | IIC_M_NOSTOP, 1, &reg },
+-	    { addr, IIC_M_RD, len, data },
+-	};
+ 
+-	return (iicbus_transfer(dev, msg, nitems(msg)));
++	return (iicdev_readfrom(dev, reg, data, 1, IIC_INTRWAIT));
+ }
+ 
+ static int
+-ds1307_write(device_t dev, uint16_t addr, uint8_t *data, size_t len)
++ds1307_write1(device_t dev, uint8_t reg, uint8_t data)
+ {
+-	struct iic_msg msg[1] = {
+-	    { addr, IIC_M_WR, len, data },
+-	};
+ 
+-	return (iicbus_transfer(dev, msg, nitems(msg)));
++	return (iicdev_writeto(dev, reg, &data, 1, IIC_INTRWAIT));
+ }
+ 
+ static int
+@@ -101,8 +94,7 @@ ds1307_ctrl_read(struct ds1307_softc *sc)
+ 	int error;
+ 
+ 	sc->sc_ctrl = 0;
+-	error = ds1307_read(sc->sc_dev, sc->sc_addr, DS1307_CONTROL,
+-	    &sc->sc_ctrl, sizeof(sc->sc_ctrl));
++	error = ds1307_read1(sc->sc_dev, DS1307_CONTROL, &sc->sc_ctrl);
+ 	if (error) {
+ 		device_printf(sc->sc_dev, "cannot read from RTC.\n");
+ 		return (error);
+@@ -115,59 +107,10 @@ static int
+ ds1307_ctrl_write(struct ds1307_softc *sc)
+ {
+ 	int error;
+-	uint8_t data[2];
++	uint8_t ctrl;
+ 
+-	data[0] = DS1307_CONTROL;
+-	data[1] = sc->sc_ctrl & DS1307_CTRL_MASK;
+-	error = ds1307_write(sc->sc_dev, sc->sc_addr, data, sizeof(data));
+-	if (error != 0)
+-		device_printf(sc->sc_dev, "cannot write to RTC.\n");
+-
+-	return (error);
+-}
+-
+-static int
+-ds1307_osc_enable(struct ds1307_softc *sc)
+-{
+-	int error;
+-	uint8_t data[2], secs;
+-
+-	secs = 0;
+-	error = ds1307_read(sc->sc_dev, sc->sc_addr, DS1307_SECS,
+-	    &secs, sizeof(secs));
+-	if (error) {
+-		device_printf(sc->sc_dev, "cannot read from RTC.\n");
+-		return (error);
+-	}
+-	/* Check if the oscillator is disabled. */
+-	if ((secs & DS1307_SECS_CH) == 0)
+-		return (0);
+-	device_printf(sc->sc_dev, "clock was halted, check the battery.\n");
+-	data[0] = DS1307_SECS;
+-	data[1] = secs & DS1307_SECS_MASK;
+-	error = ds1307_write(sc->sc_dev, sc->sc_addr, data, sizeof(data));
+-	if (error != 0)
+-		device_printf(sc->sc_dev, "cannot write to RTC.\n");
+-
+-	return (error);
+-}
+-
+-static int
+-ds1307_set_24hrs_mode(struct ds1307_softc *sc)
+-{
+-	int error;
+-	uint8_t data[2], hour;
+-
+-	hour = 0;
+-	error = ds1307_read(sc->sc_dev, sc->sc_addr, DS1307_HOUR,
+-	    &hour, sizeof(hour));
+-	if (error) {
+-		device_printf(sc->sc_dev, "cannot read from RTC.\n");
+-		return (error);
+-	}
+-	data[0] = DS1307_HOUR;
+-	data[1] = hour & DS1307_HOUR_MASK;
+-	error = ds1307_write(sc->sc_dev, sc->sc_addr, data, sizeof(data));
++	ctrl = sc->sc_ctrl & DS1307_CTRL_MASK;
++	error = ds1307_write1(sc->sc_dev, DS1307_CONTROL, ctrl);
+ 	if (error != 0)
+ 		device_printf(sc->sc_dev, "cannot write to RTC.\n");
+ 
+@@ -283,7 +226,7 @@ ds1307_probe(device_t dev)
+ #else
+ 	device_set_desc(dev, "Maxim DS1307 RTC");
+ 
+-	return (BUS_PROBE_DEFAULT);
++	return (BUS_PROBE_NOWILDCARD);
+ #endif
+ }
+ 
+@@ -294,13 +237,13 @@ ds1307_attach(device_t dev)
+ 
+ 	sc = device_get_softc(dev);
+ 	sc->sc_dev = dev;
+-	sc->sc_addr = iicbus_get_addr(dev);
+-	sc->sc_year0 = 1900;
+ 	sc->enum_hook.ich_func = ds1307_start;
+ 	sc->enum_hook.ich_arg = dev;
+ 
++#ifdef FDT
+ 	if (ofw_bus_is_compatible(dev, "microchip,mcp7941x"))
+ 		sc->sc_mcp7941x = 1;
++#endif
+ 
+ 	/*
+ 	 * We have to wait until interrupts are enabled.  Usually I2C read
+@@ -312,6 +255,14 @@ ds1307_attach(device_t dev)
+ 	return (0);
+ }
+ 
++static int
++ds1307_detach(device_t dev)
++{
++
++	clock_unregister(dev);
++	return (0);
++}
++
+ static void
+ ds1307_start(void *xdev)
+ {
+@@ -320,6 +271,7 @@ ds1307_start(void *xdev)
+ 	struct sysctl_ctx_list *ctx;
+ 	struct sysctl_oid *tree_node;
+ 	struct sysctl_oid_list *tree;
++	uint8_t secs;
+ 
+ 	dev = (device_t)xdev;
+ 	sc = device_get_softc(dev);
+@@ -328,12 +280,16 @@ ds1307_start(void *xdev)
+ 	tree = SYSCTL_CHILDREN(tree_node);
+ 
+ 	config_intrhook_disestablish(&sc->enum_hook);
+-	/* Set the 24 hours mode. */
+-	if (ds1307_set_24hrs_mode(sc) != 0)
+-		return;
+-	/* Enable the oscillator if halted. */
+-	if (ds1307_osc_enable(sc) != 0)
++
++	/* Check if the oscillator is disabled. */
++	if (ds1307_read1(sc->sc_dev, DS1307_SECS, &secs) != 0) {
++		device_printf(sc->sc_dev, "cannot read from RTC.\n");
+ 		return;
++	}
++	if ((secs & DS1307_SECS_CH) != 0) {
++		device_printf(sc->sc_dev,
++		    "WARNING: RTC clock stopped, check the battery.\n");
++	}
+ 
+ 	/* Configuration parameters. */
+ 	SYSCTL_ADD_PROC(ctx, tree, OID_AUTO, "sqwe",
+@@ -347,8 +303,13 @@ ds1307_start(void *xdev)
+ 	    CTLFLAG_RW | CTLTYPE_UINT | CTLFLAG_MPSAFE, sc, 0,
+ 	    ds1307_sqw_out_sysctl, "IU", "DS1307 square-wave output state");
+ 
+-	/* 1 second resolution. */
+-	clock_register(dev, 1000000);
++	/*
++	 * Register as a clock with 1 second resolution.  Schedule the
++	 * clock_settime() method to be called just after top-of-second;
++	 * resetting the time resets top-of-second in the hardware.
++	 */
++	clock_register_flags(dev, 1000000, CLOCKF_SETTIME_NO_ADJ);
++	clock_schedule(dev, 1);
+ }
+ 
+ static int
+@@ -357,27 +318,41 @@ ds1307_gettime(device_t dev, struct timespec *ts)
+ 	int error;
+ 	struct clocktime ct;
+ 	struct ds1307_softc *sc;
+-	uint8_t data[7];
++	uint8_t data[7], hourmask;
+ 
+ 	sc = device_get_softc(dev);
+-	memset(data, 0, sizeof(data));
+-	error = ds1307_read(sc->sc_dev, sc->sc_addr, DS1307_SECS,
+-	    data, sizeof(data)); 
++	error = iicdev_readfrom(sc->sc_dev, DS1307_SECS, data, sizeof(data),
++	    IIC_INTRWAIT);
+ 	if (error != 0) {
+ 		device_printf(dev, "cannot read from RTC.\n");
+ 		return (error);
+ 	}
++
++	/* If the clock halted, we don't have good data. */
++	if (data[DS1307_SECS] & DS1307_SECS_CH)
++		return (EINVAL);
++
++	/* If chip is in AM/PM mode remember that. */
++	if (data[DS1307_HOUR] & DS1307_HOUR_USE_AMPM) {
++		sc->sc_use_ampm = true;
++		hourmask = DS1307_HOUR_MASK_12HR;
++	} else
++		hourmask = DS1307_HOUR_MASK_24HR;
++
+ 	ct.nsec = 0;
+-	ct.sec = FROMBCD(data[DS1307_SECS] & DS1307_SECS_MASK);
+-	ct.min = FROMBCD(data[DS1307_MINS] & DS1307_MINS_MASK);
+-	ct.hour = FROMBCD(data[DS1307_HOUR] & DS1307_HOUR_MASK);
+-	ct.day = FROMBCD(data[DS1307_DATE] & DS1307_DATE_MASK);
+-	ct.dow = data[DS1307_WEEKDAY] & DS1307_WEEKDAY_MASK;
+-	ct.mon = FROMBCD(data[DS1307_MONTH] & DS1307_MONTH_MASK);
+-	ct.year = FROMBCD(data[DS1307_YEAR] & DS1307_YEAR_MASK);
+-	ct.year += sc->sc_year0;
+-	if (ct.year < POSIX_BASE_YEAR)
+-		ct.year += 100;	/* assume [1970, 2069] */
++	ct.sec  = FROMBCD(data[DS1307_SECS]  & DS1307_SECS_MASK);
++	ct.min  = FROMBCD(data[DS1307_MINS]  & DS1307_MINS_MASK);
++	ct.hour = FROMBCD(data[DS1307_HOUR]  & hourmask);
++	ct.day  = FROMBCD(data[DS1307_DATE]  & DS1307_DATE_MASK);
++	ct.mon  = FROMBCD(data[DS1307_MONTH] & DS1307_MONTH_MASK);
++	ct.year = FROMBCD(data[DS1307_YEAR]  & DS1307_YEAR_MASK);
++
++	if (sc->sc_use_ampm) {
++		if (ct.hour == 12)
++			ct.hour = 0;
++		if (data[DS1307_HOUR] & DS1307_HOUR_IS_PM)
++			ct.hour += 12;
++	}
+ 
+ 	return (clock_ct_to_ts(&ct, ts));
+ }
+@@ -385,28 +360,43 @@ ds1307_gettime(device_t dev, struct timespec *ts)
+ static int
+ ds1307_settime(device_t dev, struct timespec *ts)
+ {
+-	int error;
+ 	struct clocktime ct;
+ 	struct ds1307_softc *sc;
+-	uint8_t data[8];
++	int error;
++	uint8_t data[7];
++	uint8_t pmflags;
+ 
+ 	sc = device_get_softc(dev);
+-	/* Accuracy is only one second. */
+-	if (ts->tv_nsec >= 500000000)
+-		ts->tv_sec++;
+-	ts->tv_nsec = 0;
++
++	/*
++	 * We request a timespec with no resolution-adjustment.  That also
++	 * disables utc adjustment, so apply that ourselves.
++	 */
++	ts->tv_sec -= utc_offset();
+ 	clock_ts_to_ct(ts, &ct);
+-	memset(data, 0, sizeof(data));
+-	data[0] = DS1307_SECS;
+-	data[DS1307_SECS + 1] = TOBCD(ct.sec);
+-	data[DS1307_MINS + 1] = TOBCD(ct.min);
+-	data[DS1307_HOUR + 1] = TOBCD(ct.hour);
+-	data[DS1307_DATE + 1] = TOBCD(ct.day);
+-	data[DS1307_WEEKDAY + 1] = ct.dow;
+-	data[DS1307_MONTH + 1] = TOBCD(ct.mon);
+-	data[DS1307_YEAR + 1] = TOBCD(ct.year % 100);
++
++	/* If the chip is in AM/PM mode, adjust hour and set flags as needed. */
++	if (sc->sc_use_ampm) {
++		pmflags = DS1307_HOUR_USE_AMPM;
++		if (ct.hour >= 12) {
++			ct.hour -= 12;
++			pmflags |= DS1307_HOUR_IS_PM;
++		}
++		if (ct.hour == 0)
++			ct.hour = 12;
++	} else
++		pmflags = 0;
++
++	data[DS1307_SECS]    = TOBCD(ct.sec);
++	data[DS1307_MINS]    = TOBCD(ct.min);
++	data[DS1307_HOUR]    = TOBCD(ct.hour) | pmflags;
++	data[DS1307_DATE]    = TOBCD(ct.day);
++	data[DS1307_WEEKDAY] = ct.dow;
++	data[DS1307_MONTH]   = TOBCD(ct.mon);
++	data[DS1307_YEAR]    = TOBCD(ct.year % 100);
+ 	/* Write the time back to RTC. */
+-	error = ds1307_write(dev, sc->sc_addr, data, sizeof(data));
++	error = iicdev_writeto(sc->sc_dev, DS1307_SECS, data, sizeof(data),
++	    IIC_INTRWAIT);
+ 	if (error != 0)
+ 		device_printf(dev, "cannot write to RTC.\n");
+ 
+@@ -416,6 +406,7 @@ ds1307_settime(device_t dev, struct timespec *ts)
+ static device_method_t ds1307_methods[] = {
+ 	DEVMETHOD(device_probe,		ds1307_probe),
+ 	DEVMETHOD(device_attach,	ds1307_attach),
++	DEVMETHOD(device_detach,	ds1307_detach),
+ 
+ 	DEVMETHOD(clock_gettime,	ds1307_gettime),
+ 	DEVMETHOD(clock_settime,	ds1307_settime),
+diff --git a/sys/dev/iicbus/ds1307reg.h b/sys/dev/iicbus/ds1307reg.h
+index ddad40b2417..b02ddb387ca 100644
+--- a/sys/dev/iicbus/ds1307reg.h
++++ b/sys/dev/iicbus/ds1307reg.h
+@@ -39,7 +39,10 @@
+ #define	DS1307_MINS		0x01
+ #define	DS1307_MINS_MASK		0x7f
+ #define	DS1307_HOUR		0x02
+-#define	DS1307_HOUR_MASK		0x3f
++#define	DS1307_HOUR_MASK_12HR		0x1f
++#define	DS1307_HOUR_MASK_24HR		0x3f
++#define	DS1307_HOUR_IS_PM		0x20
++#define	DS1307_HOUR_USE_AMPM		0x40
+ #define	DS1307_WEEKDAY		0x03
+ #define	DS1307_WEEKDAY_MASK		0x07
+ #define	DS1307_DATE		0x04
+diff --git a/sys/dev/iicbus/ds133x.c b/sys/dev/iicbus/ds133x.c
+deleted file mode 100644
+index 1f703dc895d..00000000000
+--- a/sys/dev/iicbus/ds133x.c
++++ /dev/null
+@@ -1,363 +0,0 @@
+-/*-
+- * Copyright (c) 2008 Stanislav Sedov <stas@FreeBSD.org>,
+- *                    Rafal Jaworowski <raj@FreeBSD.org>,
+- *                    Piotr Ziecik <kosmo@semihalf.com>.
+- * All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- * 2. Redistributions in binary form must reproduce the above copyright
+- *    notice, this list of conditions and the following disclaimer in the
+- *    documentation and/or other materials provided with the distribution.
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+- * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+- */
+-
+-#include <sys/cdefs.h>
+-__FBSDID("$FreeBSD$");
+-/*
+- * Dallas Semiconductor DS133X RTC sitting on the I2C bus.
+- */
+-#include <sys/param.h>
+-#include <sys/systm.h>
+-#include <sys/kernel.h>
+-#include <sys/module.h>
+-#include <sys/clock.h>
+-#include <sys/time.h>
+-#include <sys/bus.h>
+-#include <sys/resource.h>
+-#include <sys/rman.h>
+-
+-#include <dev/iicbus/iicbus.h>
+-#include <dev/iicbus/iiconf.h>
+-
+-#include "iicbus_if.h"
+-#include "clock_if.h"
+-
+-#define DS133X_DEVNAME		"ds133x_rtc"
+-
+-#define	DS133X_ADDR		0xd0	/* slave address */
+-#define	DS133X_DATE_REG		0x0
+-#define	DS133X_CTRL_REG		0x0e
+-#define	DS133X_OSCD_FLAG	0x80
+-#define	DS133X_OSF_FLAG		0x80
+-
+-#define	DS133X_24H_FLAG		0x40	/* 24 hours mode. */
+-#define	DS133X_PM_FLAG		0x20	/* AM/PM bit. */
+-#define	DS133X_CENT_FLAG	0x80	/* Century selector. */
+-#define	DS133X_CENT_SHIFT	7
+-
+-#define	DS1338_REG_CLOCK_HALT	0x00
+-#define	DS1338_REG_CONTROL	0x07
+-#define	DS1338_CLOCK_HALT	(1 << 7)
+-#define	DS1338_OSC_STOP		(1 << 5)
+-
+-#define	DS1339_REG_CONTROL	0x0E
+-#define	DS1339_REG_STATUS	0x0F
+-#define	DS1339_OSC_STOP		(1 << 7)
+-#define	DS1339_ENABLE_OSC	(1 << 7)
+-#define	DS1339_BBSQI		(1 << 5)
+-
+-#define	HALFSEC			500000000	/* 1/2 of second. */
+-
+-#define MAX_IIC_DATA_SIZE	7
+-
+-enum {
+-	DS1337,
+-	DS1338,
+-	DS1339,
+-};
+-
+-struct ds133x_softc {
+-	int		sc_type;
+-	device_t	sc_dev;
+-};
+-
+-static int
+-ds133x_read(device_t dev, uint8_t address, uint8_t *data, uint8_t size)
+-{
+-	struct iic_msg msg[] = {
+-	    { DS133X_ADDR, IIC_M_WR, 1,	&address },
+-	    { DS133X_ADDR, IIC_M_RD, size, data },
+-	};
+-
+-	return (iicbus_transfer(dev, msg, 2));
+-}
+-
+-static int
+-ds133x_write(device_t dev, uint8_t address, uint8_t *data, uint8_t size)
+-{
+-	uint8_t buffer[MAX_IIC_DATA_SIZE + 1];
+-	struct iic_msg msg[] = {
+-		{ DS133X_ADDR, IIC_M_WR, size + 1, buffer },
+-	};
+-
+-	if (size > MAX_IIC_DATA_SIZE)
+-		return (ENOMEM);
+-
+-	buffer[0] = address;
+-	memcpy(buffer + 1, data, size);
+-
+-	return (iicbus_transfer(dev, msg, 1));
+-}
+-
+-static int
+-ds133x_detect(device_t dev, int *sc_type)
+-{
+-	int error;
+-	uint8_t reg, orig;
+-
+-	/*
+-	 * Check for DS1338. At address 0x0F this chip has RAM, however
+-	 * DS1337 and DS1339 have status register. Bits 6-2 in status
+-	 * register will be always read as 0.
+-	 */
+-
+-	if ((error = ds133x_read(dev, DS1339_REG_STATUS, &reg, 1)))
+-		return (error);
+-
+-	orig = reg;
+-	reg |= 0x7C;
+-
+-	if ((error = ds133x_write(dev, DS1339_REG_STATUS, &reg, 1)))
+-		return (error);
+-
+-	if ((error = ds133x_read(dev, DS1339_REG_STATUS, &reg, 1)))
+-		return (error);
+-
+-	if ((reg & 0x7C) != 0) {
+-		/* This is DS1338 */
+-
+-		if ((error = ds133x_write(dev, DS1339_REG_STATUS, &orig, 1)))
+-			return (error);
+-
+-		*sc_type = DS1338;
+-
+-		return (0);
+-	}
+-
+-	/*
+-	 * Now Check for DS1337. Bit 5 in control register of this chip will be
+-	 * always read as 0. In DS1339 changing of this bit is safe until
+-	 * chip is powered up.
+-	 */
+-
+-	if ((error = ds133x_read(dev, DS1339_REG_CONTROL, &reg, 1)))
+-		return (error);
+-
+-	orig = reg;
+-	reg |= DS1339_BBSQI;
+-
+-	if ((error = ds133x_write(dev, DS1339_REG_CONTROL, &reg, 1)))
+-		return (error);
+-
+-	if ((error = ds133x_read(dev, DS1339_REG_CONTROL, &reg, 1)))
+-		return (error);
+-
+-	if ((reg & DS1339_BBSQI) != 0) {
+-		/* This is DS1339 */
+-
+-		if ((error = ds133x_write(dev, DS1339_REG_CONTROL, &orig, 1)))
+-			return (error);
+-
+-		*sc_type = DS1339;
+-		return (0);
+-	}
+-
+-	/* This is DS1337 */
+-	*sc_type = DS1337;
+-
+-	return (0);
+-}
+-
+-static int
+-ds133x_init(device_t dev, uint8_t cs_reg, uint8_t cs_bit, uint8_t osf_reg,
+-    uint8_t osf_bit)
+-{
+-	int error;
+-	uint8_t reg;
+-
+-	if ((error = ds133x_read(dev, cs_reg, &reg, 1)))
+-		return (error);
+-
+-	if (reg & cs_bit) {	/* If clock is stopped - start it */
+-		reg &= ~cs_bit;
+-		if ((error = ds133x_write(dev, cs_reg, &reg, 1)))
+-			return (error);
+-	}
+-
+-	if ((error = ds133x_read(dev, osf_reg, &reg, 1)))
+-		return (error);
+-
+-	if (reg & osf_bit) {	/* Clear oscillator stop flag */
+-		device_printf(dev, "RTC oscillator was stopped. Check system"
+-		    " time and RTC battery.\n");
+-		reg &= ~osf_bit;
+-		if ((error = ds133x_write(dev, osf_reg, &reg, 1)))
+-			return (error);
+-	}
+-
+-	return (0);
+-}
+-
+-
+-static void
+-ds133x_identify(driver_t *driver, device_t parent)
+-{
+-
+-	if (device_find_child(parent, DS133X_DEVNAME, -1) == NULL)
+-		BUS_ADD_CHILD(parent, 0, DS133X_DEVNAME, -1);
+-}
+-
+-static int
+-ds133x_probe(device_t dev)
+-{
+-	struct ds133x_softc *sc;
+-	int error;
+-
+-	sc = device_get_softc(dev);
+-
+-	if ((error = ds133x_detect(dev, &sc->sc_type)))
+-		return (error);
+-
+-	switch (sc->sc_type) {
+-	case DS1337:
+-		device_set_desc(dev, "Dallas Semiconductor DS1337 RTC");
+-		break;
+-	case DS1338:
+-		device_set_desc(dev, "Dallas Semiconductor DS1338 RTC");
+-		break;
+-	case DS1339:
+-		device_set_desc(dev, "Dallas Semiconductor DS1339 RTC");
+-		break;
+-	default:
+-		break;
+-	}
+-
+-	return (0);
+-}
+-
+-static int
+-ds133x_attach(device_t dev)
+-{
+-	struct ds133x_softc *sc = device_get_softc(dev);
+-
+-	sc->sc_dev = dev;
+-
+-	if (sc->sc_type == DS1338)
+-		ds133x_init(dev, DS1338_REG_CLOCK_HALT, DS1338_CLOCK_HALT,
+-		    DS1338_REG_CONTROL, DS1338_OSC_STOP);
+-	else
+-		ds133x_init(dev, DS1339_REG_CONTROL, DS1339_ENABLE_OSC,
+-		    DS1339_REG_STATUS, DS1339_OSC_STOP);
+-
+-	clock_register(dev, 1000000);
+-
+-	return (0);
+-}
+-
+-static uint8_t
+-ds133x_get_hours(uint8_t val)
+-{
+-	uint8_t ret;
+-
+-	if (!(val & DS133X_24H_FLAG))
+-		ret = FROMBCD(val & 0x3f);
+-	else if (!(val & DS133X_PM_FLAG))
+-		ret = FROMBCD(val & 0x1f);
+-	else
+-		ret = FROMBCD(val & 0x1f) + 12;
+-
+-	return (ret);
+-}
+-
+-static int
+-ds133x_gettime(device_t dev, struct timespec *ts)
+-{
+-	struct ds133x_softc *sc = device_get_softc(dev);
+-	struct clocktime ct;
+-	uint8_t date[7];
+-	int error;
+-
+-	error = ds133x_read(dev, DS133X_DATE_REG, date, 7);
+-	if (error == 0) {
+-		ct.nsec = 0;
+-		ct.sec = FROMBCD(date[0] & 0x7f);
+-		ct.min = FROMBCD(date[1] & 0x7f);
+-		ct.hour = ds133x_get_hours(date[2]);
+-		ct.dow = FROMBCD(date[3] & 0x07) - 1;
+-		ct.day = FROMBCD(date[4] & 0x3f);
+-		ct.mon = FROMBCD(date[5] & 0x1f);
+-
+-		if (sc->sc_type == DS1338)
+-			ct.year = 2000 + FROMBCD(date[6]);
+-		else
+-			ct.year = 1900 + FROMBCD(date[6]) +
+-			    ((date[5] & DS133X_CENT_FLAG) >> DS133X_CENT_SHIFT) * 100;
+-
+-		error = clock_ct_to_ts(&ct, ts);
+-	}
+-
+-	return (error);
+-}
+-
+-static int
+-ds133x_settime(device_t dev, struct timespec *ts)
+-{
+-	struct ds133x_softc *sc = device_get_softc(dev);
+-	struct clocktime ct;
+-	uint8_t date[7];
+-
+-	clock_ts_to_ct(ts, &ct);
+-
+-	date[0] = TOBCD(ct.nsec >= HALFSEC ? ct.sec + 1 : ct.sec) & 0x7f;
+-	date[1] = TOBCD(ct.min) & 0x7f;
+-	date[2] = TOBCD(ct.hour) & 0x3f;	/* We use 24-hours mode. */
+-	date[3] = TOBCD(ct.dow + 1) & 0x07;
+-	date[4] = TOBCD(ct.day) & 0x3f;
+-	date[5] = TOBCD(ct.mon) & 0x1f;
+-	if (sc->sc_type == DS1338)
+-		date[6] = TOBCD(ct.year - 2000);
+-	else if (ct.year >= 2000) {
+-		date[5] |= DS133X_CENT_FLAG;
+-		date[6] = TOBCD(ct.year - 2000);
+-	} else
+-		date[6] = TOBCD(ct.year - 1900);
+-
+-	return (ds133x_write(dev, DS133X_DATE_REG, date, 7));
+-}
+-
+-static device_method_t ds133x_methods[] = {
+-	DEVMETHOD(device_identify,	ds133x_identify),
+-	DEVMETHOD(device_probe,		ds133x_probe),
+-	DEVMETHOD(device_attach,	ds133x_attach),
+-
+-	DEVMETHOD(clock_gettime,	ds133x_gettime),
+-	DEVMETHOD(clock_settime,	ds133x_settime),
+-
+-	DEVMETHOD_END
+-};
+-
+-static driver_t ds133x_driver = {
+-	DS133X_DEVNAME,
+-	ds133x_methods,
+-	sizeof(struct ds133x_softc),
+-};
+-
+-static devclass_t ds133x_devclass;
+-
+-DRIVER_MODULE(ds133x, iicbus, ds133x_driver, ds133x_devclass, 0, 0);
+-MODULE_VERSION(ds133x, 1);
+-MODULE_DEPEND(ds133x, iicbus, 1, 1, 1);
+diff --git a/sys/dev/iicbus/ds1374.c b/sys/dev/iicbus/ds1374.c
+deleted file mode 100644
+index 917e1b48b9a..00000000000
+--- a/sys/dev/iicbus/ds1374.c
++++ /dev/null
+@@ -1,137 +0,0 @@
+-/*-
+- * Copyright (c) 2003-2012 Broadcom Corporation
+- * All Rights Reserved
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- * 2. Redistributions in binary form must reproduce the above copyright
+- *    notice, this list of conditions and the following disclaimer in
+- *    the documentation and/or other materials provided with the
+- *    distribution.
+- * 
+- * THIS SOFTWARE IS PROVIDED BY BROADCOM ``AS IS'' AND ANY EXPRESS OR
+- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+- * ARE DISCLAIMED. IN NO EVENT SHALL BROADCOM OR CONTRIBUTORS BE LIABLE
+- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+- * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+- */
+-
+-#include <sys/cdefs.h>
+-__FBSDID("$FreeBSD$");
+-
+-#include <sys/param.h>
+-#include <sys/systm.h>
+-#include <sys/kernel.h>
+-#include <sys/module.h>
+-#include <sys/bus.h>
+-#include <sys/clock.h>
+-#include <sys/time.h>
+-#include <sys/resource.h>
+-#include <sys/rman.h>
+-
+-#include <dev/iicbus/iiconf.h>
+-#include <dev/iicbus/iicbus.h>
+-
+-#include "iicbus_if.h"
+-#include "clock_if.h"
+-
+-#define	DS1374_RTC_COUNTER	0	/* counter (bytes 0-3) */
+-
+-struct ds1374_softc {
+-	uint32_t	sc_addr;
+-	device_t	sc_dev;
+-};
+-
+-static int
+-ds1374_probe(device_t dev)
+-{
+-	device_set_desc(dev, "DS1374 RTC");
+-	return (0);
+-}
+-
+-static int
+-ds1374_attach(device_t dev)
+-{
+-	struct ds1374_softc *sc = device_get_softc(dev);
+-
+-	if(sc==NULL) {
+-		printf("ds1374_attach device_get_softc failed\n");
+-		return (0);
+-	}
+-	sc->sc_dev = dev;
+-	sc->sc_addr = iicbus_get_addr(dev);
+-
+-	clock_register(dev, 1000);
+-	return (0);
+-}
+-
+-static int 
+-ds1374_settime(device_t dev, struct timespec *ts)
+-{
+-	/* NB: register pointer precedes actual data */
+-	uint8_t data[5] = { DS1374_RTC_COUNTER };
+-	struct ds1374_softc *sc = device_get_softc(dev);
+-	struct iic_msg msgs[1] = {
+-	     { sc->sc_addr, IIC_M_WR, 5, data },
+-	};
+-
+-	data[1] = (ts->tv_sec >> 0) & 0xff;
+-	data[2] = (ts->tv_sec >> 8) & 0xff;
+-	data[3] = (ts->tv_sec >> 16) & 0xff;
+-	data[4] = (ts->tv_sec >> 24) & 0xff;
+-
+-	return iicbus_transfer(dev, msgs, 1);
+-}
+-
+-static int
+-ds1374_gettime(device_t dev, struct timespec *ts)
+-{
+-	struct ds1374_softc *sc = device_get_softc(dev);
+-	uint8_t addr[1] = { DS1374_RTC_COUNTER };
+-	uint8_t secs[4];
+-	struct iic_msg msgs[2] = {
+-	     { sc->sc_addr, IIC_M_WR, 1, addr },
+-	     { sc->sc_addr, IIC_M_RD, 4, secs },
+-	};
+-	int error;
+-
+-	error = iicbus_transfer(dev, msgs, 2);
+-	if (error == 0) {
+-		/* counter has seconds since epoch */
+-		ts->tv_sec = (secs[3] << 24) | (secs[2] << 16)
+-			   | (secs[1] <<  8) | (secs[0] <<  0);
+-		ts->tv_nsec = 0;
+-	}
+-	return error;
+-}
+-
+-static device_method_t ds1374_methods[] = {
+-	DEVMETHOD(device_probe,		ds1374_probe),
+-	DEVMETHOD(device_attach,	ds1374_attach),
+-
+-	DEVMETHOD(clock_gettime,	ds1374_gettime),
+-	DEVMETHOD(clock_settime,	ds1374_settime),
+-
+-	DEVMETHOD_END
+-};
+-
+-static driver_t ds1374_driver = {
+-	"ds1374_rtc",
+-	ds1374_methods,
+-	sizeof(struct ds1374_softc),
+-};
+-static devclass_t ds1374_devclass;
+-
+-DRIVER_MODULE(ds1374, iicbus, ds1374_driver, ds1374_devclass, 0, 0);
+-MODULE_VERSION(ds1374, 1);
+-MODULE_DEPEND(ds1374, iicbus, 1, 1, 1);
+diff --git a/sys/dev/iicbus/ds13rtc.c b/sys/dev/iicbus/ds13rtc.c
+new file mode 100644
+index 00000000000..7a125c07ad1
+--- /dev/null
++++ b/sys/dev/iicbus/ds13rtc.c
+@@ -0,0 +1,629 @@
++/*-
++ * Copyright (c) 2017 Ian Lepore <ian@freebsd.org>
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
++ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
++ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
++ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
++ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
++ * SUCH DAMAGE.
++ */
++
++#include <sys/cdefs.h>
++__FBSDID("$FreeBSD$");
++
++/*
++ * Driver for Dallas/Maxim DS13xx real-time clock/calendar chips:
++ *
++ * - DS1307 = Original/basic rtc + 56 bytes ram; 5v only.
++ * - DS1308 = Updated 1307, available in 1.8v-5v variations.
++ * - DS1337 = Like 1308, integrated xtal, 32khz output on at powerup.
++ * - DS1338 = Like 1308, integrated xtal.
++ * - DS1339 = Like 1337, integrated xtal, integrated trickle charger.
++ * - DS1340 = Like 1338, ST M41T00 compatible.
++ * - DS1341 = Like 1338, can slave-sync osc to external clock signal.
++ * - DS1342 = Like 1341 but requires different xtal.
++ * - DS1371 = 32-bit binary counter, watchdog timer.
++ * - DS1372 = 32-bit binary counter, 64-bit unique id in rom.
++ * - DS1374 = 32-bit binary counter, watchdog timer, trickle charger.
++ * - DS1375 = Like 1308 but only 16 bytes ram.
++ * - DS1388 = Rtc, watchdog timer, 512 bytes eeprom (not sram).
++ *
++ * This driver supports only basic timekeeping functions.  It provides no access
++ * to or control over any other functionality provided by the chips.
++ */
++
++#include "opt_platform.h"
++
++#include <sys/param.h>
++#include <sys/systm.h>
++#include <sys/bus.h>
++#include <sys/clock.h>
++#include <sys/endian.h>
++#include <sys/kernel.h>
++#include <sys/libkern.h>
++#include <sys/module.h>
++
++#include <dev/iicbus/iicbus.h>
++#include <dev/iicbus/iiconf.h>
++#ifdef FDT
++#include <dev/ofw/openfirm.h>
++#include <dev/ofw/ofw_bus.h>
++#include <dev/ofw/ofw_bus_subr.h>
++#endif
++
++#include "clock_if.h"
++#include "iicbus_if.h"
++
++/*
++ * I2C address 1101 000x
++ */
++#define	DS13xx_ADDR		0xd0
++
++/*
++ * Registers, bits within them, and masks for the various chip types.
++ */
++
++#define	DS13xx_R_NONE		0xff	/* Placeholder */
++
++#define	DS130x_R_CONTROL	0x07
++#define	DS133x_R_CONTROL	0x0e
++#define	DS1340_R_CONTROL	0x07
++#define	DS1341_R_CONTROL	0x0e
++#define	DS1371_R_CONTROL	0x07
++#define	DS1372_R_CONTROL	0x07
++#define	DS1374_R_CONTROL	0x07
++#define	DS1375_R_CONTROL	0x0e
++#define	DS1388_R_CONTROL	0x0c
++
++#define	DS13xx_R_SECOND		0x00
++#define	DS1388_R_SECOND		0x01
++
++#define	DS130x_R_STATUS		DS13xx_R_NONE
++#define	DS133x_R_STATUS		0x0f
++#define	DS1340_R_STATUS		0x09
++#define	DS137x_R_STATUS		0x08
++#define	DS1388_R_STATUS		0x0b
++
++#define	DS13xx_B_STATUS_OSF	0x80	/* OSF is 1<<7 in status and sec regs */
++#define	DS13xx_B_HOUR_AMPM	0x40	/* AMPM mode is bit 1<<6 */
++#define	DS13xx_B_HOUR_PM	0x20	/* PM hours indicated by 1<<5 */
++#define	DS13xx_B_MONTH_CENTURY	0x80	/* 21st century indicated by 1<<7 */
++
++#define	DS13xx_M_SECOND		0x7f	/* Masks for all BCD time regs... */
++#define	DS13xx_M_MINUTE		0x7f
++#define	DS13xx_M_12HOUR		0x1f
++#define	DS13xx_M_24HOUR		0x3f
++#define	DS13xx_M_DAY		0x3f
++#define	DS13xx_M_MONTH		0x1f
++#define	DS13xx_M_YEAR		0xff
++
++/*
++ * The chip types we support.
++ */
++enum {
++	TYPE_NONE,
++	TYPE_DS1307,
++	TYPE_DS1308,
++	TYPE_DS1337,
++	TYPE_DS1338,
++	TYPE_DS1339,
++	TYPE_DS1340,
++	TYPE_DS1341,
++	TYPE_DS1342,
++	TYPE_DS1371,
++	TYPE_DS1372,
++	TYPE_DS1374,
++	TYPE_DS1375,
++	TYPE_DS1388,
++
++	TYPE_COUNT
++};
++static const char *desc_strings[] = {
++	"",
++	"Dallas/Maxim DS1307 RTC",
++	"Dallas/Maxim DS1308 RTC",
++	"Dallas/Maxim DS1337 RTC",
++	"Dallas/Maxim DS1338 RTC",
++	"Dallas/Maxim DS1339 RTC",
++	"Dallas/Maxim DS1340 RTC",
++	"Dallas/Maxim DS1341 RTC",
++	"Dallas/Maxim DS1342 RTC",
++	"Dallas/Maxim DS1371 RTC",
++	"Dallas/Maxim DS1372 RTC",
++	"Dallas/Maxim DS1374 RTC",
++	"Dallas/Maxim DS1375 RTC",
++	"Dallas/Maxim DS1388 RTC",
++};
++CTASSERT(nitems(desc_strings) == TYPE_COUNT);
++
++/*
++ * The time registers in the order they are laid out in hardware.
++ */
++struct time_regs {
++	uint8_t sec, min, hour, wday, day, month, year;
++};
++
++struct ds13rtc_softc {
++	device_t	dev;
++	device_t	busdev;
++	u_int		flags;		/* SC_F_* flags */
++	u_int		chiptype;	/* Type of DS13xx chip */
++	uint8_t		secaddr;	/* Address of seconds register */
++	uint8_t		osfaddr;	/* Address of register with OSF */
++};
++
++#define	SC_F_BINARY	(1u << 0)	/* Time is 32-bit binary counter */
++#define	SC_F_AMPM	(1u << 1)	/* Use PM flag in hours reg */
++#define	SC_F_CENTURY	(1u << 2)	/* Use century bit */
++
++/*
++ * We use the compat_data table to look up hint strings in the non-FDT case, so
++ * define the struct locally when we don't get it from ofw_bus_subr.h.
++ */
++#ifdef FDT
++typedef struct ofw_compat_data ds13_compat_data;
++#else
++typedef struct {
++	const char *ocd_str;
++	uintptr_t  ocd_data;
++} ds13_compat_data;
++#endif
++
++static ds13_compat_data compat_data[] = {
++	{"dallas,ds1307",   TYPE_DS1307},
++	{"dallas,ds1308",   TYPE_DS1308},
++	{"dallas,ds1337",   TYPE_DS1337},
++	{"dallas,ds1338",   TYPE_DS1338},
++	{"dallas,ds1339",   TYPE_DS1339},
++	{"dallas,ds1340",   TYPE_DS1340},
++	{"dallas,ds1341",   TYPE_DS1341},
++	{"dallas,ds1342",   TYPE_DS1342},
++	{"dallas,ds1371",   TYPE_DS1371},
++	{"dallas,ds1372",   TYPE_DS1372},
++	{"dallas,ds1374",   TYPE_DS1374},
++	{"dallas,ds1375",   TYPE_DS1375},
++	{"dallas,ds1388",   TYPE_DS1388},
++
++	{NULL,              TYPE_NONE},
++};
++
++static int
++read_reg(struct ds13rtc_softc *sc, uint8_t reg, uint8_t *val)
++{
++
++	return (iicdev_readfrom(sc->dev, reg, val, sizeof(*val), IIC_WAIT));
++}
++
++static int
++write_reg(struct ds13rtc_softc *sc, uint8_t reg, uint8_t val)
++{
++
++	return (iicdev_writeto(sc->dev, reg, &val, sizeof(val), IIC_WAIT));
++}
++
++static int
++read_timeregs(struct ds13rtc_softc *sc, struct time_regs *tregs)
++{
++	int err;
++
++	if ((err = iicdev_readfrom(sc->dev, sc->secaddr, tregs,
++	    sizeof(*tregs), IIC_WAIT)) != 0)
++		return (err);
++
++	return (err);
++}
++
++static int
++write_timeregs(struct ds13rtc_softc *sc, struct time_regs *tregs)
++{
++
++	return (iicdev_writeto(sc->dev, sc->secaddr, tregs,
++	    sizeof(*tregs), IIC_WAIT));
++}
++
++static int
++read_timeword(struct ds13rtc_softc *sc, time_t *secs)
++{
++	int err;
++	uint8_t buf[4];
++
++	if ((err = iicdev_readfrom(sc->dev, sc->secaddr, buf, sizeof(buf),
++	    IIC_WAIT)) == 0)
++		*secs = le32dec(buf);
++
++	return (err);
++}
++
++static int
++write_timeword(struct ds13rtc_softc *sc, time_t secs)
++{
++	uint8_t buf[4];
++
++	le32enc(buf, (uint32_t)secs);
++	return (iicdev_writeto(sc->dev, sc->secaddr, buf, sizeof(buf),
++	    IIC_WAIT));
++}
++
++static void
++ds13rtc_start(void *arg)
++{
++	struct ds13rtc_softc *sc;
++	uint8_t ctlreg, statreg;
++
++	sc = arg;
++
++	/*
++	 * Every chip in this family can be usefully initialized by writing 0 to
++	 * the control register, except DS1375 which has an external oscillator
++	 * controlled by values in the ctlreg that we know nothing about, so
++	 * we'd best leave them alone.  For all other chips, writing 0 enables
++	 * the oscillator, disables signals/outputs in battery-backed mode
++	 * (saves power) and disables features like watchdog timers and alarms.
++	 */
++	switch (sc->chiptype) {
++	case TYPE_DS1307:
++	case TYPE_DS1308:
++	case TYPE_DS1338:
++	case TYPE_DS1340:
++	case TYPE_DS1371:
++	case TYPE_DS1372:
++	case TYPE_DS1374:
++		ctlreg = DS130x_R_CONTROL;
++		break;
++	case TYPE_DS1337:
++	case TYPE_DS1339:
++		ctlreg = DS133x_R_CONTROL;
++		break;
++	case TYPE_DS1341:
++	case TYPE_DS1342:
++		ctlreg = DS1341_R_CONTROL;
++		break;
++	case TYPE_DS1375:
++		ctlreg = DS13xx_R_NONE;
++		break;
++	case TYPE_DS1388:
++		ctlreg = DS1388_R_CONTROL;
++		break;
++	default:
++		device_printf(sc->dev, "missing init code for this chiptype\n");
++		return;
++	}
++	if (ctlreg != DS13xx_R_NONE)
++		write_reg(sc, ctlreg, 0);
++
++	/*
++	 * Common init.  Read the OSF/CH status bit and report stopped clocks to
++	 * the user.  The status bit will be cleared the first time we write
++	 * valid time to the chip (and must not be cleared before that).
++	 */
++	if (read_reg(sc, sc->osfaddr, &statreg) != 0) {
++		device_printf(sc->dev, "cannot read RTC clock status bit\n");
++		return;
++	}
++	if (statreg & DS13xx_B_STATUS_OSF) {
++		device_printf(sc->dev, 
++		    "WARNING: RTC battery failed; time is invalid\n");
++	}
++
++	/*
++	 * Figure out whether the chip is configured for AM/PM mode.  On all
++	 * chips that do AM/PM mode, the flag bit is in the hours register,
++	 * which is secaddr+2.
++	 */
++	if ((sc->chiptype != TYPE_DS1340) && !(sc->flags & SC_F_BINARY)) {
++		if (read_reg(sc, sc->secaddr + 2, &statreg) != 0) {
++			device_printf(sc->dev,
++			    "cannot read RTC clock AM/PM bit\n");
++			return;
++		}
++		if (statreg & DS13xx_B_HOUR_AMPM)
++			sc->flags |= SC_F_AMPM;
++	}
++
++	/*
++	 * Everything looks good if we make it to here; register as an RTC.
++	 * Schedule RTC updates to happen just after top-of-second.
++	 */
++	clock_register_flags(sc->dev, 1000000, CLOCKF_SETTIME_NO_ADJ);
++	clock_schedule(sc->dev, 1);
++}
++
++static int
++ds13rtc_gettime(device_t dev, struct timespec *ts)
++{
++	struct clocktime ct;
++	struct time_regs tregs;
++	struct ds13rtc_softc *sc;
++	int err;
++	uint8_t statreg, hourmask;
++
++	sc = device_get_softc(dev);
++
++	/* Read the OSF/CH bit; if the clock stopped we can't provide time. */
++	if ((err = read_reg(sc, sc->osfaddr, &statreg)) != 0) {
++		return (err);
++	}
++	if (statreg & DS13xx_B_STATUS_OSF)
++		return (EINVAL); /* hardware is good, time is not. */
++
++	/* If the chip counts time in binary, we just read and return it. */
++	if (sc->flags & SC_F_BINARY) {
++		if ((err = read_timeword(sc, &ts->tv_sec)) != 0)
++			return (err);
++		ts->tv_nsec = 0;
++	}
++
++	/*
++	 * Chip counts in BCD, read and decode it...
++	 */
++	if ((err = read_timeregs(sc, &tregs)) != 0) {
++		device_printf(dev, "cannot read RTC time\n");
++		return (err);
++	}
++
++	if (sc->flags & SC_F_AMPM)
++		hourmask = DS13xx_M_12HOUR;
++	else
++		hourmask = DS13xx_M_24HOUR;
++
++	ct.sec  = FROMBCD(tregs.sec   & DS13xx_M_SECOND);
++	ct.min  = FROMBCD(tregs.min   & DS13xx_M_MINUTE);
++	ct.hour = FROMBCD(tregs.hour  & hourmask);
++	ct.day  = FROMBCD(tregs.day   & DS13xx_M_DAY);
++	ct.mon  = FROMBCD(tregs.month & DS13xx_M_MONTH);
++	ct.year = FROMBCD(tregs.year  & DS13xx_M_YEAR);
++	ct.nsec = 0;
++
++	if (sc->flags & SC_F_AMPM) {
++		if (ct.hour == 12)
++			ct.hour = 0;
++		if (tregs.hour & DS13xx_B_HOUR_PM)
++			ct.hour += 12;
++	}
++
++	/*
++	 * If this chip has a century bit, honor it.  Otherwise let
++	 * clock_ct_to_ts() infer the century from the 2-digit year.
++	 */
++	if (sc->flags & SC_F_CENTURY)
++		ct.year += (tregs.month & DS13xx_B_MONTH_CENTURY) ? 2000 : 1900;
++
++	err = clock_ct_to_ts(&ct, ts);
++
++	return (err);
++}
++
++static int
++ds13rtc_settime(device_t dev, struct timespec *ts)
++{
++	struct clocktime ct;
++	struct time_regs tregs;
++	struct ds13rtc_softc *sc;
++	int err;
++	uint8_t cflag, statreg, pmflag;
++
++	sc = device_get_softc(dev);
++
++	/*
++	 * We request a timespec with no resolution-adjustment.  That also
++	 * disables utc adjustment, so apply that ourselves.
++	 */
++	ts->tv_sec -= utc_offset();
++
++	/* If the chip counts time in binary, store tv_sec and we're done. */
++	if (sc->flags & SC_F_BINARY)
++		return (write_timeword(sc, ts->tv_sec));
++
++	clock_ts_to_ct(ts, &ct);
++
++	/* If the chip is in AMPM mode deal with the PM flag. */
++	pmflag = 0;
++	if (sc->flags & SC_F_AMPM) {
++		if (ct.hour >= 12) {
++			ct.hour -= 12;
++			pmflag = DS13xx_B_HOUR_PM;
++		}
++		if (ct.hour == 0)
++			ct.hour = 12;
++	}
++
++	/* If the chip has a century bit, set it as needed. */
++	cflag = 0;
++	if (sc->flags & SC_F_CENTURY) {
++		if (ct.year >= 2000)
++			cflag |= DS13xx_B_MONTH_CENTURY;
++	}
++
++	tregs.sec   = TOBCD(ct.sec);
++	tregs.min   = TOBCD(ct.min);
++	tregs.hour  = TOBCD(ct.hour) | pmflag;
++	tregs.day   = TOBCD(ct.day);
++	tregs.month = TOBCD(ct.mon) | cflag;
++	tregs.year  = TOBCD(ct.year % 100);
++	tregs.wday  = ct.dow;
++
++	/*
++	 * Set the time.  Reset the OSF bit if it is on and it is not part of
++	 * the time registers (in which case writing time resets it).
++	 */
++	if ((err = write_timeregs(sc, &tregs)) != 0)
++		goto errout;
++	if (sc->osfaddr != sc->secaddr) {
++		if ((err = read_reg(sc, sc->osfaddr, &statreg)) != 0)
++			goto errout;
++		if (statreg & DS13xx_B_STATUS_OSF) {
++			statreg &= ~DS13xx_B_STATUS_OSF;
++			err = write_reg(sc, sc->osfaddr, statreg);
++		}
++	}
++
++errout:
++
++	if (err != 0)
++		device_printf(dev, "cannot update RTC time\n");
++
++	return (err);
++}
++
++static int
++ds13rtc_get_chiptype(device_t dev)
++{
++#ifdef FDT
++
++	return (ofw_bus_search_compatible(dev, compat_data)->ocd_data);
++#else
++	ds13_compat_data *cdata;
++	const char *htype; 
++
++	/*
++	 * We can only attach if provided a chiptype hint string.
++	 */
++	if (resource_string_value(device_get_name(dev), 
++	    device_get_unit(dev), "compatible", &htype) != 0)
++		return (TYPE_NONE);
++
++	/*
++	 * Loop through the ofw compat data comparing the hinted chip type to
++	 * the compat strings.
++	 */
++	for (cdata = compat_data; cdata->ocd_str != NULL; ++cdata) {
++		if (strcmp(htype, cdata->ocd_str) == 0)
++			break;
++	}
++	return (cdata->ocd_data);
++#endif
++}
++
++static int
++ds13rtc_probe(device_t dev)
++{
++	int chiptype, goodrv;
++
++#ifdef FDT
++	if (!ofw_bus_status_okay(dev))
++		return (ENXIO);
++	goodrv = BUS_PROBE_GENERIC;
++#else
++	goodrv = BUS_PROBE_NOWILDCARD;
++#endif
++
++	chiptype = ds13rtc_get_chiptype(dev);
++	if (chiptype == TYPE_NONE)
++		return (ENXIO);
++
++	device_set_desc(dev, desc_strings[chiptype]);
++	return (goodrv);
++}
++
++static int
++ds13rtc_attach(device_t dev)
++{
++	struct ds13rtc_softc *sc;
++
++	sc = device_get_softc(dev);
++	sc->dev = dev;
++	sc->busdev = device_get_parent(dev);
++
++	/*
++	 * We need to know what kind of chip we're driving.
++	 */
++	if ((sc->chiptype = ds13rtc_get_chiptype(dev)) == TYPE_NONE) {
++		device_printf(dev, "impossible: cannot determine chip type\n");
++		return (ENXIO);
++	}
++
++	/* The seconds register is in the same place on all except DS1388. */
++	if (sc->chiptype == TYPE_DS1388) 
++		sc->secaddr = DS1388_R_SECOND;
++	else
++		sc->secaddr = DS13xx_R_SECOND;
++
++	/*
++	 * The OSF/CH (osc failed/clock-halted) bit appears in different
++	 * registers for different chip types.  The DS1375 has no OSF indicator
++	 * because it has no internal oscillator; we just point to an always-
++	 * zero bit in the status register for that chip.
++	 */
++	switch (sc->chiptype) {
++	case TYPE_DS1307:
++	case TYPE_DS1308:
++	case TYPE_DS1338:
++		sc->osfaddr = DS13xx_R_SECOND;
++		break;
++	case TYPE_DS1337:
++	case TYPE_DS1339:
++	case TYPE_DS1341:
++	case TYPE_DS1342:
++	case TYPE_DS1375:
++		sc->osfaddr = DS133x_R_STATUS;
++		sc->flags  |= SC_F_CENTURY;
++		break;
++	case TYPE_DS1340:
++		sc->osfaddr = DS1340_R_STATUS;
++		break;
++	case TYPE_DS1371:
++	case TYPE_DS1372:
++	case TYPE_DS1374:
++		sc->osfaddr = DS137x_R_STATUS;
++		sc->flags  |= SC_F_BINARY;
++		break;
++	case TYPE_DS1388:
++		sc->osfaddr = DS1388_R_STATUS;
++		break;
++	}
++
++	/*
++	 * We have to wait until interrupts are enabled.  Sometimes I2C read
++	 * and write only works when the interrupts are available.
++	 */
++	config_intrhook_oneshot(ds13rtc_start, sc);
++
++	return (0);
++}
++
++static int
++ds13rtc_detach(device_t dev)
++{
++
++	clock_unregister(dev);
++	return (0);
++}
++
++static device_method_t ds13rtc_methods[] = {
++	DEVMETHOD(device_probe,		ds13rtc_probe),
++	DEVMETHOD(device_attach,	ds13rtc_attach),
++	DEVMETHOD(device_detach,	ds13rtc_detach),
++
++	DEVMETHOD(clock_gettime,	ds13rtc_gettime),
++	DEVMETHOD(clock_settime,	ds13rtc_settime),
++
++	DEVMETHOD_END
++};
++
++static driver_t ds13rtc_driver = {
++	"ds13rtc",
++	ds13rtc_methods,
++	sizeof(struct ds13rtc_softc),
++};
++
++static devclass_t ds13rtc_devclass;
++
++DRIVER_MODULE(ds13rtc, iicbus, ds13rtc_driver, ds13rtc_devclass, NULL, NULL);
++MODULE_VERSION(ds13rtc, 1);
++MODULE_DEPEND(ds13rtc, iicbus, IICBB_MINVER, IICBB_PREFVER, IICBB_MAXVER);
+diff --git a/sys/dev/iicbus/ds3231.c b/sys/dev/iicbus/ds3231.c
+index 690c92b05ee..eb9a5ee587b 100644
+--- a/sys/dev/iicbus/ds3231.c
++++ b/sys/dev/iicbus/ds3231.c
+@@ -62,29 +62,23 @@ struct ds3231_softc {
+ 	uint16_t	sc_addr;	/* DS3231 slave address. */
+ 	uint8_t		sc_ctrl;
+ 	uint8_t		sc_status;
++	bool		sc_use_ampm;
+ };
+ 
+ static void ds3231_start(void *);
+ 
+ static int
+-ds3231_read(device_t dev, uint16_t addr, uint8_t reg, uint8_t *data, size_t len)
++ds3231_read1(device_t dev, uint8_t reg, uint8_t *data)
+ {
+-	struct iic_msg msg[2] = {
+-	    { addr, IIC_M_WR | IIC_M_NOSTOP, 1, &reg },
+-	    { addr, IIC_M_RD, len, data },
+-	};
+ 
+-	return (iicbus_transfer(dev, msg, nitems(msg)));
++	return (iicdev_readfrom(dev, reg, data, 1, IIC_INTRWAIT));
+ }
+ 
+ static int
+-ds3231_write(device_t dev, uint16_t addr, uint8_t *data, size_t len)
++ds3231_write1(device_t dev, uint8_t reg, uint8_t data)
+ {
+-	struct iic_msg msg[1] = {
+-	    { addr, IIC_M_WR, len, data },
+-	};
+ 
+-	return (iicbus_transfer(dev, msg, nitems(msg)));
++	return (iicdev_writeto(dev, reg, &data, 1, IIC_INTRWAIT));
+ }
+ 
+ static int
+@@ -92,14 +86,11 @@ ds3231_ctrl_read(struct ds3231_softc *sc)
+ {
+ 	int error;
+ 
+-	sc->sc_ctrl = 0;
+-	error = ds3231_read(sc->sc_dev, sc->sc_addr, DS3231_CONTROL,
+-	    &sc->sc_ctrl, sizeof(sc->sc_ctrl));
++	error = ds3231_read1(sc->sc_dev, DS3231_CONTROL, &sc->sc_ctrl);
+ 	if (error) {
+ 		device_printf(sc->sc_dev, "cannot read from RTC.\n");
+ 		return (error);
+ 	}
+-
+ 	return (0);
+ }
+ 
+@@ -107,12 +98,11 @@ static int
+ ds3231_ctrl_write(struct ds3231_softc *sc)
+ {
+ 	int error;
+-	uint8_t data[2];
++	uint8_t data;
+ 
+-	data[0] = DS3231_CONTROL;
+ 	/* Always enable the oscillator.  Always disable both alarms. */
+-	data[1] = sc->sc_ctrl & ~DS3231_CTRL_MASK;
+-	error = ds3231_write(sc->sc_dev, sc->sc_addr, data, sizeof(data));
++	data = sc->sc_ctrl & ~DS3231_CTRL_MASK;
++	error = ds3231_write1(sc->sc_dev, DS3231_CONTROL, data);
+ 	if (error != 0)
+ 		device_printf(sc->sc_dev, "cannot write to RTC.\n");
+ 
+@@ -124,9 +114,7 @@ ds3231_status_read(struct ds3231_softc *sc)
+ {
+ 	int error;
+ 
+-	sc->sc_status = 0;
+-	error = ds3231_read(sc->sc_dev, sc->sc_addr, DS3231_STATUS,
+-	    &sc->sc_status, sizeof(sc->sc_status));
++	error = ds3231_read1(sc->sc_dev, DS3231_STATUS, &sc->sc_status);
+ 	if (error) {
+ 		device_printf(sc->sc_dev, "cannot read from RTC.\n");
+ 		return (error);
+@@ -139,37 +127,14 @@ static int
+ ds3231_status_write(struct ds3231_softc *sc, int clear_a1, int clear_a2)
+ {
+ 	int error;
+-	uint8_t data[2];
++	uint8_t data;
+ 
+-	data[0] = DS3231_STATUS;
+-	data[1] = sc->sc_status;
++	data = sc->sc_status;
+ 	if (clear_a1 == 0)
+-		data[1] |= DS3231_STATUS_A1F;
++		data |= DS3231_STATUS_A1F;
+ 	if (clear_a2 == 0)
+-		data[1] |= DS3231_STATUS_A2F;
+-	error = ds3231_write(sc->sc_dev, sc->sc_addr, data, sizeof(data));
+-	if (error != 0)
+-		device_printf(sc->sc_dev, "cannot write to RTC.\n");
+-
+-	return (error);
+-}
+-
+-static int
+-ds3231_set_24hrs_mode(struct ds3231_softc *sc)
+-{
+-	int error;
+-	uint8_t data[2], hour;
+-
+-	hour = 0;
+-	error = ds3231_read(sc->sc_dev, sc->sc_addr, DS3231_HOUR,
+-	    &hour, sizeof(hour));
+-	if (error) {
+-		device_printf(sc->sc_dev, "cannot read from RTC.\n");
+-		return (error);
+-	}
+-	data[0] = DS3231_HOUR;
+-	data[1] = hour & ~DS3231_C_MASK;
+-	error = ds3231_write(sc->sc_dev, sc->sc_addr, data, sizeof(data));
++		data |= DS3231_STATUS_A2F;
++	error = ds3231_write1(sc->sc_dev, DS3231_STATUS, data);
+ 	if (error != 0)
+ 		device_printf(sc->sc_dev, "cannot write to RTC.\n");
+ 
+@@ -183,8 +148,8 @@ ds3231_temp_read(struct ds3231_softc *sc, int *temp)
+ 	uint8_t buf8[2];
+ 	uint16_t buf;
+ 
+-	error = ds3231_read(sc->sc_dev, sc->sc_addr, DS3231_TEMP,
+-	    buf8, sizeof(buf8));
++	error = iicdev_readfrom(sc->sc_dev, DS3231_TEMP, buf8, sizeof(buf8),
++	    IIC_INTRWAIT);
+ 	if (error != 0)
+ 		return (error);
+ 	buf = (buf8[0] << 8) | (buf8[1] & 0xff);
+@@ -426,6 +391,14 @@ ds3231_attach(device_t dev)
+ 	return (0);
+ }
+ 
++static int
++ds3231_detach(device_t dev)
++{
++
++	clock_unregister(dev);
++	return (0);
++}
++
+ static void
+ ds3231_start(void *xdev)
+ {
+@@ -446,20 +419,20 @@ ds3231_start(void *xdev)
+ 		return;
+ 	if (ds3231_status_read(sc) != 0)
+ 		return;
+-	/* Clear the OSF bit and ack any pending alarm interrupt. */
++	/*
++	 * Warn if the clock stopped, but don't restart it until the first
++	 * clock_settime() call.
++	 */
+ 	if (sc->sc_status & DS3231_STATUS_OSF) {
+ 		device_printf(sc->sc_dev,
+-		    "oscillator has stopped, check the battery.\n");
+-		sc->sc_status &= ~DS3231_STATUS_OSF;
++		    "WARNING: RTC clock stopped, check the battery.\n");
+ 	}
++	/* Ack any pending alarm interrupt. */
+ 	if (ds3231_status_write(sc, 1, 1) != 0)
+ 		return;
+ 	/* Always enable the oscillator. */
+ 	if (ds3231_ctrl_write(sc) != 0)
+ 		return;
+-	/* Set the 24 hours mode. */
+-	if (ds3231_set_24hrs_mode(sc) != 0)
+-		return;
+ 
+ 	/* Temperature. */
+ 	SYSCTL_ADD_PROC(ctx, tree, OID_AUTO, "temperature",
+@@ -485,8 +458,13 @@ ds3231_start(void *xdev)
+ 	    CTLFLAG_RW | CTLTYPE_UINT | CTLFLAG_MPSAFE, sc, 0,
+ 	    ds3231_en32khz_sysctl, "IU", "DS3231 enable the 32kHz output");
+ 
+-	/* 1 second resolution. */
+-	clock_register(dev, 1000000);
++	/*
++	 * Register as a clock with 1 second resolution.  Schedule the
++	 * clock_settime() method to be called just after top-of-second;
++	 * resetting the time resets top-of-second in the hardware.
++	 */
++	clock_register_flags(dev, 1000000, CLOCKF_SETTIME_NO_ADJ);
++	clock_schedule(dev, 1);
+ }
+ 
+ static int
+@@ -495,24 +473,45 @@ ds3231_gettime(device_t dev, struct timespec *ts)
+ 	int c, error;
+ 	struct clocktime ct;
+ 	struct ds3231_softc *sc;
+-	uint8_t data[7];
++	uint8_t data[7], hourmask;
+ 
+ 	sc = device_get_softc(dev);
+-	memset(data, 0, sizeof(data));
+-	error = ds3231_read(sc->sc_dev, sc->sc_addr, DS3231_SECS,
+-	    data, sizeof(data)); 
++
++	/* If the clock halted, we don't have good data. */
++	if ((error = ds3231_status_read(sc)) != 0) {
++		device_printf(dev, "cannot read from RTC.\n");
++		return (error);
++	}
++	if (sc->sc_status & DS3231_STATUS_OSF)
++		return (EINVAL);
++
++	error = iicdev_readfrom(sc->sc_dev, DS3231_SECS, data, sizeof(data),
++	    IIC_INTRWAIT);
+ 	if (error != 0) {
+ 		device_printf(dev, "cannot read from RTC.\n");
+ 		return (error);
+ 	}
++
++	/* If chip is in AM/PM mode remember that. */
++	if (data[DS3231_HOUR] & DS3231_HOUR_USE_AMPM) {
++		sc->sc_use_ampm = true;
++		hourmask = DS3231_HOUR_MASK_12HR;
++	} else
++		hourmask = DS3231_HOUR_MASK_24HR;
++
+ 	ct.nsec = 0;
+-	ct.sec = FROMBCD(data[DS3231_SECS] & DS3231_SECS_MASK);
+-	ct.min = FROMBCD(data[DS3231_MINS] & DS3231_MINS_MASK);
+-	ct.hour = FROMBCD(data[DS3231_HOUR] & DS3231_HOUR_MASK);
+-	ct.day = FROMBCD(data[DS3231_DATE] & DS3231_DATE_MASK);
+-	ct.dow = data[DS3231_WEEKDAY] & DS3231_WEEKDAY_MASK;
+-	ct.mon = FROMBCD(data[DS3231_MONTH] & DS3231_MONTH_MASK);
+-	ct.year = FROMBCD(data[DS3231_YEAR] & DS3231_YEAR_MASK);
++	ct.sec  = FROMBCD(data[DS3231_SECS]  & DS3231_SECS_MASK);
++	ct.min  = FROMBCD(data[DS3231_MINS]  & DS3231_MINS_MASK);
++	ct.hour = FROMBCD(data[DS3231_HOUR]  & hourmask);
++	ct.day  = FROMBCD(data[DS3231_DATE]  & DS3231_DATE_MASK);
++	ct.mon  = FROMBCD(data[DS3231_MONTH] & DS3231_MONTH_MASK);
++	ct.year = FROMBCD(data[DS3231_YEAR]  & DS3231_YEAR_MASK);
++
++	/*
++	 * If the century flag has toggled since we last saw it, there has been
++	 * a century rollover.  If this is the first time we're seeing it,
++	 * remember the state so we can preserve its polarity on writes.
++	 */
+ 	c = (data[DS3231_MONTH] & DS3231_C_MASK) ? 1 : 0;
+ 	if (sc->sc_last_c == -1)
+ 		sc->sc_last_c = c;
+@@ -524,6 +523,14 @@ ds3231_gettime(device_t dev, struct timespec *ts)
+ 	if (ct.year < POSIX_BASE_YEAR)
+ 		ct.year += 100;	/* assume [1970, 2069] */
+ 
++	/* If running in AM/PM mode, deal with it. */
++	if (sc->sc_use_ampm) {
++		if (ct.hour == 12)
++			ct.hour = 0;
++		if (data[DS3231_HOUR] & DS3231_HOUR_IS_PM)
++			ct.hour += 12;
++	}
++
+ 	return (clock_ct_to_ts(&ct, ts));
+ }
+ 
+@@ -533,29 +540,63 @@ ds3231_settime(device_t dev, struct timespec *ts)
+ 	int error;
+ 	struct clocktime ct;
+ 	struct ds3231_softc *sc;
+-	uint8_t data[8];
++	uint8_t data[7];
++	uint8_t pmflags;
+ 
+ 	sc = device_get_softc(dev);
+-	/* Accuracy is only one second. */
+-	if (ts->tv_nsec >= 500000000)
+-		ts->tv_sec++;
+-	ts->tv_nsec = 0;
++
++	/*
++	 * We request a timespec with no resolution-adjustment.  That also
++	 * disables utc adjustment, so apply that ourselves.
++	 */
++	ts->tv_sec -= utc_offset();
+ 	clock_ts_to_ct(ts, &ct);
+-	memset(data, 0, sizeof(data));
+-	data[0] = DS3231_SECS;
+-	data[DS3231_SECS + 1] = TOBCD(ct.sec);
+-	data[DS3231_MINS + 1] = TOBCD(ct.min);
+-	data[DS3231_HOUR + 1] = TOBCD(ct.hour);
+-	data[DS3231_DATE + 1] = TOBCD(ct.day);
+-	data[DS3231_WEEKDAY + 1] = ct.dow;
+-	data[DS3231_MONTH + 1] = TOBCD(ct.mon);
+-	data[DS3231_YEAR + 1] = TOBCD(ct.year % 100);
++
++	/* If the chip is in AM/PM mode, adjust hour and set flags as needed. */
++	if (sc->sc_use_ampm) {
++		pmflags = DS3231_HOUR_USE_AMPM;
++		if (ct.hour >= 12) {
++			ct.hour -= 12;
++			pmflags |= DS3231_HOUR_IS_PM;
++		}
++		if (ct.hour == 0)
++			ct.hour = 12;
++	} else
++		pmflags = 0;
++
++	data[DS3231_SECS]    = TOBCD(ct.sec);
++	data[DS3231_MINS]    = TOBCD(ct.min);
++	data[DS3231_HOUR]    = TOBCD(ct.hour) | pmflags;
++	data[DS3231_DATE]    = TOBCD(ct.day);
++	data[DS3231_WEEKDAY] = ct.dow;
++	data[DS3231_MONTH]   = TOBCD(ct.mon);
++	data[DS3231_YEAR]    = TOBCD(ct.year % 100);
+ 	if (sc->sc_last_c)
+ 		data[DS3231_MONTH] |= DS3231_C_MASK;
++
+ 	/* Write the time back to RTC. */
+-	error = ds3231_write(dev, sc->sc_addr, data, sizeof(data));
+-	if (error != 0)
++	error = iicdev_writeto(dev, DS3231_SECS, data, sizeof(data),
++	    IIC_INTRWAIT);
++	if (error != 0) {
+ 		device_printf(dev, "cannot write to RTC.\n");
++		return (error);
++	}
++
++	/*
++	 * Unlike most hardware, the osc-was-stopped bit does not clear itself
++	 * after setting the time, it has to be manually written to zero.
++	 */
++	if (sc->sc_status & DS3231_STATUS_OSF) {
++		if ((error = ds3231_status_read(sc)) != 0) {
++			device_printf(dev, "cannot read from RTC.\n");
++			return (error);
++		}
++		sc->sc_status &= ~DS3231_STATUS_OSF;
++		if ((error = ds3231_status_write(sc, 0, 0)) != 0) {
++			device_printf(dev, "cannot write to RTC.\n");
++			return (error);
++		}
++	}
+ 
+ 	return (error);
+ }
+@@ -563,6 +604,7 @@ ds3231_settime(device_t dev, struct timespec *ts)
+ static device_method_t ds3231_methods[] = {
+ 	DEVMETHOD(device_probe,		ds3231_probe),
+ 	DEVMETHOD(device_attach,	ds3231_attach),
++	DEVMETHOD(device_detach,	ds3231_detach),
+ 
+ 	DEVMETHOD(clock_gettime,	ds3231_gettime),
+ 	DEVMETHOD(clock_settime,	ds3231_settime),
+diff --git a/sys/dev/iicbus/ds3231reg.h b/sys/dev/iicbus/ds3231reg.h
+index 41e011c14d4..86f087ce309 100644
+--- a/sys/dev/iicbus/ds3231reg.h
++++ b/sys/dev/iicbus/ds3231reg.h
+@@ -38,7 +38,10 @@
+ #define	DS3231_MINS		0x01
+ #define	DS3231_MINS_MASK		0x7f
+ #define	DS3231_HOUR		0x02
+-#define	DS3231_HOUR_MASK		0x3f
++#define	DS3231_HOUR_MASK_12HR		0x3f
++#define	DS3231_HOUR_MASK_24HR		0x1f
++#define	DS3231_HOUR_IS_PM		0x20
++#define	DS3231_HOUR_USE_AMPM		0x40
+ #define	DS3231_WEEKDAY		0x03
+ #define	DS3231_WEEKDAY_MASK		0x07
+ #define	DS3231_DATE		0x04
+diff --git a/sys/dev/iicbus/isl12xx.c b/sys/dev/iicbus/isl12xx.c
+new file mode 100644
+index 00000000000..f834491845d
+--- /dev/null
++++ b/sys/dev/iicbus/isl12xx.c
+@@ -0,0 +1,354 @@
++/*-
++ * Copyright (c) 2017 Ian Lepore.  All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
++ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
++ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
++ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
++ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#include <sys/cdefs.h>
++__FBSDID("$FreeBSD$");
++
++/*
++ * Driver for ISL12xx family i2c realtime clocks:
++ *  - ISL1209 = 2B sram, tamper/event timestamp
++ *  - ISL1218 = 8B sram, DS13xx pin compatible (but not software compatible)
++ *  - ISL1219 = 2B sram, tamper/event timestamp
++ *  - ISL1220 = 8B sram, separate Fout
++ *  - ISL1221 = 2B sram, separate Fout, tamper/event timestamp
++ *
++ * This driver supports only the basic RTC functionality in all these chips.
++ */
++
++#include "opt_platform.h"
++
++#include <sys/param.h>
++#include <sys/systm.h>
++#include <sys/bus.h>
++#include <sys/clock.h>
++#include <sys/kernel.h>
++#include <sys/lock.h>
++#include <sys/module.h>
++#include <sys/sx.h>
++
++#ifdef FDT
++#include <dev/ofw/ofw_bus.h>
++#include <dev/ofw/ofw_bus_subr.h>
++#endif
++
++#include <dev/iicbus/iiconf.h>
++#include <dev/iicbus/iicbus.h>
++
++#include "clock_if.h"
++#include "iicbus_if.h"
++
++/*
++ * All register and bit names as found in the datasheet.  When a bit name ends
++ * in 'B' that stands for "bar" and it is an active-low signal; something named
++ * "EVENB" implies 1=event-disable, 0=event-enable.
++ */
++
++#define	ISL12XX_SC_REG		0x00		/* RTC Seconds */
++
++#define	ISL12XX_SR_REG		0x07		/* Status */
++#define	  ISL12XX_SR_ARST	  (1u << 7)	/*   Auto-reset on status read */
++#define	  ISL12XX_SR_XTOSCB	  (1u << 5)	/*   Osc disable (use ext osc) */
++#define	  ISL12XX_SR_WRTC	  (1u << 4)	/*   Write RTC enable */
++#define	  ISL12XX_SR_EVT	  (1u << 3)	/*   Event occurred (w0c) */
++#define	  ISL12XX_SR_ALM	  (1u << 2)	/*   Alarm occurred (w0c) */
++#define	  ISL12XX_SR_BAT	  (1u << 1)	/*   Running on battery (w0c) */
++#define	  ISL12XX_SR_RTCF	  (1u << 0)	/*   RTC fail (power loss) */
++#define	  ISL12XX_SR_W0C_BITS (ISL12XX_SR_BAT | ISL12XX_SR_ALM | ISL12XX_SR_EVT)
++
++#define	ISL12XX_INT_REG		0x08		/* Interrupts */
++#define	  ISL12XX_INT_IM	  (1u << 7)	/*   Alarm interrupt mode */
++#define	  ISL12XX_INT_ALME	  (1u << 6)	/*   Alarm enable */
++#define	  ISL12XX_INT_LPMODE	  (1u << 5)	/*   Low Power mode */
++#define	  ISL12XX_INT_FOBATB	  (1u << 4)	/*   Fout/IRQ disabled on bat */
++#define	  ISL12XX_INT_FO_SHIFT	  0		/*   Frequency output select */
++#define	  ISL12XX_INT_FO_MASK	  0x0f		/*   shift and mask. */
++
++#define	ISL12XX_EV_REG		0x09		/* Event */
++#define	  ISL12XX_EV_EVIENB	  (1u << 7)	/*   Disable internal pullup */
++#define	  ISL12XX_EV_EVBATB	  (1u << 6)	/*   Disable ev detect on bat */
++#define	  ISL12XX_EV_RTCHLT	  (1u << 5)	/*   Halt RTC on event */
++#define	  ISL12XX_EV_EVEN	  (1u << 4)	/*   Event detect enable */
++#define	  ISL12XX_EV_EHYS_SHIFT	  2		/*   Event input hysteresis */
++#define	  ISL12XX_EV_EHYS_MASK	  0x03		/*   selection; see datasheet */
++#define	  ISL12XX_EV_ESMP_SHIFT	  0		/*   Event input sample rate */
++#define	  ISL12XX_EV_ESMP_MASK	  0x03		/*   selection; see datasheet */
++
++#define	ISL12XX_ATR_REG		0x0a		/* Analog trim (osc adjust) */
++
++#define	ISL12XX_DTR_REG		0x0b		/* Digital trim (osc adjust) */
++
++#define	ISL12XX_SCA_REG		0x0c		/* Alarm seconds */
++
++#define	ISL12XX_USR1_REG	0x12		/* User byte 1 */
++
++#define	ISL12XX_USR2_REG	0x13		/* User byte 2 */
++
++#define	ISL12XX_SCT_REG		0x14		/* Timestamp (event) seconds */
++
++#define	ISL12XX_24HR_FLAG	(1u << 7)	/* Hours register 24-hr mode */
++#define	ISL12XX_PM_FLAG		(1u << 5)	/* Hours register PM flag */
++#define	ISL12xx_12HR_MASK	0x1f		/* Hours mask in AM/PM mode */
++#define	ISL12xx_24HR_MASK	0x3f		/* Hours mask in 24-hr mode */
++
++/*
++ * A struct laid out in the same order as the time registers in the chip.
++ */
++struct time_regs {
++	uint8_t sec, min, hour, day, month, year;
++};
++
++struct isl12xx_softc {
++	device_t	dev;
++	device_t	busdev;
++	struct intr_config_hook 
++			init_hook;
++	bool		use_ampm;
++};
++
++#ifdef FDT
++static struct ofw_compat_data compat_data[] = {
++	{"isil,isl1209", 1},
++	{"isil,isl1218", 1},
++	{"isil,isl1219", 1},
++	{"isil,isl1220", 1},
++	{"isil,isl1221", 1},
++	{NULL,           0},
++};
++#endif
++
++static inline int
++isl12xx_read1(struct isl12xx_softc *sc, uint8_t reg, uint8_t *data) 
++{
++
++	return (iicdev_readfrom(sc->dev, reg, data, 1, IIC_WAIT));
++}
++
++static inline int
++isl12xx_write1(struct isl12xx_softc *sc, uint8_t reg, uint8_t val) 
++{
++
++	return (iicdev_writeto(sc->dev, reg, &val, 1, IIC_WAIT));
++}
++
++static void
++isl12xx_init(void *arg)
++{
++	struct isl12xx_softc *sc = arg;
++	uint8_t sreg;
++
++	config_intrhook_disestablish(&sc->init_hook);
++
++	/*
++	 * Check the clock-stopped/power-fail bit, just so we can report it to
++	 * the user at boot time.
++	 */
++	isl12xx_read1(sc, ISL12XX_SR_REG, &sreg);
++	if (sreg & ISL12XX_SR_RTCF) {
++		device_printf(sc->dev,
++		    "RTC clock stopped; check battery\n");
++	}
++
++	/*
++	 * Register as a system realtime clock.
++	 */
++	clock_register_flags(sc->dev, 1000000, CLOCKF_SETTIME_NO_ADJ);
++	clock_schedule(sc->dev, 1);
++}
++
++static int
++isl12xx_probe(device_t dev)
++{
++
++#ifdef FDT
++	if (!ofw_bus_status_okay(dev))
++		return (ENXIO);
++
++	if (ofw_bus_search_compatible(dev, compat_data)->ocd_data != 0) {
++		device_set_desc(dev, "Intersil ISL12xx RTC");
++		return (BUS_PROBE_DEFAULT);
++	}
++#endif
++	return (ENXIO);
++}
++
++static int
++isl12xx_attach(device_t dev)
++{
++	struct isl12xx_softc *sc = device_get_softc(dev);
++
++	sc->dev = dev;
++	sc->busdev = device_get_parent(sc->dev);
++
++	/*
++	 * Chip init must wait until interrupts are enabled.  Often i2c access
++	 * works only when the interrupts are available.
++	 */
++	sc->init_hook.ich_func = isl12xx_init;
++	sc->init_hook.ich_arg = sc;
++	if (config_intrhook_establish(&sc->init_hook) != 0)
++		return (ENOMEM);
++
++	return (0);
++}
++
++static int
++isl12xx_detach(device_t dev)
++{
++
++	clock_unregister(dev);
++	return (0);
++}
++
++static int
++isl12xx_gettime(device_t dev, struct timespec *ts)
++{
++	struct isl12xx_softc *sc = device_get_softc(dev);
++	struct clocktime ct;
++	struct time_regs tregs;
++	int err;
++	uint8_t hourmask, sreg;
++
++	/* If power failed, we can't provide valid time. */
++	if ((err = isl12xx_read1(sc, ISL12XX_SR_REG, &sreg)) != 0)
++		return (err);
++	if (sreg & ISL12XX_SR_RTCF)
++		return (EINVAL);
++
++	/* Read the bcd time registers. */
++	if ((err = iicdev_readfrom(sc->dev, ISL12XX_SC_REG, &tregs, sizeof(tregs),
++	    IIC_WAIT)) != 0)
++		return (EINVAL);
++
++	/* If chip is in AM/PM mode remember that for when we set time. */
++	if (tregs.hour & ISL12XX_24HR_FLAG) {
++		hourmask = ISL12xx_24HR_MASK;
++	} else {
++		sc->use_ampm = true;
++		hourmask = ISL12xx_12HR_MASK;
++	}
++
++	ct.nsec = 0;
++	ct.sec  = FROMBCD(tregs.sec);
++	ct.min  = FROMBCD(tregs.min);
++	ct.hour = FROMBCD(tregs.hour & hourmask);
++	ct.day  = FROMBCD(tregs.day);
++	ct.mon  = FROMBCD(tregs.month);
++	ct.year = FROMBCD(tregs.year);
++
++	if (sc->use_ampm) {
++		if (ct.hour == 12)
++			ct.hour = 0;
++		if (tregs.hour & ISL12XX_PM_FLAG)
++			ct.hour += 12;
++	}
++
++	return (clock_ct_to_ts(&ct, ts));
++}
++
++static int
++isl12xx_settime(device_t dev, struct timespec *ts)
++{
++	struct isl12xx_softc *sc = device_get_softc(dev);
++	struct clocktime ct;
++	struct time_regs tregs;
++	int err;
++	uint8_t ampmflags, sreg;
++
++	/*
++	 * We request a timespec with no resolution-adjustment.  That also
++	 * disables utc adjustment, so apply that ourselves.
++	 */
++	ts->tv_sec -= utc_offset();
++	ts->tv_nsec = 0;
++	clock_ts_to_ct(ts, &ct);
++
++	/* If the chip is in AM/PM mode, adjust hour and set flags as needed. */
++	if (!sc->use_ampm) {
++		ampmflags = ISL12XX_24HR_FLAG;
++	} else {
++		ampmflags = 0;
++		if (ct.hour >= 12) {
++			ct.hour -= 12;
++			ampmflags |= ISL12XX_PM_FLAG;
++		}
++		if (ct.hour == 0)
++			ct.hour = 12;
++	}
++
++	tregs.sec   = TOBCD(ct.sec);
++	tregs.min   = TOBCD(ct.min);
++	tregs.hour  = TOBCD(ct.hour) | ampmflags;
++	tregs.day   = TOBCD(ct.day);
++	tregs.month = TOBCD(ct.mon);
++	tregs.year  = TOBCD(ct.year % 100);
++
++	/*
++	 * To set the time we have to set the WRTC enable bit in the control
++	 * register, then write the time regs, then clear the WRTC bit.  While
++	 * doing so we have to be careful to not write a 0 to any sreg bit which
++	 * is "write 0 to clear". One of those bits could get set between
++	 * reading and writing the register.  All those bits ignore attempts to
++	 * write a 1, so just always OR-in all the W0C bits to be sure we never
++	 * accidentally clear one.  We hold ownership of the i2c bus for the
++	 * whole read-modify-write sequence.
++	 */
++	if ((err = iicbus_request_bus(sc->busdev, sc->dev, IIC_WAIT)) != 0)
++		return (err);
++	if ((err = isl12xx_read1(sc, ISL12XX_SR_REG, &sreg)) == 0) {
++		sreg |= ISL12XX_SR_WRTC | ISL12XX_SR_W0C_BITS;
++		if ((err = isl12xx_write1(sc, ISL12XX_SR_REG, sreg)) == 0) {
++			err = iicdev_writeto(sc->dev, ISL12XX_SC_REG, &tregs,
++			    sizeof(tregs), IIC_WAIT);
++			sreg &= ~ISL12XX_SR_WRTC;
++			isl12xx_write1(sc, ISL12XX_SR_REG, sreg);
++		}
++	}
++	iicbus_release_bus(sc->busdev, sc->dev);
++
++	return (err);
++}
++
++static device_method_t isl12xx_methods[] = {
++        /* device_if methods */
++	DEVMETHOD(device_probe,		isl12xx_probe),
++	DEVMETHOD(device_attach,	isl12xx_attach),
++	DEVMETHOD(device_detach,	isl12xx_detach),
++
++        /* clock_if methods */
++	DEVMETHOD(clock_gettime,	isl12xx_gettime),
++	DEVMETHOD(clock_settime,	isl12xx_settime),
++
++	DEVMETHOD_END,
++};
++
++static driver_t isl12xx_driver = {
++	"isl12xx",
++	isl12xx_methods,
++	sizeof(struct isl12xx_softc),
++};
++static devclass_t isl12xx_devclass;
++
++DRIVER_MODULE(isl12xx, iicbus, isl12xx_driver, isl12xx_devclass, NULL, NULL);
++MODULE_VERSION(isl12xx, 1);
++MODULE_DEPEND(isl12xx, iicbus, IICBUS_MINVER, IICBUS_PREFVER, IICBUS_MAXVER);
+diff --git a/sys/dev/iicbus/nxprtc.c b/sys/dev/iicbus/nxprtc.c
+new file mode 100644
+index 00000000000..7e800ae0ba2
+--- /dev/null
++++ b/sys/dev/iicbus/nxprtc.c
+@@ -0,0 +1,837 @@
++/*-
++ * Copyright (c) 2017 Ian Lepore <ian@freebsd.org>
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
++ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
++ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
++ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
++ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
++ * SUCH DAMAGE.
++ */
++
++#include <sys/cdefs.h>
++__FBSDID("$FreeBSD$");
++
++/*
++ * Driver for NXP real-time clock/calendar chips:
++ *  - PCF8563 = low power, countdown timer
++ *  - PCA8565 = like PCF8563, automotive temperature range
++ *  - PCF8523 = low power, countdown timer, oscillator freq tuning, 2 timers
++ *  - PCF2127 = like PCF8523, industrial, tcxo, tamper/ts, i2c & spi, 512B ram
++ *  - PCA2129 = like PCF8523, automotive, tcxo, tamper/ts, i2c & spi, no timer
++ *  - PCF2129 = like PCF8523, industrial, tcxo, tamper/ts, i2c & spi, no timer
++ *
++ *  Most chips have a countdown timer, ostensibly intended to generate periodic
++ *  interrupt signals on an output pin.  The timer is driven from the same
++ *  divider chain that clocks the time of day registers, and they start counting
++ *  in sync when the STOP bit is cleared after the time and timer registers are
++ *  set.  The timer register can also be read on the fly, so we use it to count
++ *  fractional seconds and get a resolution of ~15ms.
++ */
++
++#include "opt_platform.h"
++
++#include <sys/param.h>
++#include <sys/systm.h>
++#include <sys/bus.h>
++#include <sys/clock.h>
++#include <sys/kernel.h>
++#include <sys/libkern.h>
++#include <sys/module.h>
++
++#include <dev/iicbus/iicbus.h>
++#include <dev/iicbus/iiconf.h>
++#ifdef FDT
++#include <dev/ofw/openfirm.h>
++#include <dev/ofw/ofw_bus.h>
++#include <dev/ofw/ofw_bus_subr.h>
++#endif
++
++#include "clock_if.h"
++#include "iicbus_if.h"
++
++/*
++ * I2C address 1010 001x : PCA2129 PCF2127 PCF2129 PCF8563 PCF8565
++ * I2C address 1101 000x : PCF8523
++ */
++#define	PCF8563_ADDR		0xa2
++#define	PCF8523_ADDR		0xd0
++
++/*
++ * Registers, bits within them, and masks that are common to all chip types.
++ */
++#define	PCF85xx_R_CS1		0x00	/* CS1 and CS2 control regs are in */
++#define	PCF85xx_R_CS2		0x01	/* the same location on all chips. */
++
++#define	PCF85xx_B_CS1_STOP	0x20	/* Stop time incrementing bit */
++#define	PCF85xx_B_SECOND_OS	0x80	/* Oscillator Stopped bit */
++
++#define	PCF85xx_M_SECOND	0x7f	/* Masks for all BCD time regs... */
++#define	PCF85xx_M_MINUTE	0x7f
++#define	PCF85xx_M_12HOUR	0x1f
++#define	PCF85xx_M_24HOUR	0x3f
++#define	PCF85xx_M_DAY		0x3f
++#define	PCF85xx_M_MONTH		0x1f
++#define	PCF85xx_M_YEAR		0xff
++
++/*
++ * PCF2127-specific registers, bits, and masks.
++ */
++#define	PCF2127_R_TMR_CTL	0x10	/* Timer/watchdog control */
++
++#define	PCF2127_M_TMR_CTRL	0xe3	/* Mask off undef bits */
++
++#define	PCF2127_B_TMR_CD	0x40	/* Run in countdown mode */
++#define	PCF2127_B_TMR_64HZ	0x01	/* Timer frequency 64Hz */
++
++/*
++ * PCA/PCF2129-specific registers, bits, and masks.
++ */
++#define	PCF2129_B_CS1_12HR	0x04	/* Use 12-hour (AM/PM) mode bit */
++#define	PCF2129_B_CLKOUT_OTPR	0x20	/* OTP refresh command */
++#define	PCF2129_B_CLKOUT_HIGHZ	0x07	/* Clock Out Freq = disable */
++
++/*
++ * PCF8523-specific registers, bits, and masks.
++ */
++#define	PCF8523_R_CS3		0x02	/* Control and status reg 3 */
++#define	PCF8523_R_SECOND	0x03	/* Seconds */
++#define	PCF8523_R_TMR_CLKOUT	0x0F	/* Timer and clockout control */
++#define	PCF8523_R_TMR_A_FREQ	0x10	/* Timer A frequency control */
++#define	PCF8523_R_TMR_A_COUNT	0x11	/* Timer A count */
++
++#define	PCF8523_M_TMR_A_FREQ	0x07	/* Mask off undef bits */
++
++#define	PCF8523_B_HOUR_PM	0x20	/* PM bit */
++#define	PCF8523_B_CS1_SOFTRESET	0x58	/* Initiate Soft Reset bits */
++#define	PCF8523_B_CS1_12HR	0x08	/* Use 12-hour (AM/PM) mode bit */
++#define	PCF8523_B_CLKOUT_TACD	0x02	/* TimerA runs in CountDown mode */
++#define	PCF8523_B_CLKOUT_HIGHZ	0x38	/* Clock Out Freq = disable */
++#define	PCF8523_B_TMR_A_64HZ	0x01	/* Timer A freq 64Hz */
++
++#define	PCF8523_M_CS3_PM	0xE0	/* Power mode mask */
++#define	PCF8523_B_CS3_PM_NOBAT	0xE0	/* PM bits: no battery usage */
++#define	PCF8523_B_CS3_PM_STD	0x00	/* PM bits: standard */
++#define	PCF8523_B_CS3_BLF	0x04	/* Battery Low Flag bit */
++
++/*
++ * PCF8563-specific registers, bits, and masks.
++ */
++#define	PCF8563_R_SECOND	0x02	/* Seconds */
++#define	PCF8563_R_TMR_CTRL	0x0e	/* Timer control */
++#define	PCF8563_R_TMR_COUNT	0x0f	/* Timer count */
++
++#define	PCF8563_M_TMR_CTRL	0x93	/* Mask off undef bits */
++
++#define	PCF8563_B_TMR_ENABLE	0x80	/* Enable countdown timer */
++#define	PCF8563_B_TMR_64HZ	0x01	/* Timer frequency 64Hz */
++
++#define	PCF8563_B_MONTH_C	0x80	/* Century bit */
++
++/*
++ * We use the countdown timer for fractional seconds.  We program it for 64 Hz,
++ * the fastest available rate that doesn't roll over in less than a second.
++ */
++#define	TMR_TICKS_SEC		64
++#define	TMR_TICKS_HALFSEC	32
++
++/*
++ * The chip types we support.
++ */
++enum {
++	TYPE_NONE,
++	TYPE_PCA2129,
++	TYPE_PCA8565,
++	TYPE_PCF2127,
++	TYPE_PCF2129,
++	TYPE_PCF8523,
++	TYPE_PCF8563,
++
++	TYPE_COUNT
++};
++static const char *desc_strings[] = {
++	"",
++	"NXP PCA2129 RTC",
++	"NXP PCA8565 RTC",
++	"NXP PCF2127 RTC",
++	"NXP PCF2129 RTC",
++	"NXP PCF8523 RTC",
++	"NXP PCF8563 RTC",
++};
++CTASSERT(nitems(desc_strings) == TYPE_COUNT);
++
++/*
++ * The time registers in the order they are laid out in hardware.
++ */
++struct time_regs {
++	uint8_t sec, min, hour, day, wday, month, year;
++};
++
++struct nxprtc_softc {
++	device_t	dev;
++	device_t	busdev;
++	struct intr_config_hook
++			config_hook;
++	u_int		flags;		/* SC_F_* flags */
++	u_int		chiptype;	/* Type of PCF85xx chip */
++	uint8_t		secaddr;	/* Address of seconds register */
++	uint8_t		tmcaddr;	/* Address of timer count register */
++	bool		use_timer;	/* Use timer for fractional sec */
++};
++
++#define	SC_F_CPOL	(1 << 0)	/* Century bit means 19xx */
++#define	SC_F_AMPM	(1 << 1)	/* Use PM flag in hours reg */
++
++/*
++ * We use the compat_data table to look up hint strings in the non-FDT case, so
++ * define the struct locally when we don't get it from ofw_bus_subr.h.
++ */
++#ifdef FDT
++typedef struct ofw_compat_data nxprtc_compat_data;
++#else
++typedef struct {
++	const char *ocd_str;
++	uintptr_t  ocd_data;
++} nxprtc_compat_data;
++#endif
++
++static nxprtc_compat_data compat_data[] = {
++	{"nxp,pca2129",     TYPE_PCA2129},
++	{"nxp,pca8565",     TYPE_PCA8565},
++	{"nxp,pcf2127",     TYPE_PCF2127},
++	{"nxp,pcf2129",     TYPE_PCF2129},
++	{"nxp,pcf8523",     TYPE_PCF8523},
++	{"nxp,pcf8563",     TYPE_PCF8563},
++
++	/* Undocumented compat strings known to exist in the wild... */
++	{"pcf8563",         TYPE_PCF8563},
++	{"phg,pcf8563",     TYPE_PCF8563},
++	{"philips,pcf8563", TYPE_PCF8563},
++
++	{NULL,              TYPE_NONE},
++};
++
++static int
++read_reg(struct nxprtc_softc *sc, uint8_t reg, uint8_t *val)
++{
++
++	return (iicdev_readfrom(sc->dev, reg, val, sizeof(*val), IIC_WAIT));
++}
++
++static int
++write_reg(struct nxprtc_softc *sc, uint8_t reg, uint8_t val)
++{
++
++	return (iicdev_writeto(sc->dev, reg, &val, sizeof(val), IIC_WAIT));
++}
++
++static int
++read_timeregs(struct nxprtc_softc *sc, struct time_regs *tregs, uint8_t *tmr)
++{
++	int err;
++	uint8_t sec, tmr1, tmr2;
++
++	/*
++	 * The datasheet says loop to read the same timer value twice because it
++	 * does not freeze while reading.  To that we add our own logic that
++	 * the seconds register must be the same before and after reading the
++	 * timer, ensuring the fractional part is from the same second as tregs.
++	 */
++	do {
++		if (sc->use_timer) {
++			if ((err = read_reg(sc, sc->secaddr, &sec)) != 0)
++				break;
++			if ((err = read_reg(sc, sc->tmcaddr, &tmr1)) != 0)
++				break;
++			if ((err = read_reg(sc, sc->tmcaddr, &tmr2)) != 0)
++				break;
++			if (tmr1 != tmr2)
++				continue;
++		}
++		if ((err = iicdev_readfrom(sc->dev, sc->secaddr, tregs,
++		    sizeof(*tregs), IIC_WAIT)) != 0)
++			break;
++	} while (sc->use_timer && tregs->sec != sec);
++
++	/*
++	 * If the timer value is greater than our hz rate (or is zero),
++	 * something is wrong.  Maybe some other OS used the timer differently?
++	 * Just set it to zero.  Likewise if we're not using the timer.  After
++	 * the offset calc below, the zero turns into 32, the mid-second point,
++	 * which in effect performs 4/5 rounding, which is just the right thing
++	 * to do if we don't have fine-grained time.
++	 */
++	if (!sc->use_timer || tmr1 > TMR_TICKS_SEC)
++		tmr1 = 0;
++
++	/*
++	 * Turn the downcounter into an upcounter.  The timer starts counting at
++	 * and rolls over at mid-second, so add half a second worth of ticks to
++	 * get its zero point back in sync with the tregs.sec rollover.
++	 */
++	*tmr = (TMR_TICKS_SEC - tmr1 + TMR_TICKS_HALFSEC) % TMR_TICKS_SEC;
++
++	return (err);
++}
++
++static int
++write_timeregs(struct nxprtc_softc *sc, struct time_regs *tregs)
++{
++
++	return (iicdev_writeto(sc->dev, sc->secaddr, tregs,
++	    sizeof(*tregs), IIC_WAIT));
++}
++
++static int
++pcf8523_start(struct nxprtc_softc *sc)
++{
++	int err;
++	uint8_t cs1, cs3, clkout;
++	bool is2129;
++
++	is2129 = (sc->chiptype == TYPE_PCA2129 || sc->chiptype == TYPE_PCF2129);
++
++	/* Read and sanity-check the control registers. */
++	if ((err = read_reg(sc, PCF85xx_R_CS1, &cs1)) != 0) {
++		device_printf(sc->dev, "cannot read RTC CS1 control\n");
++		return (err);
++	}
++	if ((err = read_reg(sc, PCF8523_R_CS3, &cs3)) != 0) {
++		device_printf(sc->dev, "cannot read RTC CS3 control\n");
++		return (err);
++	}
++
++	/*
++	 * Do a full init (soft-reset) if...
++	 *  - The chip is in battery-disable mode (fresh from the factory).
++	 *  - The clock-increment STOP flag is set (this is just insane).
++	 * After reset, battery disable mode has to be overridden to "standard"
++	 * mode.  Also, turn off clock output to save battery power.
++	 */
++	if ((cs3 & PCF8523_M_CS3_PM) == PCF8523_B_CS3_PM_NOBAT ||
++	    (cs1 & PCF85xx_B_CS1_STOP)) {
++		cs1 = PCF8523_B_CS1_SOFTRESET;
++		if ((err = write_reg(sc, PCF85xx_R_CS1, cs1)) != 0) {
++			device_printf(sc->dev, "cannot write CS1 control\n");
++			return (err);
++		}
++		cs3 = PCF8523_B_CS3_PM_STD;
++		if ((err = write_reg(sc, PCF8523_R_CS3, cs3)) != 0) {
++			device_printf(sc->dev, "cannot write CS3 control\n");
++			return (err);
++		}
++		/*
++		 * For 2129 series, trigger OTP refresh by forcing the OTPR bit
++		 * to zero then back to 1, then wait 100ms for the refresh, and
++		 * finally set the bit back to zero with the COF_HIGHZ write.
++		 */
++		if (is2129) {
++			clkout = PCF2129_B_CLKOUT_HIGHZ;
++			if ((err = write_reg(sc, PCF8523_R_TMR_CLKOUT,
++			    clkout)) != 0) {
++				device_printf(sc->dev,
++				    "cannot write CLKOUT control\n");
++				return (err);
++			}
++			if ((err = write_reg(sc, PCF8523_R_TMR_CLKOUT,
++			    clkout | PCF2129_B_CLKOUT_OTPR)) != 0) {
++				device_printf(sc->dev,
++				    "cannot write CLKOUT control\n");
++				return (err);
++			}
++			pause_sbt("nxpotp", mstosbt(100), mstosbt(10), 0);
++		} else
++			clkout = PCF8523_B_CLKOUT_HIGHZ;
++		if ((err = write_reg(sc, PCF8523_R_TMR_CLKOUT, clkout)) != 0) {
++			device_printf(sc->dev, "cannot write CLKOUT control\n");
++			return (err);
++		}
++		device_printf(sc->dev,
++		    "first time startup, enabled RTC battery operation\n");
++
++		/*
++		 * Sleep briefly so the battery monitor can make a measurement,
++		 * then re-read CS3 so battery-low status can be reported below.
++		 */
++		pause_sbt("nxpbat", mstosbt(100), 0, 0);
++		if ((err = read_reg(sc, PCF8523_R_CS3, &cs3)) != 0) {
++			device_printf(sc->dev, "cannot read RTC CS3 control\n");
++			return (err);
++		}
++	}
++
++	/* Let someone know if the battery is weak. */
++	if (cs3 & PCF8523_B_CS3_BLF)
++		device_printf(sc->dev, "WARNING: RTC battery is low\n");
++
++	/* Remember whether we're running in AM/PM mode. */
++	if (is2129) {
++		if (cs1 & PCF2129_B_CS1_12HR)
++			sc->flags |= SC_F_AMPM;
++	} else {
++		if (cs1 & PCF8523_B_CS1_12HR)
++			sc->flags |= SC_F_AMPM;
++	}
++
++	return (0);
++}
++
++static int
++pcf8523_start_timer(struct nxprtc_softc *sc)
++{
++	int err;
++	uint8_t clkout, stdclk, stdfreq, tmrfreq;
++
++	/*
++	 * Read the timer control and frequency regs.  If they don't have the
++	 * values we normally program into them then the timer count doesn't
++	 * contain a valid fractional second, so zero it to prevent using a bad
++	 * value.  Then program the normal timer values so that on the first
++	 * settime call we'll begin to use fractional time.
++	 */
++	if ((err = read_reg(sc, PCF8523_R_TMR_A_FREQ, &tmrfreq)) != 0)
++		return (err);
++	if ((err = read_reg(sc, PCF8523_R_TMR_CLKOUT, &clkout)) != 0)
++		return (err);
++
++	stdfreq = PCF8523_B_TMR_A_64HZ;
++	stdclk = PCF8523_B_CLKOUT_TACD | PCF8523_B_CLKOUT_HIGHZ;
++
++	if (clkout != stdclk || (tmrfreq & PCF8523_M_TMR_A_FREQ) != stdfreq) {
++		if ((err = write_reg(sc, sc->tmcaddr, 0)) != 0)
++			return (err);
++		if ((err = write_reg(sc, PCF8523_R_TMR_A_FREQ, stdfreq)) != 0)
++			return (err);
++		if ((err = write_reg(sc, PCF8523_R_TMR_CLKOUT, stdclk)) != 0)
++			return (err);
++	}
++	return (0);
++}
++
++static int
++pcf2127_start_timer(struct nxprtc_softc *sc)
++{
++	int err;
++	uint8_t stdctl, tmrctl;
++
++	/* See comment in pcf8523_start_timer().  */
++	if ((err = read_reg(sc, PCF2127_R_TMR_CTL, &tmrctl)) != 0)
++		return (err);
++
++	stdctl = PCF2127_B_TMR_CD | PCF8523_B_TMR_A_64HZ;
++
++	if ((tmrctl & PCF2127_M_TMR_CTRL) != stdctl) {
++		if ((err = write_reg(sc, sc->tmcaddr, 0)) != 0)
++			return (err);
++		if ((err = write_reg(sc, PCF2127_R_TMR_CTL, stdctl)) != 0)
++			return (err);
++	}
++	return (0);
++}
++
++static int
++pcf8563_start_timer(struct nxprtc_softc *sc)
++{
++	int err;
++	uint8_t stdctl, tmrctl;
++
++	/* See comment in pcf8523_start_timer().  */
++	if ((err = read_reg(sc, PCF8563_R_TMR_CTRL, &tmrctl)) != 0)
++		return (err);
++
++	stdctl = PCF8563_B_TMR_ENABLE | PCF8563_B_TMR_64HZ;
++
++	if ((tmrctl & PCF8563_M_TMR_CTRL) != stdctl) {
++		if ((err = write_reg(sc, sc->tmcaddr, 0)) != 0)
++			return (err);
++		if ((err = write_reg(sc, PCF8563_R_TMR_CTRL, stdctl)) != 0)
++			return (err);
++	}
++	return (0);
++}
++
++static void
++nxprtc_start(void *dev)
++{
++	struct nxprtc_softc *sc;
++	int clockflags, resolution;
++	uint8_t sec;
++
++	sc = device_get_softc((device_t)dev);
++	config_intrhook_disestablish(&sc->config_hook);
++
++	/* First do chip-specific inits. */
++	switch (sc->chiptype) {
++	case TYPE_PCA2129:
++	case TYPE_PCF2129:
++		if (pcf8523_start(sc) != 0)
++			return;
++		/* No timer to start */
++		break;
++	case TYPE_PCF2127:
++		if (pcf8523_start(sc) != 0)
++			return;
++		if (pcf2127_start_timer(sc) != 0) {
++			device_printf(sc->dev, "cannot set up timer\n");
++			return;
++		}
++		break;
++	case TYPE_PCF8523:
++		if (pcf8523_start(sc) != 0)
++			return;
++		if (pcf8523_start_timer(sc) != 0) {
++			device_printf(sc->dev, "cannot set up timer\n");
++			return;
++		}
++		break;
++	case TYPE_PCA8565:
++	case TYPE_PCF8563:
++		if (pcf8563_start_timer(sc) != 0) {
++			device_printf(sc->dev, "cannot set up timer\n");
++			return;
++		}
++		break;
++	default:
++		device_printf(sc->dev, "missing init code for this chiptype\n");
++		return;
++	}
++
++	/*
++	 * Common init.  Read the seconds register so we can check the
++	 * oscillator-stopped status bit in it.
++	 */
++	if (read_reg(sc, sc->secaddr, &sec) != 0) {
++		device_printf(sc->dev, "cannot read RTC seconds\n");
++		return;
++	}
++	if ((sec & PCF85xx_B_SECOND_OS) != 0) {
++		device_printf(sc->dev, 
++		    "WARNING: RTC battery failed; time is invalid\n");
++	}
++
++	/*
++	 * Everything looks good if we make it to here; register as an RTC.  If
++	 * we're using the timer to count fractional seconds, our resolution is
++	 * 1e6/64, about 15.6ms.  Without the timer we still align the RTC clock
++	 * when setting it so our error is an average .5s when reading it.
++	 * Schedule our clock_settime() method to be called at a .495ms offset
++	 * into the second, because the clock hardware resets the divider chain
++	 * to the mid-second point when you set the time and it takes about 5ms
++	 * of i2c bus activity to set the clock.
++	 */
++	resolution = sc->use_timer ? 1000000 / TMR_TICKS_SEC : 1000000 / 2;
++	clockflags = CLOCKF_GETTIME_NO_ADJ | CLOCKF_SETTIME_NO_TS;
++	clock_register_flags(sc->dev, resolution, clockflags);
++	clock_schedule(sc->dev, 495000000);
++}
++
++static int
++nxprtc_gettime(device_t dev, struct timespec *ts)
++{
++	struct clocktime ct;
++	struct time_regs tregs;
++	struct nxprtc_softc *sc;
++	int err;
++	uint8_t cs1, hourmask, tmrcount;
++
++	sc = device_get_softc(dev);
++
++	/*
++	 * Read the time, but before using it, validate that the oscillator-
++	 * stopped/power-fail bit is not set, and that the time-increment STOP
++	 * bit is not set in the control reg.  The latter can happen if there
++	 * was an error when setting the time.
++	 */
++	if ((err = read_timeregs(sc, &tregs, &tmrcount)) != 0) {
++		device_printf(dev, "cannot read RTC time\n");
++		return (err);
++	}
++	if ((err = read_reg(sc, PCF85xx_R_CS1, &cs1)) != 0) {
++		device_printf(dev, "cannot read RTC time\n");
++		return (err);
++	}
++	if ((tregs.sec & PCF85xx_B_SECOND_OS) || (cs1 & PCF85xx_B_CS1_STOP)) {
++		device_printf(dev, "RTC clock not running\n");
++		return (EINVAL); /* hardware is good, time is not. */
++	}
++
++	if (sc->flags & SC_F_AMPM)
++		hourmask = PCF85xx_M_12HOUR;
++	else
++		hourmask = PCF85xx_M_24HOUR;
++
++	ct.nsec = ((uint64_t)tmrcount * 1000000000) / TMR_TICKS_SEC;
++	ct.sec  = FROMBCD(tregs.sec   & PCF85xx_M_SECOND);
++	ct.min  = FROMBCD(tregs.min   & PCF85xx_M_MINUTE);
++	ct.hour = FROMBCD(tregs.hour  & hourmask);
++	ct.day  = FROMBCD(tregs.day   & PCF85xx_M_DAY);
++	ct.mon  = FROMBCD(tregs.month & PCF85xx_M_MONTH);
++	ct.year = FROMBCD(tregs.year  & PCF85xx_M_YEAR);
++	ct.year += 1900;
++	if (ct.year < POSIX_BASE_YEAR)
++		ct.year += 100;	/* assume [1970, 2069] */
++
++	/*
++	 * Old PCF8563 datasheets recommended that the C bit be 1 for 19xx and 0
++	 * for 20xx; newer datasheets don't recommend that.  We don't care,
++	 * but we may co-exist with other OSes sharing the hardware. Determine
++	 * existing polarity on a read so that we can preserve it on a write.
++	 */
++	if (sc->chiptype == TYPE_PCF8563) {
++		if (tregs.month & PCF8563_B_MONTH_C) {
++			if (ct.year >= 2000)
++				sc->flags |= SC_F_CPOL;
++		} else if (ct.year < 2000)
++				sc->flags |= SC_F_CPOL;
++	}
++
++	/* If this chip is running in 12-hour/AMPM mode, deal with it. */
++	if (sc->flags & SC_F_AMPM) {
++		if (ct.hour == 12)
++			ct.hour = 0;
++		if (tregs.hour & PCF8523_B_HOUR_PM)
++			ct.hour += 12;
++	}
++
++	err = clock_ct_to_ts(&ct, ts);
++	ts->tv_sec += utc_offset();
++
++	return (err);
++}
++
++static int
++nxprtc_settime(device_t dev, struct timespec *ts)
++{
++	struct clocktime ct;
++	struct time_regs tregs;
++	struct nxprtc_softc *sc;
++	int err;
++	uint8_t cflag, cs1, pmflag;
++
++	sc = device_get_softc(dev);
++
++	/*
++	 * We stop the clock, set the time, then restart the clock.  Half a
++	 * second after restarting the clock it ticks over to the next second.
++	 * So to align the RTC, we schedule this function to be called when
++	 * system time is roughly halfway (.495) through the current second.
++	 *
++	 * Reserve use of the i2c bus and stop the RTC clock.  Note that if
++	 * anything goes wrong from this point on, we leave the clock stopped,
++	 * because we don't really know what state it's in.
++	 */
++	if ((err = iicbus_request_bus(sc->busdev, sc->dev, IIC_WAIT)) != 0)
++		return (err);
++	if ((err = read_reg(sc, PCF85xx_R_CS1, &cs1)) != 0)
++		goto errout;
++	cs1 |= PCF85xx_B_CS1_STOP;
++	if ((err = write_reg(sc, PCF85xx_R_CS1, cs1)) != 0)
++		goto errout;
++
++	/* Grab a fresh post-sleep idea of what time it is. */
++	getnanotime(ts);
++	ts->tv_sec -= utc_offset();
++	ts->tv_nsec = 0;
++	clock_ts_to_ct(ts, &ct);
++
++	/* If the chip is in AMPM mode deal with the PM flag. */
++	pmflag = 0;
++	if (sc->flags & SC_F_AMPM) {
++		if (ct.hour >= 12) {
++			ct.hour -= 12;
++			pmflag = PCF8523_B_HOUR_PM;
++		}
++		if (ct.hour == 0)
++			ct.hour = 12;
++	}
++
++	/* On 8563 set the century based on the polarity seen when reading. */
++	cflag = 0;
++	if (sc->chiptype == TYPE_PCF8563) {
++		if ((sc->flags & SC_F_CPOL) != 0) {
++			if (ct.year >= 2000)
++				cflag = PCF8563_B_MONTH_C;
++		} else if (ct.year < 2000)
++				cflag = PCF8563_B_MONTH_C;
++	}
++
++	tregs.sec   = TOBCD(ct.sec);
++	tregs.min   = TOBCD(ct.min);
++	tregs.hour  = TOBCD(ct.hour) | pmflag;
++	tregs.day   = TOBCD(ct.day);
++	tregs.month = TOBCD(ct.mon);
++	tregs.year  = TOBCD(ct.year % 100) | cflag;
++	tregs.wday  = ct.dow;
++
++	/*
++	 * Set the time, reset the timer count register, then start the clocks.
++	 */
++	if ((err = write_timeregs(sc, &tregs)) != 0)
++		goto errout;
++
++	if ((err = write_reg(sc, sc->tmcaddr, TMR_TICKS_SEC)) != 0)
++		return (err);
++
++	cs1 &= ~PCF85xx_B_CS1_STOP;
++	err = write_reg(sc, PCF85xx_R_CS1, cs1);
++
++errout:
++
++	iicbus_release_bus(sc->busdev, sc->dev);
++
++	if (err != 0)
++		device_printf(dev, "cannot write RTC time\n");
++
++	return (err);
++}
++
++static int
++nxprtc_get_chiptype(device_t dev)
++{
++#ifdef FDT
++
++	return (ofw_bus_search_compatible(dev, compat_data)->ocd_data);
++#else
++	nxprtc_compat_data *cdata;
++	const char *htype;
++	int chiptype;
++
++	/*
++	 * If given a chiptype hint string, loop through the ofw compat data
++	 * comparing the hinted chip type to the compat strings.  The table end
++	 * marker ocd_data is TYPE_NONE.
++	 */
++	if (resource_string_value(device_get_name(dev), 
++	    device_get_unit(dev), "compatible", &htype) == 0) {
++		for (cdata = compat_data; cdata->ocd_str != NULL; ++cdata) {
++			if (strcmp(htype, cdata->ocd_str) == 0)
++				break;
++		}
++		chiptype = cdata->ocd_data;
++	} else
++		chiptype = TYPE_NONE;
++
++	/*
++	 * On non-FDT systems the historical behavior of this driver was to
++	 * assume a PCF8563; keep doing that for compatibility.
++	 */
++	if (chiptype == TYPE_NONE)
++		return (TYPE_PCF8563);
++	else
++		return (chiptype);
++#endif
++}
++
++static int
++nxprtc_probe(device_t dev)
++{
++	int chiptype, rv;
++
++#ifdef FDT
++	if (!ofw_bus_status_okay(dev))
++		return (ENXIO);
++	rv = BUS_PROBE_GENERIC;
++#else
++	rv = BUS_PROBE_NOWILDCARD;
++#endif
++	if ((chiptype = nxprtc_get_chiptype(dev)) == TYPE_NONE)
++		return (ENXIO);
++
++	device_set_desc(dev, desc_strings[chiptype]);
++	return (rv);
++}
++
++static int
++nxprtc_attach(device_t dev)
++{
++	struct nxprtc_softc *sc;
++
++	sc = device_get_softc(dev);
++	sc->dev = dev;
++	sc->busdev = device_get_parent(dev);
++
++	/* We need to know what kind of chip we're driving. */
++	sc->chiptype = nxprtc_get_chiptype(dev);
++
++	/* The features and some register addresses vary by chip type. */
++	switch (sc->chiptype) {
++	case TYPE_PCA2129:
++	case TYPE_PCF2129:
++		sc->secaddr = PCF8523_R_SECOND;
++		sc->tmcaddr = 0;
++		sc->use_timer = false;
++		break;
++	case TYPE_PCF2127:
++	case TYPE_PCF8523:
++		sc->secaddr = PCF8523_R_SECOND;
++		sc->tmcaddr = PCF8523_R_TMR_A_COUNT;
++		sc->use_timer = true;
++		break;
++	case TYPE_PCA8565:
++	case TYPE_PCF8563:
++		sc->secaddr = PCF8563_R_SECOND;
++		sc->tmcaddr = PCF8563_R_TMR_COUNT;
++		sc->use_timer = true;
++		break;
++	default:
++		device_printf(dev, "impossible: cannot determine chip type\n");
++		return (ENXIO);
++	}
++
++	/*
++	 * We have to wait until interrupts are enabled.  Sometimes I2C read
++	 * and write only works when the interrupts are available.
++	 */
++	sc->config_hook.ich_func = nxprtc_start;
++	sc->config_hook.ich_arg = dev;
++	if (config_intrhook_establish(&sc->config_hook) != 0)
++		return (ENOMEM);
++
++	return (0);
++}
++
++static int
++nxprtc_detach(device_t dev)
++{
++
++	clock_unregister(dev);
++	return (0);
++}
++
++static device_method_t nxprtc_methods[] = {
++	DEVMETHOD(device_probe,		nxprtc_probe),
++	DEVMETHOD(device_attach,	nxprtc_attach),
++	DEVMETHOD(device_detach,	nxprtc_detach),
++
++	DEVMETHOD(clock_gettime,	nxprtc_gettime),
++	DEVMETHOD(clock_settime,	nxprtc_settime),
++
++	DEVMETHOD_END
++};
++
++static driver_t nxprtc_driver = {
++	"nxprtc",
++	nxprtc_methods,
++	sizeof(struct nxprtc_softc),
++};
++
++static devclass_t nxprtc_devclass;
++
++DRIVER_MODULE(nxprtc, iicbus, nxprtc_driver, nxprtc_devclass, NULL, NULL);
++MODULE_VERSION(nxprtc, 1);
++MODULE_DEPEND(nxprtc, iicbus, IICBB_MINVER, IICBB_PREFVER, IICBB_MAXVER);
+diff --git a/sys/dev/iicbus/pcf8563.c b/sys/dev/iicbus/pcf8563.c
+deleted file mode 100644
+index 556943a34fe..00000000000
+--- a/sys/dev/iicbus/pcf8563.c
++++ /dev/null
+@@ -1,247 +0,0 @@
+-/*-
+- * Copyright (c) 2012 Marius Strobl <marius@FreeBSD.org>
+- * Copyright (c) 2015 Juraj Lutter
+- * All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions
+- * are met:
+- * 1. Redistributions of source code must retain the above copyright
+- *    notice, this list of conditions and the following disclaimer.
+- * 2. Redistributions in binary form must reproduce the above copyright
+- *    notice, this list of conditions and the following disclaimer in the
+- *    documentation and/or other materials provided with the distribution.
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+- * SUCH DAMAGE.
+- */
+-
+-#include <sys/cdefs.h>
+-__FBSDID("$FreeBSD$");
+-
+-/*
+- * Driver for NXP PCF8563 real-time clock/calendar
+- */
+-
+-#include "opt_platform.h"
+-
+-#include <sys/param.h>
+-#include <sys/systm.h>
+-#include <sys/bus.h>
+-#include <sys/clock.h>
+-#include <sys/kernel.h>
+-#include <sys/module.h>
+-
+-#include <dev/iicbus/iicbus.h>
+-#include <dev/iicbus/iiconf.h>
+-#include <dev/iicbus/pcf8563reg.h>
+-#ifdef FDT
+-#include <dev/ofw/openfirm.h>
+-#include <dev/ofw/ofw_bus.h>
+-#include <dev/ofw/ofw_bus_subr.h>
+-#endif
+-
+-#include "clock_if.h"
+-#include "iicbus_if.h"
+-
+-#define	PCF8563_NCLOCKREGS	(PCF8563_R_YEAR - PCF8563_R_CS1 + 1)
+-
+-struct pcf8563_softc {
+-	struct intr_config_hook	enum_hook;
+-	uint32_t	sc_flags;
+-#define	PCF8563_CPOL	(1 << 0)	/* PCF8563_R_MONTH_C means 19xx */
+-	uint16_t	sc_addr;	/* PCF8563 slave address */
+-	uint16_t	sc_year0;	/* TOD clock year 0 */
+-};
+-
+-static device_attach_t pcf8563_attach;
+-static device_probe_t pcf8563_probe;
+-static clock_gettime_t pcf8563_gettime;
+-static clock_settime_t pcf8563_settime;
+-static void pcf8563_start(void *);
+-
+-static int
+-pcf8563_probe(device_t dev)
+-{
+-
+-#ifdef FDT
+-	if (!ofw_bus_status_okay(dev))
+-		return (ENXIO);
+-	if (!ofw_bus_is_compatible(dev, "nxp,pcf8563") &&
+-	    !ofw_bus_is_compatible(dev, "philips,pcf8563") &&
+-	    !ofw_bus_is_compatible(dev, "pcf8563"))
+-		return (ENXIO);
+-#endif
+-	device_set_desc(dev, "NXP PCF8563 RTC");
+-
+-	return (BUS_PROBE_DEFAULT);
+-}
+-
+-static int
+-pcf8563_attach(device_t dev)
+-{
+-	struct pcf8563_softc *sc;
+-
+-	sc = device_get_softc(dev);
+-	sc->sc_addr = iicbus_get_addr(dev);
+-	if (sc->sc_addr == 0)
+-		sc->sc_addr = PCF8563_ADDR;
+-	sc->sc_year0 = 1900;
+-	sc->enum_hook.ich_func = pcf8563_start;
+-	sc->enum_hook.ich_arg = dev;
+-
+-	/*
+-	 * We have to wait until interrupts are enabled.  Sometimes I2C read
+-	 * and write only works when the interrupts are available.
+-	 */
+-	if (config_intrhook_establish(&sc->enum_hook) != 0)
+-		return (ENOMEM);
+-
+-	return (0);
+-}
+-
+-static void
+-pcf8563_start(void *xdev)
+-{
+-	device_t dev;
+-	uint8_t reg = PCF8563_R_SECOND, val;
+-	struct iic_msg msgs[] = {
+-		{ 0, IIC_M_WR, sizeof(reg), &reg },
+-		{ 0, IIC_M_RD, sizeof(val), &val }
+-	};
+-	struct pcf8563_softc *sc;
+-
+-	dev = (device_t)xdev;
+-	sc = device_get_softc(dev);
+-	config_intrhook_disestablish(&sc->enum_hook);
+-
+-	/*
+-	 * NB: PCF8563_R_SECOND_VL doesn't automatically clear when VDD
+-	 * rises above Vlow again and needs to be cleared manually.
+-	 * However, apparently this needs all of the time registers to be
+-	 * set, i.e. pcf8563_settime(), and not just PCF8563_R_SECOND in
+-	 * order for PCF8563_R_SECOND_VL to stick.  Thus, we just issue a
+-	 * warning here rather than failing with ENXIO in case it is set.
+-	 * Note that pcf8563_settime() will also clear PCF8563_R_SECOND_VL
+-	 * as a side-effect.
+-	 */
+-	msgs[0].slave = msgs[1].slave = sc->sc_addr;
+-	if (iicbus_transfer(dev, msgs, nitems(msgs)) != 0) {
+-		device_printf(dev, "%s: cannot read RTC\n", __func__);
+-		return;
+-	}
+-	if ((val & PCF8563_R_SECOND_VL) != 0)
+-		device_printf(dev, "%s: battery low\n", __func__);
+-
+-	clock_register(dev, 1000000);   /* 1 second resolution */
+-}
+-
+-static int
+-pcf8563_gettime(device_t dev, struct timespec *ts)
+-{
+-	struct clocktime ct;
+-	uint8_t reg = PCF8563_R_SECOND, val[PCF8563_NCLOCKREGS];
+-	struct iic_msg msgs[] = {
+-		{ 0, IIC_M_WR, sizeof(reg), &reg },
+-		{ 0, IIC_M_RD, PCF8563_NCLOCKREGS, &val[PCF8563_R_SECOND] }
+-	};
+-	struct pcf8563_softc *sc;
+-	int error;
+-
+-	sc = device_get_softc(dev);
+-	msgs[0].slave = msgs[1].slave = sc->sc_addr;
+-	error = iicbus_transfer(dev, msgs, nitems(msgs));
+-	if (error != 0) {
+-		device_printf(dev, "%s: cannot read RTC\n", __func__);
+-		return (error);
+-	}
+-
+-	ct.nsec = 0;
+-	ct.sec = FROMBCD(val[PCF8563_R_SECOND] & PCF8563_M_SECOND);
+-	ct.min = FROMBCD(val[PCF8563_R_MINUTE] & PCF8563_M_MINUTE);
+-	ct.hour = FROMBCD(val[PCF8563_R_HOUR] & PCF8563_M_HOUR);
+-	ct.day = FROMBCD(val[PCF8563_R_DAY] & PCF8563_M_DAY);
+-	ct.dow = val[PCF8563_R_WEEKDAY] & PCF8563_M_WEEKDAY;
+-	ct.mon = FROMBCD(val[PCF8563_R_MONTH] & PCF8563_M_MONTH);
+-	ct.year = FROMBCD(val[PCF8563_R_YEAR] & PCF8563_M_YEAR);
+-	ct.year += sc->sc_year0;
+-	if (ct.year < POSIX_BASE_YEAR)
+-		ct.year += 100;	/* assume [1970, 2069] */
+-	if ((val[PCF8563_R_MONTH] & PCF8563_R_MONTH_C) != 0) {
+-		if (ct.year >= 100 + sc->sc_year0)
+-			sc->sc_flags |= PCF8563_CPOL;
+-	} else if (ct.year < 100 + sc->sc_year0)
+-			sc->sc_flags |= PCF8563_CPOL;
+-
+-	return (clock_ct_to_ts(&ct, ts));
+-}
+-
+-static int
+-pcf8563_settime(device_t dev, struct timespec *ts)
+-{
+-	struct clocktime ct;
+-	uint8_t val[PCF8563_NCLOCKREGS];
+-	struct iic_msg msgs[] = {
+-		{ 0, IIC_M_WR, PCF8563_NCLOCKREGS - 1, &val[PCF8563_R_CS2] }
+-	};
+-	struct pcf8563_softc *sc;
+-	int error;
+-
+-	sc = device_get_softc(dev);
+-	val[PCF8563_R_CS2] = PCF8563_R_SECOND;	/* abuse */
+-	/* Accuracy is only one second. */
+-	if (ts->tv_nsec >= 500000000)
+-		ts->tv_sec++;
+-	ts->tv_nsec = 0;
+-	clock_ts_to_ct(ts, &ct);
+-	val[PCF8563_R_SECOND] = TOBCD(ct.sec);
+-	val[PCF8563_R_MINUTE] = TOBCD(ct.min);
+-	val[PCF8563_R_HOUR] = TOBCD(ct.hour);
+-	val[PCF8563_R_DAY] = TOBCD(ct.day);
+-	val[PCF8563_R_WEEKDAY] = ct.dow;
+-	val[PCF8563_R_MONTH] = TOBCD(ct.mon);
+-	val[PCF8563_R_YEAR] = TOBCD(ct.year % 100);
+-	if ((sc->sc_flags & PCF8563_CPOL) != 0) {
+-		if (ct.year >= 100 + sc->sc_year0)
+-			val[PCF8563_R_MONTH] |= PCF8563_R_MONTH_C;
+-	} else if (ct.year < 100 + sc->sc_year0)
+-			val[PCF8563_R_MONTH] |= PCF8563_R_MONTH_C;
+-
+-	msgs[0].slave = sc->sc_addr;
+-	error = iicbus_transfer(dev, msgs, nitems(msgs));
+-	if (error != 0)
+-		device_printf(dev, "%s: cannot write RTC\n", __func__);
+-
+-	return (error);
+-}
+-
+-static device_method_t pcf8563_methods[] = {
+-	DEVMETHOD(device_probe,		pcf8563_probe),
+-	DEVMETHOD(device_attach,	pcf8563_attach),
+-
+-	DEVMETHOD(clock_gettime,	pcf8563_gettime),
+-	DEVMETHOD(clock_settime,	pcf8563_settime),
+-
+-	DEVMETHOD_END
+-};
+-
+-static driver_t pcf8563_driver = {
+-	"pcf8563_rtc",
+-	pcf8563_methods,
+-	sizeof(struct pcf8563_softc),
+-};
+-
+-static devclass_t pcf8563_devclass;
+-
+-DRIVER_MODULE(pcf8563, iicbus, pcf8563_driver, pcf8563_devclass, NULL, NULL);
+-MODULE_VERSION(pcf8563, 1);
+-MODULE_DEPEND(pcf8563, iicbus, 1, 1, 1);
+diff --git a/sys/dev/iicbus/pcf8563reg.h b/sys/dev/iicbus/pcf8563reg.h
+deleted file mode 100644
+index 87af5519722..00000000000
+--- a/sys/dev/iicbus/pcf8563reg.h
++++ /dev/null
+@@ -1,58 +0,0 @@
+-/*	$NetBSD: pcf8563reg.h,v 1.1 2011/01/21 19:11:47 jakllsch Exp $	*/
+-
+-/*-
+- * Jonathan Kollasch, 2011
+- *
+- * This file is in the public domain.
+- *
+- * $FreeBSD$
+- */
+-
+-/*
+- * NXP (Philips) PCF8563 RTC registers
+- */
+-
+-/* We only have clock mode registers here. */
+-
+-#ifndef _PCF8563REG_H_
+-#define _PCF8563REG_H_
+-
+-/*
+- * PCF8563 RTC I2C address:
+- *
+- *	101 0001
+- */
+-#define PCF8563_ADDR		0xa2
+-
+-#define PCF8563_R_CS1		0x00
+-#define PCF8563_R_CS2		0x01
+-#define PCF8563_R_SECOND	0x02
+-#define PCF8563_R_MINUTE	0x03
+-#define PCF8563_R_HOUR		0x04
+-#define PCF8563_R_DAY		0x05
+-#define PCF8563_R_WEEKDAY	0x06
+-#define PCF8563_R_MONTH		0x07
+-#define PCF8563_R_YEAR		0x08
+-#define PCF8563_R_MINUTE_ALARM	0x09
+-#define PCF8563_R_HOUR_ALARM	0x0a
+-#define PCF8563_R_DAY_ALARM	0x0b
+-#define PCF8563_R_WEEKDAY_ALARM	0x0c
+-#define PCF8563_R_CLKOUT_CNTRL	0x0d
+-#define PCF8563_R_TIMER_CNTRL	0x0e
+-#define PCF8563_R_TIMER		0x0f
+-
+-#define PCF8563_R_SECOND_VL	0x80
+-#define	PCF8563_R_MONTH_C	0x80
+-
+-#define PCF8563_NREGS		0x10
+-
+-#define PCF8563_M_SECOND	0x7f
+-#define PCF8563_M_MINUTE	0x7f
+-#define PCF8563_M_HOUR		0x3f
+-#define PCF8563_M_DAY		0x3f
+-#define PCF8563_M_WEEKDAY	0x07
+-#define PCF8563_M_MONTH		0x1f
+-#define PCF8563_M_CENTURY	0x80
+-#define PCF8563_M_YEAR		0xff
+-
+-#endif	/* _PCF8563REG_H_ */
+diff --git a/sys/dev/iicbus/s35390a.c b/sys/dev/iicbus/s35390a.c
+index 59369b3f238..042f088c410 100644
+--- a/sys/dev/iicbus/s35390a.c
++++ b/sys/dev/iicbus/s35390a.c
+@@ -59,6 +59,8 @@ __FBSDID("$FreeBSD$");
+  * Driver for Seiko Instruments S-35390A Real-time Clock
+  */
+ 
++#include "opt_platform.h"
++
+ #include <sys/param.h>
+ #include <sys/systm.h>
+ #include <sys/bus.h>
+@@ -69,6 +71,12 @@ __FBSDID("$FreeBSD$");
+ #include <dev/iicbus/iicbus.h>
+ #include <dev/iicbus/iiconf.h>
+ 
++#ifdef FDT
++#include <dev/ofw/openfirm.h>
++#include <dev/ofw/ofw_bus.h>
++#include <dev/ofw/ofw_bus_subr.h>
++#endif
++
+ #include "clock_if.h"
+ #include "iicbus_if.h"
+ 
+@@ -159,7 +167,7 @@ s390rtc_read(device_t dev, uint8_t reg, uint8_t *buf, size_t len)
+ 	int i;
+ 	int error;
+ 
+-	error = iicbus_transfer(dev, msg, 1);
++	error = iicbus_transfer_excl(dev, msg, 1, IIC_WAIT);
+ 	if (error)
+ 		return (error);
+ 
+@@ -188,13 +196,20 @@ s390rtc_write(device_t dev, uint8_t reg, uint8_t *buf, size_t len)
+ 	for (i = 0; i < len; ++i)
+ 		buf[i] = bitreverse(buf[i]);
+ 
+-	return (iicbus_transfer(dev, msg, 1));
++	return (iicbus_transfer_excl(dev, msg, 1, IIC_WAIT));
+ }
+ 
+ static int
+ s390rtc_probe(device_t dev)
+ {
+ 
++#ifdef FDT
++	if (!ofw_bus_status_okay(dev))
++		return (ENXIO);
++
++	if (!ofw_bus_is_compatible(dev, "sii,s35390a"))
++		return (ENXIO);
++#else
+ 	if (iicbus_get_addr(dev) != S390_ADDR) {
+ 		if (bootverbose)
+ 			device_printf(dev, "slave address mismatch. "
+@@ -202,35 +217,35 @@ s390rtc_probe(device_t dev)
+ 			    S390_ADDR);
+ 		return (ENXIO);
+ 	}
+-	device_set_desc(dev, "Seiko Instruments S-35390A Real-time Clock");
++#endif
++	device_set_desc(dev, "Seiko Instruments S-35390A RTC");
+ 
+-	return (BUS_PROBE_SPECIFIC);
++	return (BUS_PROBE_DEFAULT);
+ }
+ 
+-static int
+-s390rtc_attach(device_t dev)
++static void
++s390rtc_start(void *arg)
+ {
+-	struct s390rtc_softc *sc;
++	device_t dev;
+ 	uint8_t reg;
+ 	int error;
+ 
+-	sc = device_get_softc(dev);
+-	sc->sc_dev = dev;
+-	sc->sc_addr = iicbus_get_addr(dev);
++	dev = arg;
+ 
+ 	/* Reset the chip and turn on 24h mode, after power-off or battery. */
+ 	error = s390rtc_read(dev, S390_STATUS1, &reg, 1);
+ 	if (error) {
+ 		device_printf(dev, "%s: cannot read status1 register\n",
+ 		     __func__);
+-		return (error);
++		return;
+ 	}
+ 	if (reg & (S390_ST1_POC | S390_ST1_BLD)) {
+ 		reg |= S390_ST1_24H | S390_ST1_RESET;
+ 		error = s390rtc_write(dev, S390_STATUS1, &reg, 1);
+ 		if (error) {
+-			device_printf(dev, "%s: cannot initialize\n", __func__);
+-			return (error);
++			device_printf(dev,
++			    "%s: cannot initialize\n", __func__);
++			return;
+ 		}
+ 	}
+ 
+@@ -239,7 +254,7 @@ s390rtc_attach(device_t dev)
+ 	if (error) {
+ 		device_printf(dev, "%s: cannot read status2 register\n",
+ 		    __func__);
+-		return (error);
++		return;
+ 	}
+ 	if (reg & S390_ST2_TEST) {
+ 		reg &= ~S390_ST2_TEST;
+@@ -247,11 +262,32 @@ s390rtc_attach(device_t dev)
+ 		if (error) {
+ 			device_printf(dev,
+ 			    "%s: cannot disable the test mode\n", __func__);
+-			return (error);
++			return;
+ 		}
+ 	}
+ 
+ 	clock_register(dev, 1000000);   /* 1 second resolution */
++}
++
++static int
++s390rtc_attach(device_t dev)
++{
++	struct s390rtc_softc *sc;
++
++	sc = device_get_softc(dev);
++	sc->sc_dev = dev;
++	sc->sc_addr = iicbus_get_addr(dev);
++
++	config_intrhook_oneshot(s390rtc_start, dev);
++
++	return (0);
++}
++
++static int
++s390rtc_detach(device_t dev)
++{
++
++	clock_unregister(dev);
+ 	return (0);
+ }
+ 
+@@ -310,6 +346,7 @@ s390rtc_settime(device_t dev, struct timespec *ts)
+ static device_method_t s390rtc_methods[] = {
+ 	DEVMETHOD(device_probe,		s390rtc_probe),
+ 	DEVMETHOD(device_attach,	s390rtc_attach),
++	DEVMETHOD(device_detach,	s390rtc_detach),
+ 
+ 	DEVMETHOD(clock_gettime,	s390rtc_gettime),
+ 	DEVMETHOD(clock_settime,	s390rtc_settime),
+diff --git a/sys/mips/conf/XLP.hints b/sys/mips/conf/XLP.hints
+index f78eb27efee..8597c928063 100644
+--- a/sys/mips/conf/XLP.hints
++++ b/sys/mips/conf/XLP.hints
+@@ -1,5 +1,6 @@
+ # $FreeBSD$
+ 
+ # RTC
+-hint.ds1374_rtc.0.at="iicbus1"
+-hint.ds1374_rtc.0.addr=0xd0
++hint.ds13rtc.0.at="iicbus1"
++hint.ds13rtc.0.addr=0xd0
++hint.ds13rtc.0.compatible="dallas,ds1374"
+diff --git a/sys/mips/conf/XLR b/sys/mips/conf/XLR
+index 0133fada234..3223b6d24a9 100644
+--- a/sys/mips/conf/XLR
++++ b/sys/mips/conf/XLR
+@@ -135,7 +135,7 @@ device		ic
+ device		iic
+ device		iicbb
+ device		iicbus
+-device		ds1374	# RTC on XLR boards
++device		ds13rtc	# RTC on XLR boards
+ device		max6657	# Temparature sensor on XLR boards
+ device		at24co2n	# EEPROM on XLR boards
+ 
+diff --git a/sys/mips/conf/XLR64 b/sys/mips/conf/XLR64
+index c8b1dfbb433..85cff7e6f71 100644
+--- a/sys/mips/conf/XLR64
++++ b/sys/mips/conf/XLR64
+@@ -109,7 +109,7 @@ device		ic
+ device		iic
+ device		iicbb
+ device		iicbus
+-device		ds1374		# RTC on XLR boards
++device		ds13rtc		# RTC on XLR boards
+ device		max6657		# Temparature sensor on XLR boards
+ device		at24co2n	# EEPROM on XLR boards
+ 
+diff --git a/sys/mips/conf/XLRN32 b/sys/mips/conf/XLRN32
+index e2f44687d41..55d4c6a9bf1 100644
+--- a/sys/mips/conf/XLRN32
++++ b/sys/mips/conf/XLRN32
+@@ -113,7 +113,7 @@ device		ic
+ device		iic
+ device		iicbb
+ device		iicbus
+-device		ds1374		# RTC on XLR boards
++device		ds13rtc		# RTC on XLR boards
+ device		max6657		# Temparature sensor on XLR boards
+ device		at24co2n	# EEPROM on XLR boards
+ 
+diff --git a/sys/mips/conf/std.XLP b/sys/mips/conf/std.XLP
+index 3d249bcd769..888ad8934b2 100644
+--- a/sys/mips/conf/std.XLP
++++ b/sys/mips/conf/std.XLP
+@@ -94,7 +94,7 @@ device		umass			# Requires scbus and da
+ device		iic
+ device		iicbus
+ device		iicoc
+-device		ds1374			# RTC on XLP boards
++device		ds13rtc			# RTC on XLP boards
+ 
+ # Crypto
+ device		crypto
+diff --git a/sys/mips/rmi/xlr_i2c.c b/sys/mips/rmi/xlr_i2c.c
+index 2605887d604..337d606e3a4 100644
+--- a/sys/mips/rmi/xlr_i2c.c
++++ b/sys/mips/rmi/xlr_i2c.c
+@@ -187,7 +187,7 @@ xlr_i2c_attach(device_t dev)
+ 		return -1;
+ 	}
+ 	if(xlr_board_info.xlr_i2c_device[I2C_RTC].enabled == 1) {
+-		tmpd = device_add_child(sc->iicbus, "ds1374_rtc", 0);
++		tmpd = device_add_child(sc->iicbus, "ds13rtc", 0);
+ 		device_set_ivars(tmpd, &xlr_board_info.xlr_i2c_device[I2C_RTC]);
+ 	}
+ 	if(xlr_board_info.xlr_i2c_device[I2C_THERMAL].enabled == 1) {
+@@ -199,6 +199,16 @@ xlr_i2c_attach(device_t dev)
+ 		device_set_ivars(tmpd, &xlr_board_info.xlr_i2c_device[I2C_EEPROM]);
+ 	}
+ 
++	/*
++	 * The old ds1374 rtc driver only handled one chip type.  The new
++	 * ds13rtc driver handles all ds13xx chips, but must be told the chip
++	 * type via hints.  XLR historically hasn't had a standard hints file,
++	 * so set up the hint now if it isn't already there.
++	 */
++#define HINTNAME "hint.ds13rtc.0.compatible"
++	if (!testenv(HINTNAME))
++		kern_setenv(HINTNAME, "dallas,ds1374");
++
+ 	bus_generic_attach(dev);
+ 
+ 	return (0);
+diff --git a/sys/modules/i2c/Makefile b/sys/modules/i2c/Makefile
+index 8e9bdf982cb..34124c6e625 100644
+--- a/sys/modules/i2c/Makefile
++++ b/sys/modules/i2c/Makefile
+@@ -1,6 +1,22 @@
+ # $FreeBSD$
+ 
+-SUBDIR =
+-SUBDIR += controllers if_ic smbus iicbus iicbb iicsmb iic cyapa smb isl jedec_ts
++SUBDIR = \
++	controllers \
++	cyapa \
++	ds1307 \
++	ds13rtc \
++	ds3231 \
++	if_ic \
++	iic \
++	iicbb \
++	iicbus \
++	iicsmb \
++	isl \
++	isl12xx \
++	jedec_ts \
++	nxprtc \
++	s35390a \
++	smb \
++	smbus \
+ 
+ .include <bsd.subdir.mk>
+diff --git a/sys/modules/i2c/ds1307/Makefile b/sys/modules/i2c/ds1307/Makefile
+new file mode 100644
+index 00000000000..32b80394f45
+--- /dev/null
++++ b/sys/modules/i2c/ds1307/Makefile
+@@ -0,0 +1,7 @@
++# $FreeBSD$
++
++.PATH:		${SRCTOP}/sys/dev/iicbus
++KMOD		= ds1307
++SRCS		= ds1307.c bus_if.h clock_if.h device_if.h iicbus_if.h ofw_bus_if.h
++
++.include <bsd.kmod.mk>
+diff --git a/sys/modules/i2c/ds13rtc/Makefile b/sys/modules/i2c/ds13rtc/Makefile
+new file mode 100644
+index 00000000000..e50bc2f7207
+--- /dev/null
++++ b/sys/modules/i2c/ds13rtc/Makefile
+@@ -0,0 +1,7 @@
++# $FreeBSD$
++
++.PATH:		${SRCTOP}/sys/dev/iicbus
++KMOD		= ds13rtc
++SRCS		= ds13rtc.c bus_if.h clock_if.h device_if.h iicbus_if.h ofw_bus_if.h 
++
++.include <bsd.kmod.mk>
+diff --git a/sys/modules/i2c/ds3231/Makefile b/sys/modules/i2c/ds3231/Makefile
+new file mode 100644
+index 00000000000..e75c47c21c2
+--- /dev/null
++++ b/sys/modules/i2c/ds3231/Makefile
+@@ -0,0 +1,7 @@
++# $FreeBSD$
++
++.PATH:		${SRCTOP}/sys/dev/iicbus
++KMOD		= ds3231
++SRCS		= ds3231.c bus_if.h clock_if.h device_if.h iicbus_if.h ofw_bus_if.h
++
++.include <bsd.kmod.mk>
+diff --git a/sys/modules/i2c/isl12xx/Makefile b/sys/modules/i2c/isl12xx/Makefile
+new file mode 100644
+index 00000000000..5f31317fc3b
+--- /dev/null
++++ b/sys/modules/i2c/isl12xx/Makefile
+@@ -0,0 +1,7 @@
++# $FreeBSD$
++
++.PATH:		${SRCTOP}/sys/dev/iicbus
++KMOD		= isl12xx
++SRCS		= isl12xx.c bus_if.h clock_if.h device_if.h iicbus_if.h ofw_bus_if.h
++
++.include <bsd.kmod.mk>
+diff --git a/sys/modules/i2c/nxprtc/Makefile b/sys/modules/i2c/nxprtc/Makefile
+new file mode 100644
+index 00000000000..d2252b148e3
+--- /dev/null
++++ b/sys/modules/i2c/nxprtc/Makefile
+@@ -0,0 +1,7 @@
++# $FreeBSD$
++
++.PATH:		${SRCTOP}/sys/dev/iicbus
++KMOD		= nxprtc
++SRCS		= nxprtc.c bus_if.h clock_if.h device_if.h iicbus_if.h ofw_bus_if.h
++
++.include <bsd.kmod.mk>
+diff --git a/sys/modules/i2c/s35390a/Makefile b/sys/modules/i2c/s35390a/Makefile
+new file mode 100644
+index 00000000000..1e6e93e60e4
+--- /dev/null
++++ b/sys/modules/i2c/s35390a/Makefile
+@@ -0,0 +1,7 @@
++# $FreeBSD$
++
++.PATH:		${SRCTOP}/sys/dev/iicbus
++KMOD		= s35390a
++SRCS		= s35390a.c bus_if.h clock_if.h device_if.h iicbus_if.h ofw_bus_if.h
++
++.include <bsd.kmod.mk>

@@ -1,0 +1,37 @@
+From 675a298a8c112637483b0cfe1befa2c6d3b284e4 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Mon, 15 Jul 2019 15:51:50 +0800
+Subject: [PATCH] drm/amdgpu: replace simple_strtol() by kstrtou32()
+
+The simple_strtol() function is deprecated. kstrto[l,u32]() is
+the correct replacement as it can properly handle overflows.
+
+This patch replaces the deprecated simple_strtol() use introduced recently.
+As clk is of type uint32_t, we are safe to use kstrtou32().
+
+It is also safe to return zero on string parsing error,
+similar to the case of returning zero if buf is empty in parse_clk().
+
+Fixes: bb5a2bdf36a8 ("drm/amdgpu: support dpm level modification under virtualization v3")
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c
+index 7d484fad3909..2adda47def64 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c
+@@ -386,7 +386,8 @@ static uint32_t parse_clk(char *buf, bool min)
+                 if (!ptr)
+                         break;
+                 ptr+=2;
+-                clk = simple_strtoul(ptr, NULL, 10);
++		if (kstrtou32(ptr, 10, &clk))
++			return 0;
+         } while (!min);
+ 
+         return clk * 100;
+-- 
+2.11.0
+

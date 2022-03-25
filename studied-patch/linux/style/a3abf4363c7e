@@ -1,0 +1,34 @@
+commit a3abf4363c7ec8f980a0ac1c880e2627349d8626
+Author: Thierry Reding <treding@nvidia.com>
+Date:   Thu Dec 20 18:19:57 2018 +0100
+
+    mailbox: omap: Use device-managed registration API
+    
+    Get rid of some boilerplate driver removal code by using the newly added
+    device-managed registration API.
+    
+    Signed-off-by: Thierry Reding <treding@nvidia.com>
+    Signed-off-by: Jassi Brar <jaswinder.singh@linaro.org>
+
+diff --git a/drivers/mailbox/omap-mailbox.c b/drivers/mailbox/omap-mailbox.c
+index db66e952a871..ca50177a33f2 100644
+--- a/drivers/mailbox/omap-mailbox.c
++++ b/drivers/mailbox/omap-mailbox.c
+@@ -486,7 +486,7 @@ static int omap_mbox_register(struct omap_mbox_device *mdev)
+ 	list_add(&mdev->elem, &omap_mbox_devices);
+ 	mutex_unlock(&omap_mbox_devices_lock);
+ 
+-	ret = mbox_controller_register(&mdev->controller);
++	ret = devm_mbox_controller_register(mdev->dev, &mdev->controller);
+ 
+ err_out:
+ 	if (ret) {
+@@ -508,8 +508,6 @@ static int omap_mbox_unregister(struct omap_mbox_device *mdev)
+ 	list_del(&mdev->elem);
+ 	mutex_unlock(&omap_mbox_devices_lock);
+ 
+-	mbox_controller_unregister(&mdev->controller);
+-
+ 	mboxes = mdev->mboxes;
+ 	for (i = 0; mboxes[i]; i++)
+ 		device_unregister(mboxes[i]->dev);

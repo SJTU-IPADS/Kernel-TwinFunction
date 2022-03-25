@@ -1,0 +1,25 @@
+commit 62d1a31cfb5d9291f4dd90c1b0ef5c22f3c235bf
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Wed Feb 6 00:03:51 2019 +0800
+
+    net: tulip: de2104x: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called in de_tx() when skb xmit
+    done. It makes drop profiles(dropwatch, perf) more friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/dec/tulip/de2104x.c b/drivers/net/ethernet/dec/tulip/de2104x.c
+index 13430f75496c..f1a2da15dd0a 100644
+--- a/drivers/net/ethernet/dec/tulip/de2104x.c
++++ b/drivers/net/ethernet/dec/tulip/de2104x.c
+@@ -585,7 +585,7 @@ static void de_tx (struct de_private *de)
+ 				netif_dbg(de, tx_done, de->dev,
+ 					  "tx done, slot %d\n", tx_tail);
+ 			}
+-			dev_kfree_skb_irq(skb);
++			dev_consume_skb_irq(skb);
+ 		}
+ 
+ next:

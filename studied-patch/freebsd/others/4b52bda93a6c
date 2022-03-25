@@ -1,0 +1,52 @@
+commit 4b52bda93a6c1decdd81568469d35da1eb8a80f2
+Author: hselasky <hselasky@FreeBSD.org>
+Date:   Fri Mar 30 18:37:51 2018 +0000
+
+    MFC r330579:
+    Fix for use-after-free when using delayed work structures in ibcore.
+    
+    It is not enough to cancel delayed work structures before freeing.
+    Always cancel delayed work synchronously before freeing!
+    
+    Sponsored by:   Mellanox Technologies
+
+diff --git a/sys/ofed/drivers/infiniband/core/ib_cm.c b/sys/ofed/drivers/infiniband/core/ib_cm.c
+index 6e86cf6f303..afdcb0ff49d 100644
+--- a/sys/ofed/drivers/infiniband/core/ib_cm.c
++++ b/sys/ofed/drivers/infiniband/core/ib_cm.c
+@@ -4132,6 +4132,7 @@ static void __exit ib_cm_cleanup(void)
+ 	destroy_workqueue(cm.wq);
+ 
+ 	list_for_each_entry_safe(timewait_info, tmp, &cm.timewait_list, list) {
++		cancel_delayed_work_sync(&timewait_info->work.work);
+ 		list_del(&timewait_info->list);
+ 		kfree(timewait_info);
+ 	}
+diff --git a/sys/ofed/drivers/infiniband/core/ib_mad.c b/sys/ofed/drivers/infiniband/core/ib_mad.c
+index 9498c756f07..a688e2caa68 100644
+--- a/sys/ofed/drivers/infiniband/core/ib_mad.c
++++ b/sys/ofed/drivers/infiniband/core/ib_mad.c
+@@ -572,7 +572,7 @@ static void unregister_mad_agent(struct ib_mad_agent_private *mad_agent_priv)
+ 	 */
+ 	cancel_mads(mad_agent_priv);
+ 	port_priv = mad_agent_priv->qp_info->port_priv;
+-	cancel_delayed_work(&mad_agent_priv->timed_work);
++	cancel_delayed_work_sync(&mad_agent_priv->timed_work);
+ 
+ 	spin_lock_irqsave(&port_priv->reg_lock, flags);
+ 	remove_mad_reg_req(mad_agent_priv);
+diff --git a/sys/ofed/drivers/infiniband/core/ib_mad_rmpp.c b/sys/ofed/drivers/infiniband/core/ib_mad_rmpp.c
+index de92993607c..938a47a6141 100644
+--- a/sys/ofed/drivers/infiniband/core/ib_mad_rmpp.c
++++ b/sys/ofed/drivers/infiniband/core/ib_mad_rmpp.c
+@@ -103,8 +103,8 @@ void ib_cancel_rmpp_recvs(struct ib_mad_agent_private *agent)
+ 	spin_unlock_irqrestore(&agent->lock, flags);
+ 
+ 	list_for_each_entry(rmpp_recv, &agent->rmpp_list, list) {
+-		cancel_delayed_work(&rmpp_recv->timeout_work);
+-		cancel_delayed_work(&rmpp_recv->cleanup_work);
++		cancel_delayed_work_sync(&rmpp_recv->timeout_work);
++		cancel_delayed_work_sync(&rmpp_recv->cleanup_work);
+ 	}
+ 
+ 	flush_workqueue(agent->qp_info->port_priv->wq);

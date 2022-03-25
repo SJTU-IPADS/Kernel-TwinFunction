@@ -1,0 +1,32 @@
+commit 351cbde969230a072cabca9969c68ab04e58e6b3
+Author: Jonathan Toppins <jtoppins@redhat.com>
+Date:   Wed Dec 12 11:58:51 2018 -0500
+
+    bnxt: remove printing of hwrm message
+    
+    bnxt_en 0000:19:00.0 (unregistered net_device) (uninitialized): hwrm
+    req_type 0x190 seq id 0x6 error 0xffff
+    
+    The message above is commonly seen when a newer driver is used on
+    hardware with older firmware. The issue is this message means nothing to
+    anyone except Broadcom. Remove the message to not confuse users as this
+    message is really not very informative.
+    
+    Signed-off-by: Jonathan Toppins <jtoppins@redhat.com>
+    Acked-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/broadcom/bnxt/bnxt.c b/drivers/net/ethernet/broadcom/bnxt/bnxt.c
+index 5d21c14853ac..f4f29939ba72 100644
+--- a/drivers/net/ethernet/broadcom/bnxt/bnxt.c
++++ b/drivers/net/ethernet/broadcom/bnxt/bnxt.c
+@@ -6190,7 +6190,8 @@ int bnxt_hwrm_func_resc_qcaps(struct bnxt *bp, bool all)
+ 	req.fid = cpu_to_le16(0xffff);
+ 
+ 	mutex_lock(&bp->hwrm_cmd_lock);
+-	rc = _hwrm_send_message(bp, &req, sizeof(req), HWRM_CMD_TIMEOUT);
++	rc = _hwrm_send_message_silent(bp, &req, sizeof(req),
++				       HWRM_CMD_TIMEOUT);
+ 	if (rc) {
+ 		rc = -EIO;
+ 		goto hwrm_func_resc_qcaps_exit;

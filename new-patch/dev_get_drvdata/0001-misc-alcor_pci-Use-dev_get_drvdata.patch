@@ -1,0 +1,43 @@
+From 797a5745b48b0583970dd7a242231e35917543be Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 20:31:10 +0800
+Subject: [PATCH v2] misc: alcor_pci: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Split v1 into different subsystems
+
+ drivers/misc/cardreader/alcor_pci.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/misc/cardreader/alcor_pci.c b/drivers/misc/cardreader/alcor_pci.c
+index bcb10fa4bc3a..259fe1dfec03 100644
+--- a/drivers/misc/cardreader/alcor_pci.c
++++ b/drivers/misc/cardreader/alcor_pci.c
+@@ -334,8 +334,7 @@ static void alcor_pci_remove(struct pci_dev *pdev)
+ #ifdef CONFIG_PM_SLEEP
+ static int alcor_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct alcor_pci_priv *priv = pci_get_drvdata(pdev);
++	struct alcor_pci_priv *priv = dev_get_drvdata(dev);
+ 
+ 	alcor_pci_aspm_ctrl(priv, 1);
+ 	return 0;
+@@ -344,8 +343,7 @@ static int alcor_suspend(struct device *dev)
+ static int alcor_resume(struct device *dev)
+ {
+ 
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct alcor_pci_priv *priv = pci_get_drvdata(pdev);
++	struct alcor_pci_priv *priv = dev_get_drvdata(dev);
+ 
+ 	alcor_pci_aspm_ctrl(priv, 0);
+ 	return 0;
+-- 
+2.20.1
+

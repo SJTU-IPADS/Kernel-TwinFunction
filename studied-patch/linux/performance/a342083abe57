@@ -1,0 +1,26 @@
+commit a342083abe576db43594a32d458a61fa81f7cb32
+Author: Dmitry Torokhov <dmitry.torokhov@gmail.com>
+Date:   Thu Feb 7 14:39:40 2019 -0800
+
+    Input: matrix_keypad - use flush_delayed_work()
+    
+    We should be using flush_delayed_work() instead of flush_work() in
+    matrix_keypad_stop() to ensure that we are not missing work that is
+    scheduled but not yet put in the workqueue (i.e. its delay timer has not
+    expired yet).
+    
+    Signed-off-by: Dmitry Torokhov <dmitry.torokhov@gmail.com>
+
+diff --git a/drivers/input/keyboard/matrix_keypad.c b/drivers/input/keyboard/matrix_keypad.c
+index 403452ef00e6..3d1cb7bf5e35 100644
+--- a/drivers/input/keyboard/matrix_keypad.c
++++ b/drivers/input/keyboard/matrix_keypad.c
+@@ -222,7 +222,7 @@ static void matrix_keypad_stop(struct input_dev *dev)
+ 	keypad->stopped = true;
+ 	spin_unlock_irq(&keypad->lock);
+ 
+-	flush_work(&keypad->work.work);
++	flush_delayed_work(&keypad->work);
+ 	/*
+ 	 * matrix_keypad_scan() will leave IRQs enabled;
+ 	 * we should disable them now.

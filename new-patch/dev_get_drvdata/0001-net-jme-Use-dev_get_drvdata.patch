@@ -1,0 +1,40 @@
+From 84b08d485963d34b6081655baead2b27c3753c1a Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 22:08:20 +0800
+Subject: [PATCH] net: jme: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/net/ethernet/jme.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/jme.c b/drivers/net/ethernet/jme.c
+index 0b668357db4d..db7e10e23310 100644
+--- a/drivers/net/ethernet/jme.c
++++ b/drivers/net/ethernet/jme.c
+@@ -3193,8 +3193,7 @@ jme_shutdown(struct pci_dev *pdev)
+ static int
+ jme_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct net_device *netdev = pci_get_drvdata(pdev);
++	struct net_device *netdev = dev_get_drvdata(dev);
+ 	struct jme_adapter *jme = netdev_priv(netdev);
+ 
+ 	if (!netif_running(netdev))
+@@ -3236,8 +3235,7 @@ jme_suspend(struct device *dev)
+ static int
+ jme_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct net_device *netdev = pci_get_drvdata(pdev);
++	struct net_device *netdev = dev_get_drvdata(dev);
+ 	struct jme_adapter *jme = netdev_priv(netdev);
+ 
+ 	if (!netif_running(netdev))
+-- 
+2.20.1
+

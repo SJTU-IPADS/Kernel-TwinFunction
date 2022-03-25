@@ -1,0 +1,44 @@
+commit 52f603fee1a5f4bdc398837cc3eff1d3fd0e857d
+Author: Christoph Hellwig <hch@lst.de>
+Date:   Thu Oct 18 15:10:20 2018 +0200
+
+    scsi: isci: use dma_set_mask_and_coherent
+    
+    The driver currently uses pci_set_dma_mask despite otherwise using the
+    generic DMA API.  Switch it over to the better generic DMA API.
+    
+    [mkp: s/iscsi/isci/]
+    
+    Signed-off-by: Christoph Hellwig <hch@lst.de>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/scsi/isci/init.c b/drivers/scsi/isci/init.c
+index 08c7b1e25fe4..d72edbcbb7c6 100644
+--- a/drivers/scsi/isci/init.c
++++ b/drivers/scsi/isci/init.c
+@@ -304,21 +304,10 @@ static int isci_pci_init(struct pci_dev *pdev)
+ 
+ 	pci_set_master(pdev);
+ 
+-	err = pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
+-	if (err) {
+-		err = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
+-		if (err)
+-			return err;
+-	}
+-
+-	err = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
+-	if (err) {
+-		err = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(32));
+-		if (err)
+-			return err;
+-	}
+-
+-	return 0;
++	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
++	if (err)
++		err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
++	return err;
+ }
+ 
+ static int num_controllers(struct pci_dev *pdev)

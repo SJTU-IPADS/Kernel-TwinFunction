@@ -1,0 +1,51 @@
+commit 878411aef631e4e2dd8d6c7cdb01e95a076cbcb9
+Author: Jordan Crouse <jcrouse@codeaurora.org>
+Date:   Tue Dec 18 11:32:36 2018 -0700
+
+    drm/msm/gpu: Remove hardcoded interrupt name
+    
+    Every GPU core only has one interrupt so there isn't any
+    value in looking up the interrupt by name. Remove the name (which
+    is legacy anyway) and use platform_get_irq() instead.
+    
+    Signed-off-by: Jordan Crouse <jcrouse@codeaurora.org>
+    Reviewed-by: Douglas Anderson <dianders@chromium.org>
+    Signed-off-by: Rob Clark <robdclark@gmail.com>
+
+diff --git a/drivers/gpu/drm/msm/adreno/adreno_gpu.c b/drivers/gpu/drm/msm/adreno/adreno_gpu.c
+index 2e4372ef17a3..2cfee1a4fe0b 100644
+--- a/drivers/gpu/drm/msm/adreno/adreno_gpu.c
++++ b/drivers/gpu/drm/msm/adreno/adreno_gpu.c
+@@ -765,7 +765,6 @@ int adreno_gpu_init(struct drm_device *drm, struct platform_device *pdev,
+ 	adreno_gpu->rev = config->rev;
+ 
+ 	adreno_gpu_config.ioname = "kgsl_3d0_reg_memory";
+-	adreno_gpu_config.irqname = "kgsl_3d0_irq";
+ 
+ 	adreno_gpu_config.va_start = SZ_16M;
+ 	adreno_gpu_config.va_end = 0xffffffff;
+diff --git a/drivers/gpu/drm/msm/msm_gpu.c b/drivers/gpu/drm/msm/msm_gpu.c
+index 6e079a83bd36..abefba5b14e7 100644
+--- a/drivers/gpu/drm/msm/msm_gpu.c
++++ b/drivers/gpu/drm/msm/msm_gpu.c
+@@ -897,7 +897,7 @@ int msm_gpu_init(struct drm_device *drm, struct platform_device *pdev,
+ 	}
+ 
+ 	/* Get Interrupt: */
+-	gpu->irq = platform_get_irq_byname(pdev, config->irqname);
++	gpu->irq = platform_get_irq(pdev, 0);
+ 	if (gpu->irq < 0) {
+ 		ret = gpu->irq;
+ 		DRM_DEV_ERROR(drm->dev, "failed to get irq: %d\n", ret);
+diff --git a/drivers/gpu/drm/msm/msm_gpu.h b/drivers/gpu/drm/msm/msm_gpu.h
+index 95170dee9d7a..ca17086f72c9 100644
+--- a/drivers/gpu/drm/msm/msm_gpu.h
++++ b/drivers/gpu/drm/msm/msm_gpu.h
+@@ -31,7 +31,6 @@ struct msm_gpu_state;
+ 
+ struct msm_gpu_config {
+ 	const char *ioname;
+-	const char *irqname;
+ 	uint64_t va_start;
+ 	uint64_t va_end;
+ 	unsigned int nr_rings;

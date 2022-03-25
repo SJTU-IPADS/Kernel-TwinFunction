@@ -1,0 +1,40 @@
+From 6945226d9398281ed27e70f9a2e60ed22f38a3b7 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 21:05:49 +0800
+Subject: [PATCH] net: 3com: 3c59x: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/net/ethernet/3com/3c59x.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/3com/3c59x.c b/drivers/net/ethernet/3com/3c59x.c
+index 147051404194..8f897828869f 100644
+--- a/drivers/net/ethernet/3com/3c59x.c
++++ b/drivers/net/ethernet/3com/3c59x.c
+@@ -847,8 +847,7 @@ static void poll_vortex(struct net_device *dev)
+ 
+ static int vortex_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct net_device *ndev = pci_get_drvdata(pdev);
++	struct net_device *ndev = dev_get_drvdata(dev);
+ 
+ 	if (!ndev || !netif_running(ndev))
+ 		return 0;
+@@ -861,8 +860,7 @@ static int vortex_suspend(struct device *dev)
+ 
+ static int vortex_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct net_device *ndev = pci_get_drvdata(pdev);
++	struct net_device *ndev = dev_get_drvdata(dev);
+ 	int err;
+ 
+ 	if (!ndev || !netif_running(ndev))
+-- 
+2.20.1
+

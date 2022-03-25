@@ -1,0 +1,40 @@
+From f7f06ccfc5f98e1a2c3d010d4b5cdf1f7c07cf23 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 16:19:55 +0800
+Subject: [PATCH] bcma: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/bcma/host_pci.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/bcma/host_pci.c b/drivers/bcma/host_pci.c
+index f52239feb4cb..69c10a7b7c61 100644
+--- a/drivers/bcma/host_pci.c
++++ b/drivers/bcma/host_pci.c
+@@ -260,8 +260,7 @@ static void bcma_host_pci_remove(struct pci_dev *dev)
+ #ifdef CONFIG_PM_SLEEP
+ static int bcma_host_pci_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct bcma_bus *bus = pci_get_drvdata(pdev);
++	struct bcma_bus *bus = dev_get_drvdata(dev);
+ 
+ 	bus->mapped_core = NULL;
+ 
+@@ -270,8 +269,7 @@ static int bcma_host_pci_suspend(struct device *dev)
+ 
+ static int bcma_host_pci_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct bcma_bus *bus = pci_get_drvdata(pdev);
++	struct bcma_bus *bus = dev_get_drvdata(dev);
+ 
+ 	return bcma_bus_resume(bus);
+ }
+-- 
+2.20.1
+

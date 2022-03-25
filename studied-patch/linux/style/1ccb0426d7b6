@@ -1,0 +1,38 @@
+commit 1ccb0426d7b6a94434a7b4f8d2d7f57de3c1b653
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 22:00:31 2018 +0200
+
+    pinctrl: pinctrl-at91-pio4: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Reviewed-by: Alexandre Belloni <alexandre.belloni@bootlin.com>
+    Acked-by: Ludovic Desroches <ludovic.desroches@microchip.com>
+    Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+
+diff --git a/drivers/pinctrl/pinctrl-at91-pio4.c b/drivers/pinctrl/pinctrl-at91-pio4.c
+index 5a850491a5cb..4ee135d7b883 100644
+--- a/drivers/pinctrl/pinctrl-at91-pio4.c
++++ b/drivers/pinctrl/pinctrl-at91-pio4.c
+@@ -868,8 +868,7 @@ static struct pinctrl_desc atmel_pinctrl_desc = {
+ 
+ static int __maybe_unused atmel_pctrl_suspend(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct atmel_pioctrl *atmel_pioctrl = platform_get_drvdata(pdev);
++	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(dev);
+ 	int i, j;
+ 
+ 	/*
+@@ -897,8 +896,7 @@ static int __maybe_unused atmel_pctrl_suspend(struct device *dev)
+ 
+ static int __maybe_unused atmel_pctrl_resume(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct atmel_pioctrl *atmel_pioctrl = platform_get_drvdata(pdev);
++	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(dev);
+ 	int i, j;
+ 
+ 	for (i = 0; i < atmel_pioctrl->nbanks; i++) {

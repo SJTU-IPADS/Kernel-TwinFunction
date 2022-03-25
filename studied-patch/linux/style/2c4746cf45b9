@@ -1,0 +1,35 @@
+commit 2c4746cf45b957962c03f1c10a3d068d7db68924
+Author: zhong jiang <zhongjiang@huawei.com>
+Date:   Wed Sep 19 04:16:09 2018 -0400
+
+    media: dvb-frontends: Use kmemdup instead of duplicating its function
+    
+    kmemdup has implemented the function that kmalloc() + memcpy().
+    We prefer to kmemdup rather than code opened implementation.
+    
+    Signed-off-by: zhong jiang <zhongjiang@huawei.com>
+    Signed-off-by: Sean Young <sean@mess.org>
+    Signed-off-by: Mauro Carvalho Chehab <mchehab+samsung@kernel.org>
+
+diff --git a/drivers/media/dvb-frontends/lgdt3306a.c b/drivers/media/dvb-frontends/lgdt3306a.c
+index 0e1f5daaf20c..cee9c83e48de 100644
+--- a/drivers/media/dvb-frontends/lgdt3306a.c
++++ b/drivers/media/dvb-frontends/lgdt3306a.c
+@@ -2205,15 +2205,13 @@ static int lgdt3306a_probe(struct i2c_client *client,
+ 	struct dvb_frontend *fe;
+ 	int ret;
+ 
+-	config = kzalloc(sizeof(struct lgdt3306a_config), GFP_KERNEL);
++	config = kmemdup(client->dev.platform_data,
++			 sizeof(struct lgdt3306a_config), GFP_KERNEL);
+ 	if (config == NULL) {
+ 		ret = -ENOMEM;
+ 		goto fail;
+ 	}
+ 
+-	memcpy(config, client->dev.platform_data,
+-			sizeof(struct lgdt3306a_config));
+-
+ 	config->i2c_addr = client->addr;
+ 	fe = lgdt3306a_attach(config, client->adapter);
+ 	if (fe == NULL) {

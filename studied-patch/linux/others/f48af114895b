@@ -1,0 +1,25 @@
+commit f48af114895b2f9cdc218ed75666ade83380255b
+Author: Yang Wei <albin_yang@163.com>
+Date:   Sun Jan 27 23:56:34 2019 +0800
+
+    net: alteon: replace dev_kfree_skb_irq by dev_consume_skb_irq
+    
+    dev_consume_skb_irq() should be called in ace_tx_int() when xmit
+    done. It makes drop profiles more friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/alteon/acenic.c b/drivers/net/ethernet/alteon/acenic.c
+index 4f11f98347ed..1827ef1f6d55 100644
+--- a/drivers/net/ethernet/alteon/acenic.c
++++ b/drivers/net/ethernet/alteon/acenic.c
+@@ -2059,7 +2059,7 @@ static inline void ace_tx_int(struct net_device *dev,
+ 		if (skb) {
+ 			dev->stats.tx_packets++;
+ 			dev->stats.tx_bytes += skb->len;
+-			dev_kfree_skb_irq(skb);
++			dev_consume_skb_irq(skb);
+ 			info->skb = NULL;
+ 		}
+ 

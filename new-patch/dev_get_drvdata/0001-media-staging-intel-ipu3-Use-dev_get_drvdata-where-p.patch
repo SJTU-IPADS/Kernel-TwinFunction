@@ -1,0 +1,30 @@
+From e005db7406f24c0d307ef48b9e2c529cae4acd7b Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 24 Jul 2019 20:08:25 +0800
+Subject: [PATCH] media: staging/intel-ipu3: Use dev_get_drvdata where possible
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/staging/media/ipu3/ipu3.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/staging/media/ipu3/ipu3.c b/drivers/staging/media/ipu3/ipu3.c
+index a7372395a101..06a61f31ca50 100644
+--- a/drivers/staging/media/ipu3/ipu3.c
++++ b/drivers/staging/media/ipu3/ipu3.c
+@@ -778,8 +778,7 @@ static int __maybe_unused imgu_suspend(struct device *dev)
+ 
+ static int __maybe_unused imgu_resume(struct device *dev)
+ {
+-	struct pci_dev *pci_dev = to_pci_dev(dev);
+-	struct imgu_device *imgu = pci_get_drvdata(pci_dev);
++	struct imgu_device *imgu = dev_get_drvdata(dev);
+ 	int r = 0;
+ 	unsigned int pipe;
+ 
+-- 
+2.20.1
+

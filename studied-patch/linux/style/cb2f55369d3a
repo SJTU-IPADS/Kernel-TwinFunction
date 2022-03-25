@@ -1,0 +1,73 @@
+commit cb2f55369d3a9e6cf5c34d2da39eb242279a582d
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Tue Nov 6 19:17:01 2018 -0800
+
+    modules: Replace synchronize_sched() and call_rcu_sched()
+    
+    Now that synchronize_rcu() waits for preempt-disable regions of code
+    as well as RCU read-side critical sections, synchronize_sched() can
+    be replaced by synchronize_rcu().  Similarly, call_rcu_sched() can be
+    replaced by call_rcu().  This commit therefore makes these changes.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Acked-by: Jessica Yu <jeyu@kernel.org>
+
+diff --git a/kernel/module.c b/kernel/module.c
+index 49a405891587..99b46c32d579 100644
+--- a/kernel/module.c
++++ b/kernel/module.c
+@@ -2159,7 +2159,7 @@ static void free_module(struct module *mod)
+ 	/* Remove this module from bug list, this uses list_del_rcu */
+ 	module_bug_cleanup(mod);
+ 	/* Wait for RCU-sched synchronizing before releasing mod->list and buglist. */
+-	synchronize_sched();
++	synchronize_rcu();
+ 	mutex_unlock(&module_mutex);
+ 
+ 	/* This may be empty, but that's OK */
+@@ -3507,15 +3507,15 @@ static noinline int do_init_module(struct module *mod)
+ 	/*
+ 	 * We want to free module_init, but be aware that kallsyms may be
+ 	 * walking this with preempt disabled.  In all the failure paths, we
+-	 * call synchronize_sched(), but we don't want to slow down the success
++	 * call synchronize_rcu(), but we don't want to slow down the success
+ 	 * path, so use actual RCU here.
+ 	 * Note that module_alloc() on most architectures creates W+X page
+ 	 * mappings which won't be cleaned up until do_free_init() runs.  Any
+ 	 * code such as mark_rodata_ro() which depends on those mappings to
+ 	 * be cleaned up needs to sync with the queued work - ie
+-	 * rcu_barrier_sched()
++	 * rcu_barrier()
+ 	 */
+-	call_rcu_sched(&freeinit->rcu, do_free_init);
++	call_rcu(&freeinit->rcu, do_free_init);
+ 	mutex_unlock(&module_mutex);
+ 	wake_up_all(&module_wq);
+ 
+@@ -3526,7 +3526,7 @@ static noinline int do_init_module(struct module *mod)
+ fail:
+ 	/* Try to protect us from buggy refcounters. */
+ 	mod->state = MODULE_STATE_GOING;
+-	synchronize_sched();
++	synchronize_rcu();
+ 	module_put(mod);
+ 	blocking_notifier_call_chain(&module_notify_list,
+ 				     MODULE_STATE_GOING, mod);
+@@ -3819,7 +3819,7 @@ static int load_module(struct load_info *info, const char __user *uargs,
+  ddebug_cleanup:
+ 	ftrace_release_mod(mod);
+ 	dynamic_debug_remove(mod, info->debug);
+-	synchronize_sched();
++	synchronize_rcu();
+ 	kfree(mod->args);
+  free_arch_cleanup:
+ 	module_arch_cleanup(mod);
+@@ -3834,7 +3834,7 @@ static int load_module(struct load_info *info, const char __user *uargs,
+ 	mod_tree_remove(mod);
+ 	wake_up_all(&module_wq);
+ 	/* Wait for RCU-sched synchronizing before releasing mod->list. */
+-	synchronize_sched();
++	synchronize_rcu();
+ 	mutex_unlock(&module_mutex);
+  free_module:
+ 	/* Free lock-classes; relies on the preceding sync_rcu() */

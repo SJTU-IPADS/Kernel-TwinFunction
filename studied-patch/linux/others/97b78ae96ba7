@@ -1,0 +1,97 @@
+commit 97b78ae96ba76f4ca2d8f5afee6a2e567ccb8f45
+Author: Trond Myklebust <trondmy@gmail.com>
+Date:   Wed Jan 2 17:53:13 2019 -0500
+
+    SUNRPC: Ensure we respect the RPCSEC_GSS sequence number limit
+    
+    According to RFC2203, the RPCSEC_GSS sequence numbers are bounded to
+    an upper limit of MAXSEQ = 0x80000000. Ensure that we handle that
+    correctly.
+    
+    Signed-off-by: Trond Myklebust <trond.myklebust@hammerspace.com>
+    Signed-off-by: Anna Schumaker <Anna.Schumaker@Netapp.com>
+
+diff --git a/net/sunrpc/auth_gss/auth_gss.c b/net/sunrpc/auth_gss/auth_gss.c
+index dc86713b32b6..1531b0219344 100644
+--- a/net/sunrpc/auth_gss/auth_gss.c
++++ b/net/sunrpc/auth_gss/auth_gss.c
+@@ -1549,8 +1549,10 @@ gss_marshal(struct rpc_task *task, __be32 *p)
+ 	cred_len = p++;
+ 
+ 	spin_lock(&ctx->gc_seq_lock);
+-	req->rq_seqno = ctx->gc_seq++;
++	req->rq_seqno = (ctx->gc_seq < MAXSEQ) ? ctx->gc_seq++ : MAXSEQ;
+ 	spin_unlock(&ctx->gc_seq_lock);
++	if (req->rq_seqno == MAXSEQ)
++		goto out_expired;
+ 
+ 	*p++ = htonl((u32) RPC_GSS_VERSION);
+ 	*p++ = htonl((u32) ctx->gc_proc);
+@@ -1572,14 +1574,18 @@ gss_marshal(struct rpc_task *task, __be32 *p)
+ 	mic.data = (u8 *)(p + 1);
+ 	maj_stat = gss_get_mic(ctx->gc_gss_ctx, &verf_buf, &mic);
+ 	if (maj_stat == GSS_S_CONTEXT_EXPIRED) {
+-		clear_bit(RPCAUTH_CRED_UPTODATE, &cred->cr_flags);
++		goto out_expired;
+ 	} else if (maj_stat != 0) {
+-		printk("gss_marshal: gss_get_mic FAILED (%d)\n", maj_stat);
++		pr_warn("gss_marshal: gss_get_mic FAILED (%d)\n", maj_stat);
++		task->tk_status = -EIO;
+ 		goto out_put_ctx;
+ 	}
+ 	p = xdr_encode_opaque(p, NULL, mic.len);
+ 	gss_put_ctx(ctx);
+ 	return p;
++out_expired:
++	clear_bit(RPCAUTH_CRED_UPTODATE, &cred->cr_flags);
++	task->tk_status = -EKEYEXPIRED;
+ out_put_ctx:
+ 	gss_put_ctx(ctx);
+ 	return NULL;
+diff --git a/net/sunrpc/clnt.c b/net/sunrpc/clnt.c
+index 0878c793ce7f..d7ec6132c046 100644
+--- a/net/sunrpc/clnt.c
++++ b/net/sunrpc/clnt.c
+@@ -1741,11 +1741,8 @@ rpc_xdr_encode(struct rpc_task *task)
+ 		     req->rq_rcvsize);
+ 
+ 	p = rpc_encode_header(task);
+-	if (p == NULL) {
+-		printk(KERN_INFO "RPC: couldn't encode RPC header, exit EIO\n");
+-		rpc_exit(task, -EIO);
++	if (p == NULL)
+ 		return;
+-	}
+ 
+ 	encode = task->tk_msg.rpc_proc->p_encode;
+ 	if (encode == NULL)
+@@ -1770,10 +1767,17 @@ call_encode(struct rpc_task *task)
+ 	/* Did the encode result in an error condition? */
+ 	if (task->tk_status != 0) {
+ 		/* Was the error nonfatal? */
+-		if (task->tk_status == -EAGAIN || task->tk_status == -ENOMEM)
++		switch (task->tk_status) {
++		case -EAGAIN:
++		case -ENOMEM:
+ 			rpc_delay(task, HZ >> 4);
+-		else
++			break;
++		case -EKEYEXPIRED:
++			task->tk_action = call_refresh;
++			break;
++		default:
+ 			rpc_exit(task, task->tk_status);
++		}
+ 		return;
+ 	}
+ 
+@@ -2335,7 +2339,8 @@ rpc_encode_header(struct rpc_task *task)
+ 	*p++ = htonl(clnt->cl_vers);	/* program version */
+ 	*p++ = htonl(task->tk_msg.rpc_proc->p_proc);	/* procedure */
+ 	p = rpcauth_marshcred(task, p);
+-	req->rq_slen = xdr_adjust_iovec(&req->rq_svec[0], p);
++	if (p)
++		req->rq_slen = xdr_adjust_iovec(&req->rq_svec[0], p);
+ 	return p;
+ }
+ 

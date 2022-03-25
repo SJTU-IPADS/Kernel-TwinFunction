@@ -1,0 +1,82 @@
+commit b1658855f08754dc685bd75d12f0b5b0e2925f3f
+Author: Bartlomiej Zolnierkiewicz <b.zolnierkie@samsung.com>
+Date:   Wed Nov 14 16:30:58 2018 +0100
+
+    ARM: samsung: Limit SAMSUNG_PM_DEBUG config option to non-Exynos platforms
+    
+    "Samsung PM Suspend debug" feature (controlled by SAMSUNG_PM_DEBUG
+    config option) is not working properly (debug messages are not
+    displayed after resume) on Exynos platforms because GPIOs restore
+    code is not implemented.
+    
+    Add PLAT_S3C24XX, ARCH_S3C64XX and ARCH_S5PV210 dependencies to
+    SAMSUNG_PM_DEBUG config option to hide it on Exynos platforms.
+    Then convert Exynos code to not require <plat/pm-common.h>
+    header (use pr_debug() directly instead of S3C_PMDBG() macro and
+    remove redundant s3c_pm_*() calls).
+    
+    Signed-off-by: Bartlomiej Zolnierkiewicz <b.zolnierkie@samsung.com>
+    Signed-off-by: Krzysztof Kozlowski <krzk@kernel.org>
+
+diff --git a/arch/arm/mach-exynos/suspend.c b/arch/arm/mach-exynos/suspend.c
+index edd792d30302..0850505ac78b 100644
+--- a/arch/arm/mach-exynos/suspend.c
++++ b/arch/arm/mach-exynos/suspend.c
+@@ -30,8 +30,6 @@
+ #include <asm/smp_scu.h>
+ #include <asm/suspend.h>
+ 
+-#include <plat/pm-common.h>
+-
+ #include "common.h"
+ 
+ #define REG_TABLE_END (-1U)
+@@ -498,11 +496,9 @@ static int exynos_suspend_enter(suspend_state_t state)
+ 	u32 eint_wakeup_mask = exynos_read_eint_wakeup_mask();
+ 	int ret;
+ 
+-	s3c_pm_debug_init();
+-
+-	S3C_PMDBG("%s: suspending the system...\n", __func__);
++	pr_debug("%s: suspending the system...\n", __func__);
+ 
+-	S3C_PMDBG("%s: wakeup masks: %08x,%08x\n", __func__,
++	pr_debug("%s: wakeup masks: %08x,%08x\n", __func__,
+ 		  exynos_irqwake_intmask, eint_wakeup_mask);
+ 
+ 	if (exynos_irqwake_intmask == -1U
+@@ -512,7 +508,6 @@ static int exynos_suspend_enter(suspend_state_t state)
+ 		return -EINVAL;
+ 	}
+ 
+-	s3c_pm_save_uarts();
+ 	if (pm_data->pm_prepare)
+ 		pm_data->pm_prepare();
+ 	flush_cache_all();
+@@ -525,12 +520,11 @@ static int exynos_suspend_enter(suspend_state_t state)
+ 
+ 	if (pm_data->pm_resume_prepare)
+ 		pm_data->pm_resume_prepare();
+-	s3c_pm_restore_uarts();
+ 
+-	S3C_PMDBG("%s: wakeup stat: %08x\n", __func__,
++	pr_debug("%s: wakeup stat: %08x\n", __func__,
+ 			pmu_raw_readl(S5P_WAKEUP_STAT));
+ 
+-	S3C_PMDBG("%s: resuming the system...\n", __func__);
++	pr_debug("%s: resuming the system...\n", __func__);
+ 
+ 	return 0;
+ }
+diff --git a/arch/arm/plat-samsung/Kconfig b/arch/arm/plat-samsung/Kconfig
+index 377ff9cda667..53da57fba39c 100644
+--- a/arch/arm/plat-samsung/Kconfig
++++ b/arch/arm/plat-samsung/Kconfig
+@@ -239,6 +239,7 @@ comment "Power management"
+ config SAMSUNG_PM_DEBUG
+ 	bool "Samsung PM Suspend debug"
+ 	depends on PM && DEBUG_KERNEL
++	depends on PLAT_S3C24XX || ARCH_S3C64XX || ARCH_S5PV210
+ 	depends on DEBUG_EXYNOS_UART || DEBUG_S3C24XX_UART || DEBUG_S3C2410_UART
+ 	help
+ 	  Say Y here if you want verbose debugging from the PM Suspend and

@@ -1,0 +1,61 @@
+commit 03e7d002526dc447902d15aba7d24919d9a13f92
+Author: Rob Herring <robh@kernel.org>
+Date:   Wed Dec 5 13:50:35 2018 -0600
+
+    phy: Use of_node_name_eq for node name comparisons
+    
+    Convert string compares of DT node names to use of_node_name_eq helper
+    instead. This removes direct access to the node name pointer.
+    
+    For instances using of_node_cmp, this has the side effect of now using
+    case sensitive comparisons. This should not matter for any FDT based
+    system which all of these are.
+    
+    Cc: Kishon Vijay Abraham I <kishon@ti.com>
+    Cc: Heiko Stuebner <heiko@sntech.de>
+    Cc: linux-arm-kernel@lists.infradead.org
+    Cc: linux-rockchip@lists.infradead.org
+    Signed-off-by: Rob Herring <robh@kernel.org>
+    Signed-off-by: Kishon Vijay Abraham I <kishon@ti.com>
+
+diff --git a/drivers/phy/rockchip/phy-rockchip-inno-usb2.c b/drivers/phy/rockchip/phy-rockchip-inno-usb2.c
+index 24bd2717abdb..91fba60267a0 100644
+--- a/drivers/phy/rockchip/phy-rockchip-inno-usb2.c
++++ b/drivers/phy/rockchip/phy-rockchip-inno-usb2.c
+@@ -1168,8 +1168,8 @@ static int rockchip_usb2phy_probe(struct platform_device *pdev)
+ 		struct phy *phy;
+ 
+ 		/* This driver aims to support both otg-port and host-port */
+-		if (of_node_cmp(child_np->name, "host-port") &&
+-		    of_node_cmp(child_np->name, "otg-port"))
++		if (!of_node_name_eq(child_np, "host-port") &&
++		    !of_node_name_eq(child_np, "otg-port"))
+ 			goto next_child;
+ 
+ 		phy = devm_phy_create(dev, child_np, &rockchip_usb2phy_ops);
+@@ -1183,7 +1183,7 @@ static int rockchip_usb2phy_probe(struct platform_device *pdev)
+ 		phy_set_drvdata(rport->phy, rport);
+ 
+ 		/* initialize otg/host port separately */
+-		if (!of_node_cmp(child_np->name, "host-port")) {
++		if (of_node_name_eq(child_np, "host-port")) {
+ 			ret = rockchip_usb2phy_host_port_init(rphy, rport,
+ 							      child_np);
+ 			if (ret)
+diff --git a/drivers/phy/rockchip/phy-rockchip-typec.c b/drivers/phy/rockchip/phy-rockchip-typec.c
+index c57e496f0b0c..e32edeebcd63 100644
+--- a/drivers/phy/rockchip/phy-rockchip-typec.c
++++ b/drivers/phy/rockchip/phy-rockchip-typec.c
+@@ -1176,10 +1176,10 @@ static int rockchip_typec_phy_probe(struct platform_device *pdev)
+ 	for_each_available_child_of_node(np, child_np) {
+ 		struct phy *phy;
+ 
+-		if (!of_node_cmp(child_np->name, "dp-port"))
++		if (of_node_name_eq(child_np, "dp-port"))
+ 			phy = devm_phy_create(dev, child_np,
+ 					      &rockchip_dp_phy_ops);
+-		else if (!of_node_cmp(child_np->name, "usb3-port"))
++		else if (of_node_name_eq(child_np, "usb3-port"))
+ 			phy = devm_phy_create(dev, child_np,
+ 					      &rockchip_usb3_phy_ops);
+ 		else

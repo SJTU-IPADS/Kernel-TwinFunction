@@ -1,0 +1,29 @@
+commit 0d4e68e2f3979c67a3596c61c118e0c73a2bdfe0
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Tue Oct 30 16:30:07 2018 -0700
+
+    s390/mm: Convert tlb_table_flush() to use call_rcu()
+    
+    Now that call_rcu()'s callback is not invoked until after all
+    preempt-disable regions of code have completed (in addition to explicitly
+    marked RCU read-side critical sections), call_rcu() can be used in place
+    of call_rcu_sched().  This commit therefore makes that change.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: Martin Schwidefsky <schwidefsky@de.ibm.com>
+    Cc: Heiko Carstens <heiko.carstens@de.ibm.com>
+    Cc: <linux-s390@vger.kernel.org>
+
+diff --git a/arch/s390/mm/pgalloc.c b/arch/s390/mm/pgalloc.c
+index 76d89ee8b428..da64e4b9324e 100644
+--- a/arch/s390/mm/pgalloc.c
++++ b/arch/s390/mm/pgalloc.c
+@@ -350,7 +350,7 @@ void tlb_table_flush(struct mmu_gather *tlb)
+ 	struct mmu_table_batch **batch = &tlb->batch;
+ 
+ 	if (*batch) {
+-		call_rcu_sched(&(*batch)->rcu, tlb_remove_table_rcu);
++		call_rcu(&(*batch)->rcu, tlb_remove_table_rcu);
+ 		*batch = NULL;
+ 	}
+ }

@@ -1,0 +1,35 @@
+commit 07c7df3ecdba3d8b9a4145edd9cac47b27dd7f67
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 22:00:46 2018 +0200
+
+    spi: spi-sh-msiof: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Signed-off-by: Mark Brown <broonie@kernel.org>
+
+diff --git a/drivers/spi/spi-sh-msiof.c b/drivers/spi/spi-sh-msiof.c
+index adf384323934..d495d8604397 100644
+--- a/drivers/spi/spi-sh-msiof.c
++++ b/drivers/spi/spi-sh-msiof.c
+@@ -1426,16 +1426,14 @@ MODULE_DEVICE_TABLE(platform, spi_driver_ids);
+ #ifdef CONFIG_PM_SLEEP
+ static int sh_msiof_spi_suspend(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct sh_msiof_spi_priv *p = platform_get_drvdata(pdev);
++	struct sh_msiof_spi_priv *p = dev_get_drvdata(dev);
+ 
+ 	return spi_master_suspend(p->master);
+ }
+ 
+ static int sh_msiof_spi_resume(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct sh_msiof_spi_priv *p = platform_get_drvdata(pdev);
++	struct sh_msiof_spi_priv *p = dev_get_drvdata(dev);
+ 
+ 	return spi_master_resume(p->master);
+ }

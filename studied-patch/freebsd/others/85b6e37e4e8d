@@ -1,0 +1,153 @@
+commit 85b6e37e4e8d6b20d8ea7cb061b12b05f7d326cb
+Author: avg <avg@FreeBSD.org>
+Date:   Mon Oct 2 12:54:01 2017 +0000
+
+    MFC r323433,r323793,r323915: MFV r323110: 8558 lwp_create() returns EAGAIN
+    on system with more than 80K ZFS filesystems, and followups
+    
+    r323433: MFV r323110: 8558 lwp_create() returns EAGAIN on system with more than 80K ZFS filesystems
+    r323793: MFV r323792: 8602 remove unused "dp_early_sync_tasks" field from "dsl_pool" structure
+    r323915: MFV r323914: 8661 remove "zil-cw2" dtrace probe
+
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/dsl_pool.c b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/dsl_pool.c
+index 0d340a47b81..15836e1aa35 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/dsl_pool.c
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/dsl_pool.c
+@@ -137,6 +137,36 @@ uint64_t zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
+  */
+ int zfs_sync_taskq_batch_pct = 75;
+ 
++/*
++ * These tunables determine the behavior of how zil_itxg_clean() is
++ * called via zil_clean() in the context of spa_sync(). When an itxg
++ * list needs to be cleaned, TQ_NOSLEEP will be used when dispatching.
++ * If the dispatch fails, the call to zil_itxg_clean() will occur
++ * synchronously in the context of spa_sync(), which can negatively
++ * impact the performance of spa_sync() (e.g. in the case of the itxg
++ * list having a large number of itxs that needs to be cleaned).
++ *
++ * Thus, these tunables can be used to manipulate the behavior of the
++ * taskq used by zil_clean(); they determine the number of taskq entries
++ * that are pre-populated when the taskq is first created (via the
++ * "zfs_zil_clean_taskq_minalloc" tunable) and the maximum number of
++ * taskq entries that are cached after an on-demand allocation (via the
++ * "zfs_zil_clean_taskq_maxalloc").
++ *
++ * The idea being, we want to try reasonably hard to ensure there will
++ * already be a taskq entry pre-allocated by the time that it is needed
++ * by zil_clean(). This way, we can avoid the possibility of an
++ * on-demand allocation of a new taskq entry from failing, which would
++ * result in zil_itxg_clean() being called synchronously from zil_clean()
++ * (which can adversely affect performance of spa_sync()).
++ *
++ * Additionally, the number of threads used by the taskq can be
++ * configured via the "zfs_zil_clean_taskq_nthr_pct" tunable.
++ */
++int zfs_zil_clean_taskq_nthr_pct = 100;
++int zfs_zil_clean_taskq_minalloc = 1024;
++int zfs_zil_clean_taskq_maxalloc = 1024 * 1024;
++
+ #if defined(__FreeBSD__) && defined(_KERNEL)
+ 
+ extern int zfs_vdev_async_write_active_max_dirty_percent;
+@@ -272,6 +302,12 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
+ 	    zfs_sync_taskq_batch_pct, minclsyspri, 1, INT_MAX,
+ 	    TASKQ_THREADS_CPU_PCT);
+ 
++	dp->dp_zil_clean_taskq = taskq_create("dp_zil_clean_taskq",
++	    zfs_zil_clean_taskq_nthr_pct, minclsyspri,
++	    zfs_zil_clean_taskq_minalloc,
++	    zfs_zil_clean_taskq_maxalloc,
++	    TASKQ_PREPOPULATE | TASKQ_THREADS_CPU_PCT);
++
+ 	mutex_init(&dp->dp_lock, NULL, MUTEX_DEFAULT, NULL);
+ 	cv_init(&dp->dp_spaceavail_cv, NULL, CV_DEFAULT, NULL);
+ 
+@@ -422,6 +458,7 @@ dsl_pool_close(dsl_pool_t *dp)
+ 	txg_list_destroy(&dp->dp_sync_tasks);
+ 	txg_list_destroy(&dp->dp_dirty_dirs);
+ 
++	taskq_destroy(dp->dp_zil_clean_taskq);
+ 	taskq_destroy(dp->dp_sync_taskq);
+ 
+ 	/*
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/dsl_pool.h b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/dsl_pool.h
+index 8291e470a11..b6c51cb3cd6 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/dsl_pool.h
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/dsl_pool.h
+@@ -122,6 +122,7 @@ typedef struct dsl_pool {
+ 	txg_list_t dp_dirty_dirs;
+ 	txg_list_t dp_sync_tasks;
+ 	taskq_t *dp_sync_taskq;
++	taskq_t *dp_zil_clean_taskq;
+ 
+ 	/*
+ 	 * Protects administrative changes (properties, namespace)
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil_impl.h b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil_impl.h
+index 7b3eaf4a55f..f25e7cd3c27 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil_impl.h
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zil_impl.h
+@@ -124,7 +124,6 @@ struct zilog {
+ 	list_t		zl_lwb_list;	/* in-flight log write list */
+ 	kmutex_t	zl_vdev_lock;	/* protects zl_vdev_tree */
+ 	avl_tree_t	zl_vdev_tree;	/* vdevs to flush in zil_commit() */
+-	taskq_t		*zl_clean_taskq; /* runs lwb and itx clean tasks */
+ 	avl_tree_t	zl_bp_tree;	/* track bps during log parse */
+ 	clock_t		zl_replay_time;	/* lbolt of when replay started */
+ 	uint64_t	zl_replay_blks;	/* number of log blocks replayed */
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zil.c b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zil.c
+index fd5c85260fb..abeca42f644 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zil.c
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zil.c
+@@ -1390,8 +1390,7 @@ zil_clean(zilog_t *zilog, uint64_t synced_txg)
+ 		return;
+ 	}
+ 	ASSERT3U(itxg->itxg_txg, <=, synced_txg);
+-	ASSERT(itxg->itxg_txg != 0);
+-	ASSERT(zilog->zl_clean_taskq != NULL);
++	ASSERT3U(itxg->itxg_txg, !=, 0);
+ 	clean_me = itxg->itxg_itxs;
+ 	itxg->itxg_itxs = NULL;
+ 	itxg->itxg_txg = 0;
+@@ -1402,7 +1401,9 @@ zil_clean(zilog_t *zilog, uint64_t synced_txg)
+ 	 * free it in-line. This should be rare. Note, using TQ_SLEEP
+ 	 * created a bad performance problem.
+ 	 */
+-	if (taskq_dispatch(zilog->zl_clean_taskq,
++	ASSERT3P(zilog->zl_dmu_pool, !=, NULL);
++	ASSERT3P(zilog->zl_dmu_pool->dp_zil_clean_taskq, !=, NULL);
++	if (taskq_dispatch(zilog->zl_dmu_pool->dp_zil_clean_taskq,
+ 	    (void (*)(void *))zil_itxg_clean, clean_me, TQ_NOSLEEP) == 0)
+ 		zil_itxg_clean(clean_me);
+ }
+@@ -1556,7 +1557,6 @@ zil_commit_writer(zilog_t *zilog)
+ 		kmem_free(itx, offsetof(itx_t, itx_lr)
+ 		    + itx->itx_lr.lrc_reclen);
+ 	}
+-	DTRACE_PROBE1(zil__cw2, zilog_t *, zilog);
+ 
+ 	/* write the last block out */
+ 	if (lwb != NULL && lwb->lwb_zio != NULL)
+@@ -1831,13 +1831,10 @@ zil_open(objset_t *os, zil_get_data_t *get_data)
+ {
+ 	zilog_t *zilog = dmu_objset_zil(os);
+ 
+-	ASSERT(zilog->zl_clean_taskq == NULL);
+ 	ASSERT(zilog->zl_get_data == NULL);
+ 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
+ 
+ 	zilog->zl_get_data = get_data;
+-	zilog->zl_clean_taskq = taskq_create("zil_clean", 1, minclsyspri,
+-	    2, 2, TASKQ_PREPOPULATE);
+ 
+ 	return (zilog);
+ }
+@@ -1871,8 +1868,6 @@ zil_close(zilog_t *zilog)
+ 		zfs_dbgmsg("zil (%p) is dirty, txg %llu", zilog, txg);
+ 	VERIFY(!zilog_is_dirty(zilog));
+ 
+-	taskq_destroy(zilog->zl_clean_taskq);
+-	zilog->zl_clean_taskq = NULL;
+ 	zilog->zl_get_data = NULL;
+ 
+ 	/*

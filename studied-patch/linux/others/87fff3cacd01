@@ -1,0 +1,25 @@
+commit 87fff3cacd0112bcaf42f932c1e44ae32b42f1fb
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Thu Jan 17 23:11:30 2019 +0800
+
+    neighbour: Do not perturb drop profiles when neigh_probe
+    
+    Replace the kfree_skb() by consume_skb() to be drop monitor(dropwatch,
+    perf) friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/net/core/neighbour.c b/net/core/neighbour.c
+index 96fdc9134726..4230400b9a30 100644
+--- a/net/core/neighbour.c
++++ b/net/core/neighbour.c
+@@ -1007,7 +1007,7 @@ static void neigh_probe(struct neighbour *neigh)
+ 	if (neigh->ops->solicit)
+ 		neigh->ops->solicit(neigh, skb);
+ 	atomic_inc(&neigh->probes);
+-	kfree_skb(skb);
++	consume_skb(skb);
+ }
+ 
+ /* Called when a timer expires for a neighbour entry. */

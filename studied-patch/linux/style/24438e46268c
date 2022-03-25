@@ -1,0 +1,36 @@
+commit 24438e46268c721e14c5c888386af85c9e1c5db1
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 22:01:02 2018 +0200
+
+    uio: uio_fsl_elbc_gpcm: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/uio/uio_fsl_elbc_gpcm.c b/drivers/uio/uio_fsl_elbc_gpcm.c
+index 9cc37fe07d35..0ee3cd3c25ee 100644
+--- a/drivers/uio/uio_fsl_elbc_gpcm.c
++++ b/drivers/uio/uio_fsl_elbc_gpcm.c
+@@ -74,8 +74,7 @@ DEVICE_ATTR(reg_or, S_IRUGO|S_IWUSR|S_IWGRP, reg_show, reg_store);
+ static ssize_t reg_show(struct device *dev, struct device_attribute *attr,
+ 			char *buf)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct uio_info *info = platform_get_drvdata(pdev);
++	struct uio_info *info = dev_get_drvdata(dev);
+ 	struct fsl_elbc_gpcm *priv = info->priv;
+ 	struct fsl_lbc_bank *bank = &priv->lbc->bank[priv->bank];
+ 
+@@ -94,8 +93,7 @@ static ssize_t reg_show(struct device *dev, struct device_attribute *attr,
+ static ssize_t reg_store(struct device *dev, struct device_attribute *attr,
+ 			 const char *buf, size_t count)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct uio_info *info = platform_get_drvdata(pdev);
++	struct uio_info *info = dev_get_drvdata(dev);
+ 	struct fsl_elbc_gpcm *priv = info->priv;
+ 	struct fsl_lbc_bank *bank = &priv->lbc->bank[priv->bank];
+ 	unsigned long val;

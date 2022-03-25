@@ -1,0 +1,37 @@
+commit c9a863bbb1620dca3af57934cdbb002e852449fc
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Tue Nov 6 19:09:14 2018 -0800
+
+    sched/membarrier: synchronize_sched() with synchronize_rcu()
+    
+    Now that synchronize_rcu() waits for preempt-disable regions of code
+    as well as RCU read-side critical sections, synchronize_sched() can be
+    replaced by synchronize_rcu().  This commit therefore makes this change.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: Mathieu Desnoyers <mathieu.desnoyers@efficios.com>
+    Cc: Ingo Molnar <mingo@redhat.com>
+    Cc: Peter Zijlstra <peterz@infradead.org>
+
+diff --git a/kernel/sched/membarrier.c b/kernel/sched/membarrier.c
+index 388a7a6c1aa2..3cd8a3a795d2 100644
+--- a/kernel/sched/membarrier.c
++++ b/kernel/sched/membarrier.c
+@@ -210,7 +210,7 @@ static int membarrier_register_global_expedited(void)
+ 		 * future scheduler executions will observe the new
+ 		 * thread flag state for this mm.
+ 		 */
+-		synchronize_sched();
++		synchronize_rcu();
+ 	}
+ 	atomic_or(MEMBARRIER_STATE_GLOBAL_EXPEDITED_READY,
+ 		  &mm->membarrier_state);
+@@ -246,7 +246,7 @@ static int membarrier_register_private_expedited(int flags)
+ 		 * Ensure all future scheduler executions will observe the
+ 		 * new thread flag state for this process.
+ 		 */
+-		synchronize_sched();
++		synchronize_rcu();
+ 	}
+ 	atomic_or(state, &mm->membarrier_state);
+ 

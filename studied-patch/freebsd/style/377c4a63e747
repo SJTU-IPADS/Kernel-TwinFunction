@@ -1,0 +1,30 @@
+commit 377c4a63e7474c39b3a7c64b911b94618c01a443
+Author: tuexen <tuexen@FreeBSD.org>
+Date:   Sat Apr 7 17:35:04 2018 +0000
+
+    MFC r323372:
+    
+    Savely remove a chunk from the control queue.
+    This bug was found by Coverity scanning the usrsctp library.
+
+diff --git a/sys/netinet/sctp_input.c b/sys/netinet/sctp_input.c
+index e0666533726..caf9933479a 100644
+--- a/sys/netinet/sctp_input.c
++++ b/sys/netinet/sctp_input.c
+@@ -3136,14 +3136,14 @@ sctp_handle_ecn_cwr(struct sctp_cwr_chunk *cp, struct sctp_tcb *stcb, struct sct
+ 	 * make sure that we have a covered ECNE in the control chunk part.
+ 	 * If so remove it.
+ 	 */
+-	struct sctp_tmit_chunk *chk;
++	struct sctp_tmit_chunk *chk, *nchk;
+ 	struct sctp_ecne_chunk *ecne;
+ 	int override;
+ 	uint32_t cwr_tsn;
+ 
+ 	cwr_tsn = ntohl(cp->tsn);
+ 	override = cp->ch.chunk_flags & SCTP_CWR_REDUCE_OVERRIDE;
+-	TAILQ_FOREACH(chk, &stcb->asoc.control_send_queue, sctp_next) {
++	TAILQ_FOREACH_SAFE(chk, &stcb->asoc.control_send_queue, sctp_next, nchk) {
+ 		if (chk->rec.chunk_id.id != SCTP_ECN_ECHO) {
+ 			continue;
+ 		}

@@ -1,0 +1,28 @@
+commit 545f6de19dd1b2a753552e3364d7a71882fe9137
+Author: brooks <brooks@FreeBSD.org>
+Date:   Fri Mar 9 01:17:03 2018 +0000
+
+    MFC r330527:
+    
+    Use umtx_copyin_umtx_time32() in __umtx_op_lock_umutex_compat32().
+    
+    Non-NULL timeouts where copied in improperly and could produce failures
+    due to incompatible data structures.
+    
+    Reviewed by:    kib
+    Sponsored by:   DARPA, AFRL
+    Differential Revision:  https://reviews.freebsd.org/D14587
+
+diff --git a/sys/kern/kern_umtx.c b/sys/kern/kern_umtx.c
+index b549c1e7d30..cf3a63bf433 100644
+--- a/sys/kern/kern_umtx.c
++++ b/sys/kern/kern_umtx.c
+@@ -4114,7 +4114,7 @@ __umtx_op_lock_umutex_compat32(struct thread *td, struct _umtx_op_args *uap)
+ 	if (uap->uaddr2 == NULL)
+ 		tm_p = NULL;
+ 	else {
+-		error = umtx_copyin_umtx_time(uap->uaddr2,
++		error = umtx_copyin_umtx_time32(uap->uaddr2,
+ 			    (size_t)uap->uaddr1, &timeout);
+ 		if (error != 0)
+ 			return (error);

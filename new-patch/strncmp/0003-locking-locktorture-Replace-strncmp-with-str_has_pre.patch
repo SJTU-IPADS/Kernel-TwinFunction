@@ -1,0 +1,49 @@
+From 2501563457c71b01cfc9676134e7799e1cd765da Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 1 Aug 2019 22:40:51 +0800
+Subject: [PATCH v2 03/10] locking/locktorture: Replace strncmp with
+ str_has_prefix
+
+strncmp(str, const, len) is error-prone because len
+is easy to have typo.
+The example is the hard-coded len has counting error
+or sizeof(const) forgets - 1.
+So we prefer using newly introduced str_has_prefix
+to substitute such strncmp.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Newly detected in upstream.
+
+ kernel/locking/locktorture.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/kernel/locking/locktorture.c b/kernel/locking/locktorture.c
+index c513031cd7e3..8dd900247205 100644
+--- a/kernel/locking/locktorture.c
++++ b/kernel/locking/locktorture.c
+@@ -889,16 +889,16 @@ static int __init lock_torture_init(void)
+ 		cxt.nrealwriters_stress = 2 * num_online_cpus();
+ 
+ #ifdef CONFIG_DEBUG_MUTEXES
+-	if (strncmp(torture_type, "mutex", 5) == 0)
++	if (str_has_prefix(torture_type, "mutex"))
+ 		cxt.debug_lock = true;
+ #endif
+ #ifdef CONFIG_DEBUG_RT_MUTEXES
+-	if (strncmp(torture_type, "rtmutex", 7) == 0)
++	if (str_has_prefix(torture_type, "rtmutex"))
+ 		cxt.debug_lock = true;
+ #endif
+ #ifdef CONFIG_DEBUG_SPINLOCK
+-	if ((strncmp(torture_type, "spin", 4) == 0) ||
+-	    (strncmp(torture_type, "rw_lock", 7) == 0))
++	if ((str_has_prefix(torture_type, "spin")) ||
++	    (str_has_prefix(torture_type, "rw_lock")))
+ 		cxt.debug_lock = true;
+ #endif
+ 
+-- 
+2.20.1
+

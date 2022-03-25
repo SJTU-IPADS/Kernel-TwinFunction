@@ -1,0 +1,27 @@
+commit b77c98780e682fe780d899b91543769d4cf94585
+Author: Moritz Fischer <mdf@kernel.org>
+Date:   Mon Nov 12 13:38:34 2018 -0600
+
+    fpga: dfl-fme-region: Use platform_get_drvdata()
+    
+    Use platform_get_drvdata() in remove() function of
+    the platform driver rather than dev_get_drvdata()
+    to match the platform_set_drvdata in the probe().
+    
+    Signed-off-by: Moritz Fischer <mdf@kernel.org>
+    Acked-by: Alan Tull <atull@kernel.org>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/fpga/dfl-fme-region.c b/drivers/fpga/dfl-fme-region.c
+index ec134ec93f08..1eeb42af1012 100644
+--- a/drivers/fpga/dfl-fme-region.c
++++ b/drivers/fpga/dfl-fme-region.c
+@@ -64,7 +64,7 @@ static int fme_region_probe(struct platform_device *pdev)
+ 
+ static int fme_region_remove(struct platform_device *pdev)
+ {
+-	struct fpga_region *region = dev_get_drvdata(&pdev->dev);
++	struct fpga_region *region = platform_get_drvdata(pdev);
+ 	struct fpga_manager *mgr = region->mgr;
+ 
+ 	fpga_region_unregister(region);

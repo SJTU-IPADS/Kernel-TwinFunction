@@ -1,0 +1,87 @@
+commit ad9743ad32a775f3e5953f25e0ab47893ad38fad
+Author: dab <dab@FreeBSD.org>
+Date:   Mon Mar 5 13:58:03 2018 +0000
+
+    MFC r330027
+    
+    iconv uses strlen directly on user supplied memory
+    
+    `iconv_sysctl_add` from `sys/libkern/iconv.c` incorrectly limits the
+    size of user strings, such that several out of bounds reads could have
+    been possible.
+    
+    static int
+    iconv_sysctl_add(SYSCTL_HANDLER_ARGS)
+    {
+            struct iconv_converter_class *dcp;
+            struct iconv_cspair *csp;
+            struct iconv_add_in din;
+            struct iconv_add_out dout;
+            int error;
+    
+            error = SYSCTL_IN(req, &din, sizeof(din));
+            if (error)
+                    return error;
+            if (din.ia_version != ICONV_ADD_VER)
+                    return EINVAL;
+            if (din.ia_datalen > ICONV_CSMAXDATALEN)
+                    return EINVAL;
+            if (strlen(din.ia_from) >= ICONV_CSNMAXLEN)
+                    return EINVAL;
+            if (strlen(din.ia_to) >= ICONV_CSNMAXLEN)
+                    return EINVAL;
+            if (strlen(din.ia_converter) >= ICONV_CNVNMAXLEN)
+                    return EINVAL;
+    ...
+    
+    Since the `din` struct is directly copied from userland, there is no
+    guarantee that the strings supplied will be NULL terminated. The
+    `strlen` calls could continue reading past the designated buffer
+    sizes.
+    
+    Declaration of `struct iconv_add_in` is found in `sys/sys/iconv.h`:
+    
+    struct iconv_add_in {
+            int     ia_version;
+            char    ia_converter[ICONV_CNVNMAXLEN];
+            char    ia_to[ICONV_CSNMAXLEN];
+            char    ia_from[ICONV_CSNMAXLEN];
+            int     ia_datalen;
+            const void *ia_data;
+    };
+    
+    Our strings are followed by the `ia_datalen` member, which is checked
+    before the `strlen` calls:
+    
+    if (din.ia_datalen > ICONV_CSMAXDATALEN)
+    
+    Since `ICONV_CSMAXDATALEN` has value `0x41000` (and is `unsigned`),
+    this ensures that `din.ia_datalen` contains at least 1 byte of 0, so
+    it is not possible to trigger a read out of bounds of the `struct`
+    however, this code is fragile and could introduce subtle bugs in the
+    future if the `struct` is ever modified.
+    
+    PR:             207302
+    Submitted by:   CTurt <cturt@hardenedbsd.org>
+    Reported by:    CTurt <cturt@hardenedbsd.org>
+    Sponsored by:   Dell EMC
+
+diff --git a/sys/libkern/iconv.c b/sys/libkern/iconv.c
+index b42c043e5e4..d47e44e11aa 100644
+--- a/sys/libkern/iconv.c
++++ b/sys/libkern/iconv.c
+@@ -411,11 +411,11 @@ iconv_sysctl_add(SYSCTL_HANDLER_ARGS)
+ 		return EINVAL;
+ 	if (din.ia_datalen > ICONV_CSMAXDATALEN)
+ 		return EINVAL;
+-	if (strlen(din.ia_from) >= ICONV_CSNMAXLEN)
++	if (strnlen(din.ia_from, sizeof(din.ia_from)) >= ICONV_CSNMAXLEN)
+ 		return EINVAL;
+-	if (strlen(din.ia_to) >= ICONV_CSNMAXLEN)
++	if (strnlen(din.ia_to, sizeof(din.ia_to)) >= ICONV_CSNMAXLEN)
+ 		return EINVAL;
+-	if (strlen(din.ia_converter) >= ICONV_CNVNMAXLEN)
++	if (strnlen(din.ia_converter, sizeof(din.ia_converter)) >= ICONV_CNVNMAXLEN)
+ 		return EINVAL;
+ 	if (iconv_lookupconv(din.ia_converter, &dcp) != 0)
+ 		return EINVAL;

@@ -1,0 +1,74 @@
+commit d936550784a23b8dac077733cdf2f554a019286b
+Author: Sergio Paracuellos <sergio.paracuellos@gmail.com>
+Date:   Sun Nov 4 11:49:43 2018 +0100
+
+    staging: mt7621-pci: use dev_* functions instead of printk
+    
+    checkpatch script is complaining about the use of printk instead
+    of use more proper dev_* kernel functions. Replace all of them
+    removing warnings.
+    
+    Signed-off-by: Sergio Paracuellos <sergio.paracuellos@gmail.com>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/staging/mt7621-pci/pci-mt7621.c b/drivers/staging/mt7621-pci/pci-mt7621.c
+index afc87203de52..6d261809fcdf 100644
+--- a/drivers/staging/mt7621-pci/pci-mt7621.c
++++ b/drivers/staging/mt7621-pci/pci-mt7621.c
+@@ -405,8 +405,10 @@ static void mt7621_enable_phy(struct mt7621_pcie_port *port)
+ 	set_phy_for_ssc(port);
+ }
+ 
+-static void setup_cm_memory_region(struct resource *mem_resource)
++static void setup_cm_memory_region(struct mt7621_pcie *pcie)
+ {
++	struct resource *mem_resource = &pcie->mem;
++	struct device *dev = pcie->dev;
+ 	resource_size_t mask;
+ 
+ 	if (mips_cps_numiocu(0)) {
+@@ -419,7 +421,7 @@ static void setup_cm_memory_region(struct resource *mem_resource)
+ 
+ 		write_gcr_reg1_base(mem_resource->start);
+ 		write_gcr_reg1_mask(mask | CM_GCR_REGn_MASK_CMTGT_IOCU0);
+-		printk("PCI coherence region base: 0x%08llx, mask/settings: 0x%08llx\n",
++		dev_info(dev, "PCI coherence region base: 0x%08llx, mask/settings: 0x%08llx\n",
+ 			(unsigned long long)read_gcr_reg1_base(),
+ 			(unsigned long long)read_gcr_reg1_mask());
+ 	}
+@@ -771,7 +773,7 @@ pcie(2/1/0) link status	pcie2_num	pcie1_num	pcie0_num
+ 			   RT6855_PCIE0_OFFSET + RALINK_PCI_IMBASEBAR0_ADDR);
+ 		pcie_write(pcie, 0x06040001,
+ 			   RT6855_PCIE0_OFFSET + RALINK_PCI_CLASS);
+-		printk("PCIE0 enabled\n");
++		dev_info(dev, "PCIE0 enabled\n");
+ 	}
+ 
+ 	//PCIe1
+@@ -783,7 +785,7 @@ pcie(2/1/0) link status	pcie2_num	pcie1_num	pcie0_num
+ 			   RT6855_PCIE1_OFFSET + RALINK_PCI_IMBASEBAR0_ADDR);
+ 		pcie_write(pcie, 0x06040001,
+ 			   RT6855_PCIE1_OFFSET + RALINK_PCI_CLASS);
+-		printk("PCIE1 enabled\n");
++		dev_info(dev, "PCIE1 enabled\n");
+ 	}
+ 
+ 	//PCIe2
+@@ -795,7 +797,7 @@ pcie(2/1/0) link status	pcie2_num	pcie1_num	pcie0_num
+ 			   RT6855_PCIE2_OFFSET + RALINK_PCI_IMBASEBAR0_ADDR);
+ 		pcie_write(pcie, 0x06040001,
+ 			   RT6855_PCIE2_OFFSET + RALINK_PCI_CLASS);
+-		printk("PCIE2 enabled\n");
++		dev_info(dev, "PCIE2 enabled\n");
+ 	}
+ 
+ 	switch (pcie_link_status) {
+@@ -830,7 +832,7 @@ pcie(2/1/0) link status	pcie2_num	pcie1_num	pcie0_num
+ 		return err;
+ 	}
+ 
+-	setup_cm_memory_region(&pcie->mem);
++	setup_cm_memory_region(pcie);
+ 
+ 	err = mt7621_pcie_request_resources(pcie, &res);
+ 	if (err) {

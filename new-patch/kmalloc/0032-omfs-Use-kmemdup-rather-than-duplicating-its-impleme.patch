@@ -1,0 +1,41 @@
+From 4c8c190303e8472468fb28b9733faabe7daab437 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 3 Jul 2019 23:40:01 +0800
+Subject: [PATCH v2 32/35] omfs: Use kmemdup rather than duplicating its
+ implementation
+
+kmemdup is introduced to duplicate a region of memory in a neat way.
+Rather than kmalloc/kzalloc + memcpy, which the programmer needs to
+write the size twice (sometimes lead to mistakes), kmemdup improves
+readability, leads to smaller code and also reduce the chances of mistakes.
+Suggestion to use kmemdup rather than using kmalloc/kzalloc + memcpy.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Fix a typo in commit message (memset -> memcpy)
+
+ fs/omfs/inode.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/fs/omfs/inode.c b/fs/omfs/inode.c
+index 08226a835ec3..1aa0c0a224b1 100644
+--- a/fs/omfs/inode.c
++++ b/fs/omfs/inode.c
+@@ -363,12 +363,11 @@ static int omfs_get_imap(struct super_block *sb)
+ 		bh = sb_bread(sb, block++);
+ 		if (!bh)
+ 			goto nomem_free;
+-		*ptr = kmalloc(sb->s_blocksize, GFP_KERNEL);
++		*ptr = kmemdup(bh->b_data, sb->s_blocksize, GFP_KERNEL);
+ 		if (!*ptr) {
+ 			brelse(bh);
+ 			goto nomem_free;
+ 		}
+-		memcpy(*ptr, bh->b_data, sb->s_blocksize);
+ 		if (count < sb->s_blocksize)
+ 			memset((void *)*ptr + count, 0xff,
+ 				sb->s_blocksize - count);
+-- 
+2.11.0
+

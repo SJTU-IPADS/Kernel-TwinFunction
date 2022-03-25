@@ -1,0 +1,43 @@
+From 524a7715d785fe9921db9f3c80e5f77a4293fb4f Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 4 Jul 2019 09:21:02 +0800
+Subject: [Patch v2 09/10] net/ethernet: using dev_get_drvdata directly
+
+Several drivers cast a struct device pointer to a struct
+platform_device pointer only to then call platform_get_drvdata().
+To improve readability, these constructs can be simplified
+by using dev_get_drvdata() directly.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Make the commit message more clearly.
+
+ drivers/net/ethernet/calxeda/xgmac.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/calxeda/xgmac.c b/drivers/net/ethernet/calxeda/xgmac.c
+index 11d4e91ea754..99f49d059414 100644
+--- a/drivers/net/ethernet/calxeda/xgmac.c
++++ b/drivers/net/ethernet/calxeda/xgmac.c
+@@ -1855,7 +1855,7 @@ static void xgmac_pmt(void __iomem *ioaddr, unsigned long mode)
+ 
+ static int xgmac_suspend(struct device *dev)
+ {
+-	struct net_device *ndev = platform_get_drvdata(to_platform_device(dev));
++	struct net_device *ndev = dev_get_drvdata(dev);
+ 	struct xgmac_priv *priv = netdev_priv(ndev);
+ 	u32 value;
+ 
+@@ -1881,7 +1881,7 @@ static int xgmac_suspend(struct device *dev)
+ 
+ static int xgmac_resume(struct device *dev)
+ {
+-	struct net_device *ndev = platform_get_drvdata(to_platform_device(dev));
++	struct net_device *ndev = dev_get_drvdata(dev);
+ 	struct xgmac_priv *priv = netdev_priv(ndev);
+ 	void __iomem *ioaddr = priv->base;
+ 
+-- 
+2.11.0
+

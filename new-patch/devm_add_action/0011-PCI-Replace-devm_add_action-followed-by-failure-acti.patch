@@ -1,0 +1,35 @@
+From f876a81a32b123e27ec8897217fc5f10d129bb39 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Mon, 8 Jul 2019 15:08:38 +0800
+Subject: [PATCH 11/14] PCI: Replace devm_add_action() followed by failure
+ action with devm_add_action_or_reset()
+
+devm_add_action_or_reset() is introduced as a helper function which 
+internally calls devm_add_action(). If devm_add_action() fails 
+then it will execute the action mentioned and return the error code.
+This reduce source code size (avoid writing the action twice) 
+and reduce the likelyhood of bugs.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/pci/controller/pci-host-common.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/pci/controller/pci-host-common.c b/drivers/pci/controller/pci-host-common.c
+index c742881b5061..c8cb9c5188a4 100644
+--- a/drivers/pci/controller/pci-host-common.c
++++ b/drivers/pci/controller/pci-host-common.c
+@@ -43,9 +43,8 @@ static struct pci_config_window *gen_pci_init(struct device *dev,
+ 		goto err_out;
+ 	}
+ 
+-	err = devm_add_action(dev, gen_pci_unmap_cfg, cfg);
++	err = devm_add_action_or_reset(dev, gen_pci_unmap_cfg, cfg);
+ 	if (err) {
+-		gen_pci_unmap_cfg(cfg);
+ 		goto err_out;
+ 	}
+ 	return cfg;
+-- 
+2.11.0
+

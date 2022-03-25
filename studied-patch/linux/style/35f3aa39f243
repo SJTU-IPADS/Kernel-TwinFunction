@@ -1,0 +1,59 @@
+commit 35f3aa39f243e8c95e12a2b2d05b1d2e62ac58a4
+Author: Lance Roy <ldr709@gmail.com>
+Date:   Thu Oct 4 23:45:47 2018 -0700
+
+    mm: Replace spin_is_locked() with lockdep
+    
+    lockdep_assert_held() is better suited to checking locking requirements,
+    since it only checks if the current thread holds the lock regardless of
+    whether someone else does. This is also a step towards possibly removing
+    spin_is_locked().
+    
+    Signed-off-by: Lance Roy <ldr709@gmail.com>
+    Cc: Andrew Morton <akpm@linux-foundation.org>
+    Cc: "Kirill A. Shutemov" <kirill.shutemov@linux.intel.com>
+    Cc: Yang Shi <yang.shi@linux.alibaba.com>
+    Cc: Matthew Wilcox <mawilcox@microsoft.com>
+    Cc: Mel Gorman <mgorman@techsingularity.net>
+    Acked-by: Vlastimil Babka <vbabka@suse.cz>
+    Cc: Jan Kara <jack@suse.cz>
+    Cc: Shakeel Butt <shakeelb@google.com>
+    Cc: <linux-mm@kvack.org>
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+
+diff --git a/mm/khugepaged.c b/mm/khugepaged.c
+index c13625c1ad5e..7b86600a47c9 100644
+--- a/mm/khugepaged.c
++++ b/mm/khugepaged.c
+@@ -1225,7 +1225,7 @@ static void collect_mm_slot(struct mm_slot *mm_slot)
+ {
+ 	struct mm_struct *mm = mm_slot->mm;
+ 
+-	VM_BUG_ON(NR_CPUS != 1 && !spin_is_locked(&khugepaged_mm_lock));
++	lockdep_assert_held(&khugepaged_mm_lock);
+ 
+ 	if (khugepaged_test_exit(mm)) {
+ 		/* free mm_slot */
+@@ -1631,7 +1631,7 @@ static unsigned int khugepaged_scan_mm_slot(unsigned int pages,
+ 	int progress = 0;
+ 
+ 	VM_BUG_ON(!pages);
+-	VM_BUG_ON(NR_CPUS != 1 && !spin_is_locked(&khugepaged_mm_lock));
++	lockdep_assert_held(&khugepaged_mm_lock);
+ 
+ 	if (khugepaged_scan.mm_slot)
+ 		mm_slot = khugepaged_scan.mm_slot;
+diff --git a/mm/swap.c b/mm/swap.c
+index aa483719922e..5d786019eab9 100644
+--- a/mm/swap.c
++++ b/mm/swap.c
+@@ -823,8 +823,7 @@ void lru_add_page_tail(struct page *page, struct page *page_tail,
+ 	VM_BUG_ON_PAGE(!PageHead(page), page);
+ 	VM_BUG_ON_PAGE(PageCompound(page_tail), page);
+ 	VM_BUG_ON_PAGE(PageLRU(page_tail), page);
+-	VM_BUG_ON(NR_CPUS != 1 &&
+-		  !spin_is_locked(&lruvec_pgdat(lruvec)->lru_lock));
++	lockdep_assert_held(&lruvec_pgdat(lruvec)->lru_lock);
+ 
+ 	if (!list)
+ 		SetPageLRU(page_tail);

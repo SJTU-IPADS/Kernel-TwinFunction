@@ -1,0 +1,255 @@
+commit 88ca0557a01386834cbb59d5fc43041e810cbc69
+Author: Rob Herring <robh@kernel.org>
+Date:   Fri Nov 16 15:06:59 2018 -0600
+
+    sparc: Use device_type helpers to access the node type
+    
+    Remove directly accessing device_node.type pointer and use the accessors
+    instead. This will eventually allow removing the type pointer.
+    
+    Replace the open coded iterating over child nodes with
+    for_each_child_of_node() while we're here.
+    
+    Cc: "David S. Miller" <davem@davemloft.net>
+    Cc: sparclinux@vger.kernel.org
+    Signed-off-by: Rob Herring <robh@kernel.org>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/arch/sparc/kernel/of_device_32.c b/arch/sparc/kernel/of_device_32.c
+index dc5b1b0ec659..ee4841a96058 100644
+--- a/arch/sparc/kernel/of_device_32.c
++++ b/arch/sparc/kernel/of_device_32.c
+@@ -22,7 +22,7 @@
+ 
+ static int of_bus_pci_match(struct device_node *np)
+ {
+-	if (!strcmp(np->type, "pci") || !strcmp(np->type, "pciex")) {
++	if (of_node_is_type(np, "pci") || of_node_is_type(np, "pciex")) {
+ 		/* Do not do PCI specific frobbing if the
+ 		 * PCI bridge lacks a ranges property.  We
+ 		 * want to pass it through up to the next
+@@ -107,7 +107,7 @@ static unsigned long of_bus_sbus_get_flags(const u32 *addr, unsigned long flags)
+ 
+ static int of_bus_ambapp_match(struct device_node *np)
+ {
+-	return !strcmp(np->type, "ambapp");
++	return of_node_is_type(np, "ambapp");
+ }
+ 
+ static void of_bus_ambapp_count_cells(struct device_node *child,
+diff --git a/arch/sparc/kernel/pci.c b/arch/sparc/kernel/pci.c
+index 377113ae9a6a..bcfec6a85d23 100644
+--- a/arch/sparc/kernel/pci.c
++++ b/arch/sparc/kernel/pci.c
+@@ -267,7 +267,6 @@ static struct pci_dev *of_create_pci_dev(struct pci_pbm_info *pbm,
+ 	struct dev_archdata *sd;
+ 	struct platform_device *op;
+ 	struct pci_dev *dev;
+-	const char *type;
+ 	u32 class;
+ 
+ 	dev = pci_alloc_dev(bus);
+@@ -286,13 +285,9 @@ static struct pci_dev *of_create_pci_dev(struct pci_pbm_info *pbm,
+ 	if (of_node_name_eq(node, "ebus"))
+ 		of_propagate_archdata(op);
+ 
+-	type = of_get_property(node, "device_type", NULL);
+-	if (type == NULL)
+-		type = "";
+-
+ 	if (ofpci_verbose)
+ 		pci_info(bus,"    create device, devfn: %x, type: %s\n",
+-			 devfn, type);
++			 devfn, of_node_get_device_type(node));
+ 
+ 	dev->sysdata = node;
+ 	dev->dev.parent = bus->bridge;
+@@ -340,7 +335,7 @@ static struct pci_dev *of_create_pci_dev(struct pci_pbm_info *pbm,
+ 		/* a PCI-PCI bridge */
+ 		dev->hdr_type = PCI_HEADER_TYPE_BRIDGE;
+ 		dev->rom_base_reg = PCI_ROM_ADDRESS1;
+-	} else if (!strcmp(type, "cardbus")) {
++	} else if (of_node_is_type(node, "cardbus")) {
+ 		dev->hdr_type = PCI_HEADER_TYPE_CARDBUS;
+ 	} else {
+ 		dev->hdr_type = PCI_HEADER_TYPE_NORMAL;
+diff --git a/arch/sparc/kernel/process_32.c b/arch/sparc/kernel/process_32.c
+index d9662cf7e648..26cca65e9246 100644
+--- a/arch/sparc/kernel/process_32.c
++++ b/arch/sparc/kernel/process_32.c
+@@ -110,7 +110,7 @@ void machine_restart(char * cmd)
+ void machine_power_off(void)
+ {
+ 	if (auxio_power_register &&
+-	    (strcmp(of_console_device->type, "serial") || scons_pwroff)) {
++	    (!of_node_is_type(of_console_device, "serial") || scons_pwroff)) {
+ 		u8 power_register = sbus_readb(auxio_power_register);
+ 		power_register |= AUXIO_POWER_OFF;
+ 		sbus_writeb(power_register, auxio_power_register);
+diff --git a/arch/sparc/kernel/prom_32.c b/arch/sparc/kernel/prom_32.c
+index f2835cddf362..42d7f2a7da6d 100644
+--- a/arch/sparc/kernel/prom_32.c
++++ b/arch/sparc/kernel/prom_32.c
+@@ -182,14 +182,14 @@ static void __init __build_path_component(struct device_node *dp, char *tmp_buf)
+ 	struct device_node *parent = dp->parent;
+ 
+ 	if (parent != NULL) {
+-		if (!strcmp(parent->type, "pci") ||
+-		    !strcmp(parent->type, "pciex"))
++		if (of_node_is_type(parent, "pci") ||
++		    of_node_is_type(parent, "pciex"))
+ 			return pci_path_component(dp, tmp_buf);
+-		if (!strcmp(parent->type, "sbus"))
++		if (of_node_is_type(parent, "sbus"))
+ 			return sbus_path_component(dp, tmp_buf);
+-		if (!strcmp(parent->type, "ebus"))
++		if (of_node_is_type(parent, "ebus"))
+ 			return ebus_path_component(dp, tmp_buf);
+-		if (!strcmp(parent->type, "ambapp"))
++		if (of_node_is_type(parent, "ambapp"))
+ 			return ambapp_path_component(dp, tmp_buf);
+ 
+ 		/* "isa" is handled with platform naming */
+@@ -284,15 +284,9 @@ void __init of_console_init(void)
+ 			prom_halt();
+ 		}
+ 		dp = of_find_node_by_phandle(node);
+-		type = of_get_property(dp, "device_type", NULL);
+ 
+-		if (!type) {
+-			prom_printf("Console stdout lacks "
+-				    "device_type property.\n");
+-			prom_halt();
+-		}
+-
+-		if (strcmp(type, "display") && strcmp(type, "serial")) {
++		if (!of_node_is_type(dp, "display") &&
++		    !of_node_is_type(dp, "serial")) {
+ 			prom_printf("Console device_type is neither display "
+ 				    "nor serial.\n");
+ 			prom_halt();
+diff --git a/arch/sparc/kernel/prom_64.c b/arch/sparc/kernel/prom_64.c
+index 17860d6ed1bd..e897a4ded3a1 100644
+--- a/arch/sparc/kernel/prom_64.c
++++ b/arch/sparc/kernel/prom_64.c
+@@ -318,20 +318,20 @@ static void __init __build_path_component(struct device_node *dp, char *tmp_buf)
+ 	struct device_node *parent = dp->parent;
+ 
+ 	if (parent != NULL) {
+-		if (!strcmp(parent->type, "pci") ||
+-		    !strcmp(parent->type, "pciex")) {
++		if (of_node_is_type(parent, "pci") ||
++		    of_node_is_type(parent, "pciex")) {
+ 			pci_path_component(dp, tmp_buf);
+ 			return;
+ 		}
+-		if (!strcmp(parent->type, "sbus")) {
++		if (of_node_is_type(parent, "sbus")) {
+ 			sbus_path_component(dp, tmp_buf);
+ 			return;
+ 		}
+-		if (!strcmp(parent->type, "upa")) {
++		if (of_node_is_type(parent, "upa")) {
+ 			upa_path_component(dp, tmp_buf);
+ 			return;
+ 		}
+-		if (!strcmp(parent->type, "ebus")) {
++		if (of_node_is_type(parent, "ebus")) {
+ 			ebus_path_component(dp, tmp_buf);
+ 			return;
+ 		}
+@@ -340,15 +340,15 @@ static void __init __build_path_component(struct device_node *dp, char *tmp_buf)
+ 			usb_path_component(dp, tmp_buf);
+ 			return;
+ 		}
+-		if (!strcmp(parent->type, "i2c")) {
++		if (of_node_is_type(parent, "i2c")) {
+ 			i2c_path_component(dp, tmp_buf);
+ 			return;
+ 		}
+-		if (!strcmp(parent->type, "firewire")) {
++		if (of_node_is_type(parent, "firewire")) {
+ 			ieee1394_path_component(dp, tmp_buf);
+ 			return;
+ 		}
+-		if (!strcmp(parent->type, "virtual-devices")) {
++		if (of_node_is_type(parent, "virtual-devices")) {
+ 			vdev_path_component(dp, tmp_buf);
+ 			return;
+ 		}
+@@ -605,7 +605,6 @@ void __init of_console_init(void)
+ {
+ 	char *msg = "OF stdout device is: %s\n";
+ 	struct device_node *dp;
+-	const char *type;
+ 	phandle node;
+ 
+ 	of_console_path = prom_early_alloc(256);
+@@ -628,13 +627,8 @@ void __init of_console_init(void)
+ 	}
+ 
+ 	dp = of_find_node_by_phandle(node);
+-	type = of_get_property(dp, "device_type", NULL);
+-	if (!type) {
+-		prom_printf("Console stdout lacks device_type property.\n");
+-		prom_halt();
+-	}
+ 
+-	if (strcmp(type, "display") && strcmp(type, "serial")) {
++	if (!of_node_is_type(dp, "display") && !of_node_is_type(dp, "serial")) {
+ 		prom_printf("Console device_type is neither display "
+ 			    "nor serial.\n");
+ 		prom_halt();
+diff --git a/arch/sparc/kernel/prom_irqtrans.c b/arch/sparc/kernel/prom_irqtrans.c
+index f76b4ae697f5..28aff1c524b5 100644
+--- a/arch/sparc/kernel/prom_irqtrans.c
++++ b/arch/sparc/kernel/prom_irqtrans.c
+@@ -193,7 +193,7 @@ static int sabre_device_needs_wsync(struct device_node *dp)
+ 	 *    the DMA synchronization handling
+ 	 */
+ 	while (parent) {
+-		if (!strcmp(parent->type, "pci"))
++		if (of_node_is_type(parent, "pci"))
+ 			break;
+ 		parent = parent->parent;
+ 	}
+diff --git a/arch/sparc/kernel/reboot.c b/arch/sparc/kernel/reboot.c
+index 7933ee365207..69c1b6c047d5 100644
+--- a/arch/sparc/kernel/reboot.c
++++ b/arch/sparc/kernel/reboot.c
+@@ -7,6 +7,7 @@
+ #include <linux/reboot.h>
+ #include <linux/export.h>
+ #include <linux/pm.h>
++#include <linux/of.h>
+ 
+ #include <asm/oplib.h>
+ #include <asm/prom.h>
+@@ -25,7 +26,7 @@ EXPORT_SYMBOL(pm_power_off);
+ 
+ void machine_power_off(void)
+ {
+-	if (strcmp(of_console_device->type, "serial") || scons_pwroff)
++	if (!of_node_is_type(of_console_device, "serial") || scons_pwroff)
+ 		prom_halt_power_off();
+ 
+ 	prom_halt();
+diff --git a/arch/sparc/kernel/vio.c b/arch/sparc/kernel/vio.c
+index 0b578d03797b..c7cad9b7bba7 100644
+--- a/arch/sparc/kernel/vio.c
++++ b/arch/sparc/kernel/vio.c
+@@ -366,12 +366,9 @@ static struct vio_dev *vio_create_one(struct mdesc_handle *hp, u64 mp,
+ 	if (parent == NULL) {
+ 		dp = cdev_node;
+ 	} else if (to_vio_dev(parent) == root_vdev) {
+-		dp = of_get_next_child(cdev_node, NULL);
+-		while (dp) {
+-			if (!strcmp(dp->type, type))
++		for_each_child_of_node(cdev_node, dp) {
++			if (of_node_is_type(dp, type))
+ 				break;
+-
+-			dp = of_get_next_child(cdev_node, dp);
+ 		}
+ 	} else {
+ 		dp = to_vio_dev(parent)->dp;

@@ -1,0 +1,39 @@
+commit 7ab3f021bbc8078e7fbd1d06b6b3105dc010dc0e
+Author: James Zhu <James.Zhu@amd.com>
+Date:   Mon Dec 17 08:35:05 2018 -0500
+
+    drm/amdgpu:Improves robustness of SOC15_WAIT_ON_RREG
+    
+    If register value is updating, reset timeout counter.
+    It improves robustness of SOC15_WAIT_ON_RREG.
+    
+    Signed-off-by: James Zhu <James.Zhu@amd.com>
+    Reviewed-by: Leo Liu <leo.liu@amd.com>
+    Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15_common.h b/drivers/gpu/drm/amd/amdgpu/soc15_common.h
+index 958b10a57073..49c262540940 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15_common.h
++++ b/drivers/gpu/drm/amd/amdgpu/soc15_common.h
+@@ -49,14 +49,19 @@
+ 
+ #define SOC15_WAIT_ON_RREG(ip, inst, reg, expected_value, mask, ret) \
+ 	do {							\
++		uint32_t old_ = 0;	\
+ 		uint32_t tmp_ = RREG32(adev->reg_offset[ip##_HWIP][inst][reg##_BASE_IDX] + reg); \
+ 		uint32_t loop = adev->usec_timeout;		\
+ 		while ((tmp_ & (mask)) != (expected_value)) {	\
+-			udelay(2);				\
++			if (old_ != tmp_) {			\
++				loop = adev->usec_timeout;	\
++				old_ = tmp_;				\
++			} else						\
++				udelay(1);				\
+ 			tmp_ = RREG32(adev->reg_offset[ip##_HWIP][inst][reg##_BASE_IDX] + reg); \
+ 			loop--;					\
+ 			if (!loop) {				\
+-				DRM_ERROR("Register(%d) [%s] failed to reach value 0x%08x != 0x%08x\n", \
++				DRM_WARN("Register(%d) [%s] failed to reach value 0x%08x != 0x%08x\n", \
+ 					  inst, #reg, (unsigned)expected_value, (unsigned)(tmp_ & (mask))); \
+ 				ret = -ETIMEDOUT;		\
+ 				break;				\

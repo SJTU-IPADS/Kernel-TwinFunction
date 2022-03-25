@@ -1,0 +1,21 @@
+commit bca7b0826ce83fd88e3b669bb5e6d9d8fef09688
+Author: jhb <jhb@FreeBSD.org>
+Date:   Mon Oct 2 18:03:55 2017 +0000
+
+    MFC 323994: Log signal number passed to PT_STEP requests in KTR_PTRACE traces.
+
+diff --git a/sys/kern/sys_process.c b/sys/kern/sys_process.c
+index 796354668d2..ab592c4dbd3 100644
+--- a/sys/kern/sys_process.c
++++ b/sys/kern/sys_process.c
+@@ -1053,8 +1053,8 @@ kern_ptrace(struct thread *td, int req, pid_t pid, void *addr, int data)
+ 
+ 		switch (req) {
+ 		case PT_STEP:
+-			CTR2(KTR_PTRACE, "PT_STEP: tid %d (pid %d)",
+-			    td2->td_tid, p->p_pid);
++			CTR3(KTR_PTRACE, "PT_STEP: tid %d (pid %d), sig = %d",
++			    td2->td_tid, p->p_pid, data);
+ 			error = ptrace_single_step(td2);
+ 			if (error)
+ 				goto out;

@@ -1,0 +1,38 @@
+commit d481de4730c80796994ad83d15a0516bb5010f87
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 22:00:27 2018 +0200
+
+    pinctrl: baytrail: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Acked-by: Mika Westerberg <mika.westerberg@linux.intel.com>
+    Acked-by: Linus Walleij <linus.walleij@linaro.org>
+    Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+
+diff --git a/drivers/pinctrl/intel/pinctrl-baytrail.c b/drivers/pinctrl/intel/pinctrl-baytrail.c
+index 6d1a43c0c251..a1c2548123a1 100644
+--- a/drivers/pinctrl/intel/pinctrl-baytrail.c
++++ b/drivers/pinctrl/intel/pinctrl-baytrail.c
+@@ -1838,8 +1838,7 @@ static int byt_pinctrl_probe(struct platform_device *pdev)
+ #ifdef CONFIG_PM_SLEEP
+ static int byt_gpio_suspend(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct byt_gpio *vg = platform_get_drvdata(pdev);
++	struct byt_gpio *vg = dev_get_drvdata(dev);
+ 	int i;
+ 
+ 	for (i = 0; i < vg->soc_data->npins; i++) {
+@@ -1867,8 +1866,7 @@ static int byt_gpio_suspend(struct device *dev)
+ 
+ static int byt_gpio_resume(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct byt_gpio *vg = platform_get_drvdata(pdev);
++	struct byt_gpio *vg = dev_get_drvdata(dev);
+ 	int i;
+ 
+ 	for (i = 0; i < vg->soc_data->npins; i++) {

@@ -1,0 +1,37 @@
+commit 7ddb7dce0ab69aef140a0fb3034a07d356ad9252
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 22:00:00 2018 +0200
+
+    gpio: gpio-tegra: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Acked-by: Thierry Reding <treding@nvidia.com>
+    Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+
+diff --git a/drivers/gpio/gpio-tegra.c b/drivers/gpio/gpio-tegra.c
+index 47dbd19751d0..02f6db925fd5 100644
+--- a/drivers/gpio/gpio-tegra.c
++++ b/drivers/gpio/gpio-tegra.c
+@@ -404,8 +404,7 @@ static void tegra_gpio_irq_handler(struct irq_desc *desc)
+ #ifdef CONFIG_PM_SLEEP
+ static int tegra_gpio_resume(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct tegra_gpio_info *tgi = platform_get_drvdata(pdev);
++	struct tegra_gpio_info *tgi = dev_get_drvdata(dev);
+ 	unsigned long flags;
+ 	unsigned int b, p;
+ 
+@@ -444,8 +443,7 @@ static int tegra_gpio_resume(struct device *dev)
+ 
+ static int tegra_gpio_suspend(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct tegra_gpio_info *tgi = platform_get_drvdata(pdev);
++	struct tegra_gpio_info *tgi = dev_get_drvdata(dev);
+ 	unsigned long flags;
+ 	unsigned int b, p;
+ 

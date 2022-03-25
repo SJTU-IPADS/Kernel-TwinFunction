@@ -1,0 +1,25 @@
+commit ca899324305d953c19abb583b96f0dd81274b0b2
+Author: Yang Wei <albin_yang@163.com>
+Date:   Mon Jan 28 22:42:25 2019 +0800
+
+    net: i825xx: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called in i596_interrupt() when skb
+    xmit done. It makes drop profiles(dropwatch, perf) more friendly.
+    
+    Signed-off-by: Yang Wei <albin_yang@163.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/i825xx/82596.c b/drivers/net/ethernet/i825xx/82596.c
+index d719668a6684..92929750f832 100644
+--- a/drivers/net/ethernet/i825xx/82596.c
++++ b/drivers/net/ethernet/i825xx/82596.c
+@@ -1310,7 +1310,7 @@ static irqreturn_t i596_interrupt(int irq, void *dev_id)
+ 						dev->stats.tx_aborted_errors++;
+ 				}
+ 
+-				dev_kfree_skb_irq(skb);
++				dev_consume_skb_irq(skb);
+ 
+ 				tx_cmd->cmd.command = 0; /* Mark free */
+ 				break;

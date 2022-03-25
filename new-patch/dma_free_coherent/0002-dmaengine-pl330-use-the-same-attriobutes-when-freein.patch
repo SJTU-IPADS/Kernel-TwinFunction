@@ -1,0 +1,47 @@
+From 108e1a4c9b3de842246c863e10f6ce5365e123f7 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 11 Jul 2019 11:02:45 +0800
+Subject: [PATCH 2/2] dmaengine: pl330: use the same attriobutes when freeing
+ pl330->mcode_cpu
+
+In function dmac_alloc_recources(), pl330->mcode_cpu is allocated using
+dma_alloc_attrs() but freed with dma_free_coherent().
+Use the correct dma_free_attrs() function to free pl330->mcode_cpu.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/dma/pl330.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/dma/pl330.c b/drivers/dma/pl330.c
+index 56f9fabc99c4..d9c6ae0732c6 100644
+--- a/drivers/dma/pl330.c
++++ b/drivers/dma/pl330.c
+@@ -1918,9 +1918,10 @@ static int dmac_alloc_resources(struct pl330_dmac *pl330)
+ 	if (ret) {
+ 		dev_err(pl330->ddma.dev, "%s:%d Can't to create channels for DMAC!\n",
+ 			__func__, __LINE__);
+-		dma_free_coherent(pl330->ddma.dev,
++		dma_free_attrs(pl330->ddma.dev,
+ 				chans * pl330->mcbufsz,
+-				pl330->mcode_cpu, pl330->mcode_bus);
++				pl330->mcode_cpu, pl330->mcode_bus,
++				DMA_ATTR_PRIVILEGED);
+ 		return ret;
+ 	}
+ 
+@@ -1999,9 +2000,9 @@ static void pl330_del(struct pl330_dmac *pl330)
+ 	/* Free DMAC resources */
+ 	dmac_free_threads(pl330);
+ 
+-	dma_free_coherent(pl330->ddma.dev,
++	dma_free_attrs(pl330->ddma.dev,
+ 		pl330->pcfg.num_chan * pl330->mcbufsz, pl330->mcode_cpu,
+-		pl330->mcode_bus);
++		pl330->mcode_bus, DMA_ATTR_PRIVILEGED);
+ }
+ 
+ /* forward declaration */
+-- 
+2.11.0
+

@@ -1,0 +1,26 @@
+commit ecef67cb10db7b83b3b71c61dbb29aa070ab0112
+Author: Timur Celik <mail@timurcelik.de>
+Date:   Mon Feb 25 21:13:13 2019 +0100
+
+    tun: remove unnecessary memory barrier
+    
+    Replace set_current_state with __set_current_state since no memory
+    barrier is needed at this point.
+    
+    Signed-off-by: Timur Celik <mail@timurcelik.de>
+    Reviewed-by: Eric Dumazet <edumazet@google.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/tun.c b/drivers/net/tun.c
+index d291762b9e9d..53f4f37b0ffd 100644
+--- a/drivers/net/tun.c
++++ b/drivers/net/tun.c
+@@ -2185,7 +2185,7 @@ static void *tun_ring_recv(struct tun_file *tfile, int noblock, int *err)
+ 		schedule();
+ 	}
+ 
+-	set_current_state(TASK_RUNNING);
++	__set_current_state(TASK_RUNNING);
+ 	remove_wait_queue(&tfile->wq.wait, &wait);
+ 
+ out:

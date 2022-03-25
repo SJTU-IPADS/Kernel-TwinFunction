@@ -1,0 +1,26 @@
+commit 345d61c9f4b7a8ba68c046aa498fb159614573cf
+Author: emaste <emaste@FreeBSD.org>
+Date:   Thu Sep 14 00:39:08 2017 +0000
+
+    MFC r316802 (cem): bsdinstall(8): Sprinkle a snprintf to fixed size buffer
+    
+    Use a snprintf to write an environment variable to a fixed-size buffer to
+    avoid stack overflow.
+    
+    Reported by:    Coverity (CWE-120)
+    CID:            1238926
+    Sponsored by:   The FreeBSD Foundation
+
+diff --git a/usr.sbin/bsdinstall/partedit/gpart_ops.c b/usr.sbin/bsdinstall/partedit/gpart_ops.c
+index dc1c95ceccc..a502e72e42a 100644
+--- a/usr.sbin/bsdinstall/partedit/gpart_ops.c
++++ b/usr.sbin/bsdinstall/partedit/gpart_ops.c
+@@ -148,7 +148,7 @@ newfs_command(const char *fstype, char *command, int use_default)
+ 		strcpy(command, "zpool create -f -m none ");
+ 		if (getenv("BSDINSTALL_TMPBOOT") != NULL) {
+ 			char zfsboot_path[MAXPATHLEN];
+-			sprintf(zfsboot_path, "%s/zfs",
++			snprintf(zfsboot_path, sizeof(zfsboot_path), "%s/zfs",
+ 			    getenv("BSDINSTALL_TMPBOOT"));
+ 			mkdir(zfsboot_path, S_IRWXU | S_IRGRP | S_IXGRP |
+ 			    S_IROTH | S_IXOTH);

@@ -1,0 +1,39 @@
+From aa432c69915afd907c6b45620bd2999a2d58cf1f Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 24 Jul 2019 19:59:25 +0800
+Subject: [PATCH] spi: dw-pci: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/spi/spi-dw-pci.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/spi/spi-dw-pci.c b/drivers/spi/spi-dw-pci.c
+index 9651679ee7f7..c1e2401cace0 100644
+--- a/drivers/spi/spi-dw-pci.c
++++ b/drivers/spi/spi-dw-pci.c
+@@ -98,16 +98,14 @@ static void spi_pci_remove(struct pci_dev *pdev)
+ #ifdef CONFIG_PM_SLEEP
+ static int spi_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct dw_spi *dws = pci_get_drvdata(pdev);
++	struct dw_spi *dws = dev_get_drvdata(dev);
+ 
+ 	return dw_spi_suspend_host(dws);
+ }
+ 
+ static int spi_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct dw_spi *dws = pci_get_drvdata(pdev);
++	struct dw_spi *dws = dev_get_drvdata(dev);
+ 
+ 	return dw_spi_resume_host(dws);
+ }
+-- 
+2.20.1
+

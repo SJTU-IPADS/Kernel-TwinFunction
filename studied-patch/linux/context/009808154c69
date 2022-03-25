@@ -1,0 +1,26 @@
+commit 009808154c69c48d5b41fc8cf5ad5ab5704efd8f
+Author: Alban Bedel <albeu@free.fr>
+Date:   Mon Jan 7 20:44:53 2019 +0100
+
+    phy: ath79-usb: Fix the power on error path
+    
+    In the power on function the error path doesn't return the suspend
+    override to its proper state. It should should deassert this reset
+    line to enable the suspend override.
+    
+    Signed-off-by: Alban Bedel <albeu@free.fr>
+    Signed-off-by: Kishon Vijay Abraham I <kishon@ti.com>
+
+diff --git a/drivers/phy/qualcomm/phy-ath79-usb.c b/drivers/phy/qualcomm/phy-ath79-usb.c
+index 6fd6e07ab345..f7d64f3910b4 100644
+--- a/drivers/phy/qualcomm/phy-ath79-usb.c
++++ b/drivers/phy/qualcomm/phy-ath79-usb.c
+@@ -31,7 +31,7 @@ static int ath79_usb_phy_power_on(struct phy *phy)
+ 
+ 	err = reset_control_deassert(priv->reset);
+ 	if (err && priv->no_suspend_override)
+-		reset_control_assert(priv->no_suspend_override);
++		reset_control_deassert(priv->no_suspend_override);
+ 
+ 	return err;
+ }

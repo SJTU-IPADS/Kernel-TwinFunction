@@ -1,0 +1,90 @@
+From 9c34bf8d76f7d24a4e0fa63a60a4b3792a471331 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 16:45:20 +0800
+Subject: [PATCH] drm/amdgpu: Use dev_get_drvdata where possible
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c | 27 +++++++++----------------
+ 1 file changed, 10 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index f2e8b4238efd..df82091a29d3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -1097,16 +1097,14 @@ amdgpu_pci_shutdown(struct pci_dev *pdev)
+ 
+ static int amdgpu_pmops_suspend(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
+ 
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
+ 	return amdgpu_device_suspend(drm_dev, true, true);
+ }
+ 
+ static int amdgpu_pmops_resume(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
+ 
+ 	/* GPU comes up enabled by the bios on resume */
+ 	if (amdgpu_device_is_px(drm_dev)) {
+@@ -1120,33 +1118,29 @@ static int amdgpu_pmops_resume(struct device *dev)
+ 
+ static int amdgpu_pmops_freeze(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
++
+ 	return amdgpu_device_suspend(drm_dev, false, true);
+ }
+ 
+ static int amdgpu_pmops_thaw(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
++
+ 	return amdgpu_device_resume(drm_dev, false, true);
+ }
+ 
+ static int amdgpu_pmops_poweroff(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
++
+ 	return amdgpu_device_suspend(drm_dev, true, true);
+ }
+ 
+ static int amdgpu_pmops_restore(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
+ 
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
+ 	return amdgpu_device_resume(drm_dev, false, true);
+ }
+ 
+@@ -1205,8 +1199,7 @@ static int amdgpu_pmops_runtime_resume(struct device *dev)
+ 
+ static int amdgpu_pmops_runtime_idle(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
+ 	struct drm_crtc *crtc;
+ 
+ 	if (!amdgpu_device_is_px(drm_dev)) {
+-- 
+2.20.1
+

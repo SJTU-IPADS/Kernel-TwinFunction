@@ -1,0 +1,38 @@
+commit 0f0ed8282e5bfdc87cdd562e58f3d90d893e7ee5
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Tue Jan 29 23:04:40 2019 +0800
+
+    net: b44: replace dev_kfree_skb_xxx by dev_consume_skb_xxx for drop profiles
+    
+    The skb should be freed by dev_consume_skb_any() in b44_start_xmit()
+    when bounce_skb is used. The skb is be replaced by bounce_skb, so the
+    original skb should be consumed(not drop).
+    
+    dev_consume_skb_irq() should be called in b44_tx() when skb xmit
+    done. It makes drop profiles(dropwatch, perf) more friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/broadcom/b44.c b/drivers/net/ethernet/broadcom/b44.c
+index f44808959ff3..97ab0dd25552 100644
+--- a/drivers/net/ethernet/broadcom/b44.c
++++ b/drivers/net/ethernet/broadcom/b44.c
+@@ -638,7 +638,7 @@ static void b44_tx(struct b44 *bp)
+ 		bytes_compl += skb->len;
+ 		pkts_compl++;
+ 
+-		dev_kfree_skb_irq(skb);
++		dev_consume_skb_irq(skb);
+ 	}
+ 
+ 	netdev_completed_queue(bp->dev, pkts_compl, bytes_compl);
+@@ -1012,7 +1012,7 @@ static netdev_tx_t b44_start_xmit(struct sk_buff *skb, struct net_device *dev)
+ 		}
+ 
+ 		skb_copy_from_linear_data(skb, skb_put(bounce_skb, len), len);
+-		dev_kfree_skb_any(skb);
++		dev_consume_skb_any(skb);
+ 		skb = bounce_skb;
+ 	}
+ 

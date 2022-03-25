@@ -1,0 +1,36 @@
+commit 6eee6d317aa2511ea86c4f8f28d79bfd3d621826
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 22:00:47 2018 +0200
+
+    spi: spi-zynqmp-gqspi: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Signed-off-by: Mark Brown <broonie@kernel.org>
+
+diff --git a/drivers/spi/spi-zynqmp-gqspi.c b/drivers/spi/spi-zynqmp-gqspi.c
+index cc4d31033494..9f83e1b17aa1 100644
+--- a/drivers/spi/spi-zynqmp-gqspi.c
++++ b/drivers/spi/spi-zynqmp-gqspi.c
+@@ -960,8 +960,7 @@ static int __maybe_unused zynqmp_qspi_resume(struct device *dev)
+  */
+ static int __maybe_unused zynqmp_runtime_suspend(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct spi_master *master = platform_get_drvdata(pdev);
++	struct spi_master *master = dev_get_drvdata(dev);
+ 	struct zynqmp_qspi *xqspi = spi_master_get_devdata(master);
+ 
+ 	clk_disable(xqspi->refclk);
+@@ -980,8 +979,7 @@ static int __maybe_unused zynqmp_runtime_suspend(struct device *dev)
+  */
+ static int __maybe_unused zynqmp_runtime_resume(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct spi_master *master = platform_get_drvdata(pdev);
++	struct spi_master *master = dev_get_drvdata(dev);
+ 	struct zynqmp_qspi *xqspi = spi_master_get_devdata(master);
+ 	int ret;
+ 

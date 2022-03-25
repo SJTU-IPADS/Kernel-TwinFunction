@@ -1,0 +1,79 @@
+commit 451be51c0b474f790e9833cd575fd9a6fbd679df
+Author: Saeed Mahameed <saeedm@mellanox.com>
+Date:   Mon Nov 26 14:39:06 2018 -0800
+
+    net/mlx5: Forward QP/WorkQueues resource events
+    
+    Allow forwarding QP and WQ events to mlx5_core interfaces, e.g. mlx5_ib
+    
+    Use mlx5_notifier_register/unregister in qp.c in order to allow seamless
+    transition of qp.c to infiniband subsystem.
+    
+    Signed-off-by: Saeed Mahameed <saeedm@mellanox.com>
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/events.c b/drivers/net/ethernet/mellanox/mlx5/core/events.c
+index 3708b42c1d6b..201c5f6091ea 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/events.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/events.c
+@@ -34,6 +34,16 @@ static struct mlx5_nb events_nbs_ref[] = {
+ 	/* Events to be forwarded (as is) to mlx5 core interfaces (mlx5e/mlx5_ib) */
+ 	{.nb.notifier_call = forward_event,   .event_type = MLX5_EVENT_TYPE_PORT_CHANGE },
+ 	{.nb.notifier_call = forward_event,   .event_type = MLX5_EVENT_TYPE_GENERAL_EVENT },
++	/* QP/WQ resource events to forward */
++	{.nb.notifier_call = forward_event,   .event_type = MLX5_EVENT_TYPE_DCT_DRAINED },
++	{.nb.notifier_call = forward_event,   .event_type = MLX5_EVENT_TYPE_PATH_MIG },
++	{.nb.notifier_call = forward_event,   .event_type = MLX5_EVENT_TYPE_COMM_EST },
++	{.nb.notifier_call = forward_event,   .event_type = MLX5_EVENT_TYPE_SQ_DRAINED },
++	{.nb.notifier_call = forward_event,   .event_type = MLX5_EVENT_TYPE_SRQ_LAST_WQE },
++	{.nb.notifier_call = forward_event,   .event_type = MLX5_EVENT_TYPE_WQ_CATAS_ERROR },
++	{.nb.notifier_call = forward_event,   .event_type = MLX5_EVENT_TYPE_PATH_MIG_FAILED },
++	{.nb.notifier_call = forward_event,   .event_type = MLX5_EVENT_TYPE_WQ_INVAL_REQ_ERROR },
++	{.nb.notifier_call = forward_event,   .event_type = MLX5_EVENT_TYPE_WQ_ACCESS_ERROR },
+ };
+ 
+ struct mlx5_events {
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/qp.c b/drivers/net/ethernet/mellanox/mlx5/core/qp.c
+index 28726c63101f..388f205a497f 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/qp.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/qp.c
+@@ -150,7 +150,7 @@ static int rsc_event_notifier(struct notifier_block *nb,
+ 		return NOTIFY_DONE;
+ 	}
+ 
+-	table = mlx5_nb_cof(nb, struct mlx5_qp_table, nb);
++	table = container_of(nb, struct mlx5_qp_table, nb);
+ 	priv  = container_of(table, struct mlx5_priv, qp_table);
+ 	dev   = container_of(priv, struct mlx5_core_dev, priv);
+ 
+@@ -523,15 +523,15 @@ void mlx5_init_qp_table(struct mlx5_core_dev *dev)
+ 	INIT_RADIX_TREE(&table->tree, GFP_ATOMIC);
+ 	mlx5_qp_debugfs_init(dev);
+ 
+-	MLX5_NB_INIT(&table->nb, rsc_event_notifier, NOTIFY_ANY);
+-	mlx5_eq_notifier_register(dev, &table->nb);
++	table->nb.notifier_call = rsc_event_notifier;
++	mlx5_notifier_register(dev, &table->nb);
+ }
+ 
+ void mlx5_cleanup_qp_table(struct mlx5_core_dev *dev)
+ {
+ 	struct mlx5_qp_table *table = &dev->priv.qp_table;
+ 
+-	mlx5_eq_notifier_unregister(dev, &table->nb);
++	mlx5_notifier_unregister(dev, &table->nb);
+ 	mlx5_qp_debugfs_cleanup(dev);
+ }
+ 
+diff --git a/include/linux/mlx5/driver.h b/include/linux/mlx5/driver.h
+index a77bedb8a556..4f078b7f6620 100644
+--- a/include/linux/mlx5/driver.h
++++ b/include/linux/mlx5/driver.h
+@@ -456,7 +456,7 @@ struct mlx5_core_health {
+ };
+ 
+ struct mlx5_qp_table {
+-	struct mlx5_nb          nb;
++	struct notifier_block   nb;
+ 
+ 	/* protect radix tree
+ 	 */

@@ -1,0 +1,35 @@
+From 136d1526316f070c1f6fc1fc83c59abc26a5a9e4 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 31 Jul 2019 15:20:16 +0800
+Subject: [PATCH] net/can/usb/peak_usb: force the string buffer NULL-terminated
+
+strncpy() does not ensure NULL-termination when the input string
+size equals to the destination buffer size IFNAMSIZ.
+The output string is passed to dev_info() which relies on
+the NULL-termination.
+
+Use strlcpy() instead.
+
+This issue is identified by a Coccinelle script.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/net/can/usb/peak_usb/pcan_usb_core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/can/usb/peak_usb/pcan_usb_core.c b/drivers/net/can/usb/peak_usb/pcan_usb_core.c
+index 458154c9b482..4c2cda5ecf3f 100644
+--- a/drivers/net/can/usb/peak_usb/pcan_usb_core.c
++++ b/drivers/net/can/usb/peak_usb/pcan_usb_core.c
+@@ -855,7 +855,7 @@ static void peak_usb_disconnect(struct usb_interface *intf)
+ 
+ 		dev_prev_siblings = dev->prev_siblings;
+ 		dev->state &= ~PCAN_USB_STATE_CONNECTED;
+-		strncpy(name, netdev->name, IFNAMSIZ);
++		strlcpy(name, netdev->name, IFNAMSIZ);
+ 
+ 		unregister_netdev(netdev);
+ 
+-- 
+2.11.0
+

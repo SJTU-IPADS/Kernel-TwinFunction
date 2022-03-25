@@ -1,0 +1,51 @@
+commit 98fcd70b642dd843f80c92eeb6f8c07886876999
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Wed Feb 6 00:19:44 2019 +0800
+
+    net: sun: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called when skb xmit done. It makes
+    drop profiles(dropwatch, perf) more friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/sun/cassini.c b/drivers/net/ethernet/sun/cassini.c
+index 7ec4eb74fe21..6fc05c106afc 100644
+--- a/drivers/net/ethernet/sun/cassini.c
++++ b/drivers/net/ethernet/sun/cassini.c
+@@ -1898,7 +1898,7 @@ static inline void cas_tx_ringN(struct cas *cp, int ring, int limit)
+ 		cp->net_stats[ring].tx_packets++;
+ 		cp->net_stats[ring].tx_bytes += skb->len;
+ 		spin_unlock(&cp->stat_lock[ring]);
+-		dev_kfree_skb_irq(skb);
++		dev_consume_skb_irq(skb);
+ 	}
+ 	cp->tx_old[ring] = entry;
+ 
+diff --git a/drivers/net/ethernet/sun/sunbmac.c b/drivers/net/ethernet/sun/sunbmac.c
+index 720b7ac77f3b..e9b757b03b56 100644
+--- a/drivers/net/ethernet/sun/sunbmac.c
++++ b/drivers/net/ethernet/sun/sunbmac.c
+@@ -781,7 +781,7 @@ static void bigmac_tx(struct bigmac *bp)
+ 
+ 		DTX(("skb(%p) ", skb));
+ 		bp->tx_skbs[elem] = NULL;
+-		dev_kfree_skb_irq(skb);
++		dev_consume_skb_irq(skb);
+ 
+ 		elem = NEXT_TX(elem);
+ 	}
+diff --git a/drivers/net/ethernet/sun/sunhme.c b/drivers/net/ethernet/sun/sunhme.c
+index ff641cf30a4e..d007dfeba5c3 100644
+--- a/drivers/net/ethernet/sun/sunhme.c
++++ b/drivers/net/ethernet/sun/sunhme.c
+@@ -1962,7 +1962,7 @@ static void happy_meal_tx(struct happy_meal *hp)
+ 			this = &txbase[elem];
+ 		}
+ 
+-		dev_kfree_skb_irq(skb);
++		dev_consume_skb_irq(skb);
+ 		dev->stats.tx_packets++;
+ 	}
+ 	hp->tx_old = elem;

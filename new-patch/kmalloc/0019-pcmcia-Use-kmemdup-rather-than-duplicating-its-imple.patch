@@ -1,0 +1,43 @@
+From 34dc4dc32f1a788318cf9b2a668c1c95a6d92a3a Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 3 Jul 2019 23:33:32 +0800
+Subject: [PATCH v2 19/35] pcmcia: Use kmemdup rather than duplicating its
+ implementation
+
+kmemdup is introduced to duplicate a region of memory in a neat way.
+Rather than kmalloc/kzalloc + memcpy, which the programmer needs to
+write the size twice (sometimes lead to mistakes), kmemdup improves
+readability, leads to smaller code and also reduce the chances of mistakes.
+Suggestion to use kmemdup rather than using kmalloc/kzalloc + memcpy.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Fix a typo in commit message (memset -> memcpy)
+
+ drivers/pcmcia/cistpl.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/pcmcia/cistpl.c b/drivers/pcmcia/cistpl.c
+index abd029945cc8..eff91726f121 100644
+--- a/drivers/pcmcia/cistpl.c
++++ b/drivers/pcmcia/cistpl.c
+@@ -414,14 +414,13 @@ int pcmcia_replace_cis(struct pcmcia_socket *s,
+ 	}
+ 	mutex_lock(&s->ops_mutex);
+ 	kfree(s->fake_cis);
+-	s->fake_cis = kmalloc(len, GFP_KERNEL);
++	s->fake_cis = kmemdup(data, len, GFP_KERNEL);
+ 	if (s->fake_cis == NULL) {
+ 		dev_warn(&s->dev, "no memory to replace CIS\n");
+ 		mutex_unlock(&s->ops_mutex);
+ 		return -ENOMEM;
+ 	}
+ 	s->fake_cis_len = len;
+-	memcpy(s->fake_cis, data, len);
+ 	dev_info(&s->dev, "Using replacement CIS\n");
+ 	mutex_unlock(&s->ops_mutex);
+ 	return 0;
+-- 
+2.11.0
+

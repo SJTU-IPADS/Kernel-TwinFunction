@@ -1,0 +1,34 @@
+commit e0fe5c7b22a8d4629ed85b668a93ff2582b93203
+Author: Rob Herring <robh@kernel.org>
+Date:   Wed Dec 5 14:50:42 2018 -0500
+
+    media: staging: media: imx: Use of_node_name_eq for node name comparisons
+    
+    Convert string compares of DT node names to use of_node_name_eq helper
+    instead. This removes direct access to the node name pointer.
+    
+    For instances using of_node_cmp, this has the side effect of now using
+    case sensitive comparisons. This should not matter for any FDT based
+    system which this is.
+    
+    Cc: Steve Longerbeam <slongerbeam@gmail.com>
+    Cc: Philipp Zabel <p.zabel@pengutronix.de>
+    Cc: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+    Cc: devel@driverdev.osuosl.org
+    Signed-off-by: Rob Herring <robh@kernel.org>
+    Signed-off-by: Hans Verkuil <hverkuil-cisco@xs4all.nl>
+    Signed-off-by: Mauro Carvalho Chehab <mchehab+samsung@kernel.org>
+
+diff --git a/drivers/staging/media/imx/imx-media-of.c b/drivers/staging/media/imx/imx-media-of.c
+index b2e840f96c50..a01327f6e045 100644
+--- a/drivers/staging/media/imx/imx-media-of.c
++++ b/drivers/staging/media/imx/imx-media-of.c
+@@ -162,7 +162,7 @@ int imx_media_create_csi_of_links(struct imx_media_dev *imxmd,
+ 		fwnode_property_read_u32(fwnode, "reg", &link.remote_port);
+ 		fwnode = fwnode_get_next_parent(fwnode);
+ 		if (is_of_node(fwnode) &&
+-		    of_node_cmp(to_of_node(fwnode)->name, "ports") == 0)
++		    of_node_name_eq(to_of_node(fwnode), "ports"))
+ 			fwnode = fwnode_get_next_parent(fwnode);
+ 		link.remote_node = fwnode;
+ 

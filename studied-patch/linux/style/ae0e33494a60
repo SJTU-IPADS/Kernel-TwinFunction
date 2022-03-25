@@ -1,0 +1,67 @@
+commit ae0e33494a601e13df79c4742d88d4d2bc2b0a87
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Tue Nov 6 19:40:39 2018 -0800
+
+    net/sched: Replace call_rcu_bh() and rcu_barrier_bh()
+    
+    Now that call_rcu()'s callback is not invoked until after bh-disable
+    regions of code have completed (in addition to explicitly marked
+    RCU read-side critical sections), call_rcu() can be used in place
+    of call_rcu_bh().  Similarly, rcu_barrier() can be used in place o
+    frcu_barrier_bh().  This commit therefore makes these changes.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: Jamal Hadi Salim <jhs@mojatatu.com>
+    Cc: Cong Wang <xiyou.wangcong@gmail.com>
+    Cc: Jiri Pirko <jiri@resnulli.us>
+    Cc: "David S. Miller" <davem@davemloft.net>
+    Cc: <netdev@vger.kernel.org>
+
+diff --git a/net/sched/sch_api.c b/net/sched/sch_api.c
+index ca3b0f46de53..016e628c6ac9 100644
+--- a/net/sched/sch_api.c
++++ b/net/sched/sch_api.c
+@@ -540,7 +540,7 @@ void qdisc_put_stab(struct qdisc_size_table *tab)
+ 
+ 	if (--tab->refcnt == 0) {
+ 		list_del(&tab->list);
+-		call_rcu_bh(&tab->rcu, stab_kfree_rcu);
++		call_rcu(&tab->rcu, stab_kfree_rcu);
+ 	}
+ }
+ EXPORT_SYMBOL(qdisc_put_stab);
+diff --git a/net/sched/sch_generic.c b/net/sched/sch_generic.c
+index de1663f7d3ad..66ba2ce2320f 100644
+--- a/net/sched/sch_generic.c
++++ b/net/sched/sch_generic.c
+@@ -1372,7 +1372,7 @@ void mini_qdisc_pair_swap(struct mini_Qdisc_pair *miniqp,
+ 	if (!tp_head) {
+ 		RCU_INIT_POINTER(*miniqp->p_miniq, NULL);
+ 		/* Wait for flying RCU callback before it is freed. */
+-		rcu_barrier_bh();
++		rcu_barrier();
+ 		return;
+ 	}
+ 
+@@ -1380,10 +1380,10 @@ void mini_qdisc_pair_swap(struct mini_Qdisc_pair *miniqp,
+ 		&miniqp->miniq1 : &miniqp->miniq2;
+ 
+ 	/* We need to make sure that readers won't see the miniq
+-	 * we are about to modify. So wait until previous call_rcu_bh callback
++	 * we are about to modify. So wait until previous call_rcu callback
+ 	 * is done.
+ 	 */
+-	rcu_barrier_bh();
++	rcu_barrier();
+ 	miniq->filter_list = tp_head;
+ 	rcu_assign_pointer(*miniqp->p_miniq, miniq);
+ 
+@@ -1392,7 +1392,7 @@ void mini_qdisc_pair_swap(struct mini_Qdisc_pair *miniqp,
+ 		 * block potential new user of miniq_old until all readers
+ 		 * are not seeing it.
+ 		 */
+-		call_rcu_bh(&miniq_old->rcu, mini_qdisc_rcu_func);
++		call_rcu(&miniq_old->rcu, mini_qdisc_rcu_func);
+ }
+ EXPORT_SYMBOL(mini_qdisc_pair_swap);
+ 

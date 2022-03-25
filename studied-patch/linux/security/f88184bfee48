@@ -1,0 +1,50 @@
+commit f88184bfee48d482dfff04cd1eed6906f289db4a
+Author: Kaitao cheng <pilgrimtao@gmail.com>
+Date:   Tue Nov 6 08:34:54 2018 -0800
+
+    driver core: Replace simple_strto{l,ul} by kstrtou{l,ul}
+    
+    The simple_strto{l,ul} are deprecated, use kstrtou{l,ul} instead.
+    
+    Signed-off-by: Kaitao cheng <pilgrimtao@gmail.com>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/base/core.c b/drivers/base/core.c
+index 04bbcd779e11..ed145fbfeddf 100644
+--- a/drivers/base/core.c
++++ b/drivers/base/core.c
+@@ -794,10 +794,12 @@ ssize_t device_store_ulong(struct device *dev,
+ 			   const char *buf, size_t size)
+ {
+ 	struct dev_ext_attribute *ea = to_ext_attr(attr);
+-	char *end;
+-	unsigned long new = simple_strtoul(buf, &end, 0);
+-	if (end == buf)
+-		return -EINVAL;
++	int ret;
++	unsigned long new;
++
++	ret = kstrtoul(buf, 0, &new);
++	if (ret)
++		return ret;
+ 	*(unsigned long *)(ea->var) = new;
+ 	/* Always return full write size even if we didn't consume all */
+ 	return size;
+@@ -818,9 +820,14 @@ ssize_t device_store_int(struct device *dev,
+ 			 const char *buf, size_t size)
+ {
+ 	struct dev_ext_attribute *ea = to_ext_attr(attr);
+-	char *end;
+-	long new = simple_strtol(buf, &end, 0);
+-	if (end == buf || new > INT_MAX || new < INT_MIN)
++	int ret;
++	long new;
++
++	ret = kstrtol(buf, 0, &new);
++	if (ret)
++		return ret;
++
++	if (new > INT_MAX || new < INT_MIN)
+ 		return -EINVAL;
+ 	*(int *)(ea->var) = new;
+ 	/* Always return full write size even if we didn't consume all */

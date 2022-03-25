@@ -1,0 +1,30 @@
+commit 0245b80e284d4fdabbf50589180482dc4d2cf277
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Wed Nov 7 15:09:25 2018 -0800
+
+    net/core/skmsg: Replace call_rcu_sched() with call_rcu()
+    
+    Now that call_rcu()'s callback is not invoked until after all
+    preempt-disable regions of code have completed (in addition to explicitly
+    marked RCU read-side critical sections), call_rcu() can be used in place
+    of call_rcu_sched().  This commit therefore makes that change.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: John Fastabend <john.fastabend@gmail.com>
+    Cc: Daniel Borkmann <daniel@iogearbox.net>
+    Cc: "David S. Miller" <davem@davemloft.net>
+    Cc: <netdev@vger.kernel.org>
+
+diff --git a/net/core/skmsg.c b/net/core/skmsg.c
+index 56a99d0c9aa0..c92d6ccce610 100644
+--- a/net/core/skmsg.c
++++ b/net/core/skmsg.c
+@@ -580,7 +580,7 @@ void sk_psock_drop(struct sock *sk, struct sk_psock *psock)
+ 	write_unlock_bh(&sk->sk_callback_lock);
+ 	sk_psock_clear_state(psock, SK_PSOCK_TX_ENABLED);
+ 
+-	call_rcu_sched(&psock->rcu, sk_psock_destroy);
++	call_rcu(&psock->rcu, sk_psock_destroy);
+ }
+ EXPORT_SYMBOL_GPL(sk_psock_drop);
+ 

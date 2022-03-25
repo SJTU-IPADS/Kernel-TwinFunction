@@ -1,0 +1,33 @@
+commit 934947cad40d75ff312ba7711dd74586f9898b96
+Author: mav <mav@FreeBSD.org>
+Date:   Sat Jul 29 11:27:54 2017 +0000
+
+    MFC r314504 (by tsoome):
+    loader: r314112 did introduce dereference freed pointer entry
+    
+    CID:            1371675
+    Reported by:    Coverity
+    Differential Revision:  https://reviews.freebsd.org/D9846
+
+diff --git a/sys/boot/zfs/zfsimpl.c b/sys/boot/zfs/zfsimpl.c
+index 7c5f285b154..e00e056fcd7 100644
+--- a/sys/boot/zfs/zfsimpl.c
++++ b/sys/boot/zfs/zfsimpl.c
+@@ -2217,7 +2217,7 @@ zfs_lookup(const struct zfsmount *mount, const char *upath, dnode_phys_t *dnode)
+ 	char path[1024];
+ 	int symlinks_followed = 0;
+ 	struct stat sb;
+-	struct obj_list *entry;
++	struct obj_list *entry, *tentry;
+ 	STAILQ_HEAD(, obj_list) on_cache = STAILQ_HEAD_INITIALIZER(on_cache);
+ 
+ 	spa = mount->spa;
+@@ -2365,7 +2365,7 @@ zfs_lookup(const struct zfsmount *mount, const char *upath, dnode_phys_t *dnode)
+ 
+ 	*dnode = dn;
+ done:
+-	STAILQ_FOREACH(entry, &on_cache, entry)
++	STAILQ_FOREACH_SAFE(entry, &on_cache, entry, tentry)
+ 		free(entry);
+ 	return (rc);
+ }

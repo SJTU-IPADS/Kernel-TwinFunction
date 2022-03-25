@@ -1,0 +1,111 @@
+From e06714b4a8723b11d31e70b1d246d1c7754bd842 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 13 Aug 2019 14:00:26 +0800
+Subject: [PATCH v2 3/3] xen/blkback: Use refcount_t for refcount
+
+Reference counters are preferred to use refcount_t instead of
+atomic_t.
+This is because the implementation of refcount_t can prevent
+overflows and detect possible use-after-free.
+So convert atomic_t ref counters to refcount_t.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Also convert pending_req::pendcnt to refcount_t.
+
+ drivers/block/xen-blkback/blkback.c | 6 +++---
+ drivers/block/xen-blkback/common.h  | 9 +++++----
+ drivers/block/xen-blkback/xenbus.c  | 2 +-
+ 3 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/block/xen-blkback/blkback.c b/drivers/block/xen-blkback/blkback.c
+index fd1e19f1a49f..b24bb0aea35f 100644
+--- a/drivers/block/xen-blkback/blkback.c
++++ b/drivers/block/xen-blkback/blkback.c
+@@ -1098,7 +1098,7 @@ static void __end_block_io_op(struct pending_req *pending_req,
+ 	 * the grant references associated with 'request' and provide
+ 	 * the proper response on the ring.
+ 	 */
+-	if (atomic_dec_and_test(&pending_req->pendcnt))
++	if (refcount_dec_and_test(&pending_req->pendcnt))
+ 		xen_blkbk_unmap_and_respond(pending_req);
+ }
+ 
+@@ -1395,7 +1395,7 @@ static int dispatch_rw_block_io(struct xen_blkif_ring *ring,
+ 		bio_set_op_attrs(bio, operation, operation_flags);
+ 	}
+ 
+-	atomic_set(&pending_req->pendcnt, nbio);
++	refcount_set(&pending_req->pendcnt, nbio);
+ 	blk_start_plug(&plug);
+ 
+ 	for (i = 0; i < nbio; i++)
+@@ -1424,7 +1424,7 @@ static int dispatch_rw_block_io(struct xen_blkif_ring *ring,
+  fail_put_bio:
+ 	for (i = 0; i < nbio; i++)
+ 		bio_put(biolist[i]);
+-	atomic_set(&pending_req->pendcnt, 1);
++	refcount_set(&pending_req->pendcnt, 1);
+ 	__end_block_io_op(pending_req, BLK_STS_RESOURCE);
+ 	msleep(1); /* back off a bit */
+ 	return -EIO;
+diff --git a/drivers/block/xen-blkback/common.h b/drivers/block/xen-blkback/common.h
+index 1d3002d773f7..824d64a8339b 100644
+--- a/drivers/block/xen-blkback/common.h
++++ b/drivers/block/xen-blkback/common.h
+@@ -35,6 +35,7 @@
+ #include <linux/wait.h>
+ #include <linux/io.h>
+ #include <linux/rbtree.h>
++#include <linux/refcount.h>
+ #include <asm/setup.h>
+ #include <asm/pgalloc.h>
+ #include <asm/hypervisor.h>
+@@ -309,7 +310,7 @@ struct xen_blkif {
+ 	struct xen_vbd		vbd;
+ 	/* Back pointer to the backend_info. */
+ 	struct backend_info	*be;
+-	atomic_t		refcnt;
++	refcount_t		refcnt;
+ 	/* for barrier (drain) requests */
+ 	struct completion	drain_complete;
+ 	atomic_t		drain;
+@@ -343,7 +344,7 @@ struct pending_req {
+ 	struct xen_blkif_ring   *ring;
+ 	u64			id;
+ 	int			nr_segs;
+-	atomic_t		pendcnt;
++	refcount_t		pendcnt;
+ 	unsigned short		operation;
+ 	int			status;
+ 	struct list_head	free_list;
+@@ -362,10 +363,10 @@ struct pending_req {
+ 			 (_v)->bdev->bd_part->nr_sects : \
+ 			  get_capacity((_v)->bdev->bd_disk))
+ 
+-#define xen_blkif_get(_b) (atomic_inc(&(_b)->refcnt))
++#define xen_blkif_get(_b) (refcount_inc(&(_b)->refcnt))
+ #define xen_blkif_put(_b)				\
+ 	do {						\
+-		if (atomic_dec_and_test(&(_b)->refcnt))	\
++		if (refcount_dec_and_test(&(_b)->refcnt))	\
+ 			schedule_work(&(_b)->free_work);\
+ 	} while (0)
+ 
+diff --git a/drivers/block/xen-blkback/xenbus.c b/drivers/block/xen-blkback/xenbus.c
+index 3ac6a5d18071..ecc5f9c5bf3f 100644
+--- a/drivers/block/xen-blkback/xenbus.c
++++ b/drivers/block/xen-blkback/xenbus.c
+@@ -169,7 +169,7 @@ static struct xen_blkif *xen_blkif_alloc(domid_t domid)
+ 		return ERR_PTR(-ENOMEM);
+ 
+ 	blkif->domid = domid;
+-	atomic_set(&blkif->refcnt, 1);
++	refcount_set(&blkif->refcnt, 1);
+ 	init_completion(&blkif->drain_complete);
+ 	INIT_WORK(&blkif->free_work, xen_blkif_deferred_free);
+ 
+-- 
+2.20.1
+

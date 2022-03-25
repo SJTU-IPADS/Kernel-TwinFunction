@@ -1,0 +1,40 @@
+From 4abcd15d7bd1605efdcd63a5db1324a849f390a1 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 25 Jul 2019 10:20:29 +0800
+Subject: [PATCH] scsi: qla2xxx: replace snprintf with strscpy
+
+As commit a86028f8e3ee ("staging: most: sound: replace snprintf
+with strscpy") suggested, using snprintf without a format specifier
+is potentially risky if a0->vendor_name or a0->vendor_pn mistakenly
+contain format specifiers. In addition, as compared in the
+implementation, strscpy looks more light-weight than snprintf.
+
+This patch does not incur any functional change.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/scsi/qla2xxx/qla_init.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/scsi/qla2xxx/qla_init.c b/drivers/scsi/qla2xxx/qla_init.c
+index 4059655639d9..068b54218ff4 100644
+--- a/drivers/scsi/qla2xxx/qla_init.c
++++ b/drivers/scsi/qla2xxx/qla_init.c
+@@ -3461,12 +3461,12 @@ static void qla2xxx_print_sfp_info(struct scsi_qla_host *vha)
+ 	int leftover, len;
+ 
+ 	memset(str, 0, STR_LEN);
+-	snprintf(str, SFF_VEN_NAME_LEN+1, a0->vendor_name);
++	strscpy(str, a0->vendor_name, SFF_VEN_NAME_LEN+1);
+ 	ql_dbg(ql_dbg_init, vha, 0x015a,
+ 	    "SFP MFG Name: %s\n", str);
+ 
+ 	memset(str, 0, STR_LEN);
+-	snprintf(str, SFF_PART_NAME_LEN+1, a0->vendor_pn);
++	strscpy(str, a0->vendor_pn, SFF_PART_NAME_LEN+1);
+ 	ql_dbg(ql_dbg_init, vha, 0x015c,
+ 	    "SFP Part Name: %s\n", str);
+ 
+-- 
+2.11.0
+

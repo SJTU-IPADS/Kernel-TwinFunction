@@ -1,0 +1,94 @@
+commit 8d6973327ee84c2f40dd9efd8928d4a1186c96e2
+Merge: 6d101ba6be2a 12526b0d6c58
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Thu Dec 27 10:43:24 2018 -0800
+
+    Merge tag 'powerpc-4.21-1' of git://git.kernel.org/pub/scm/linux/kernel/git/powerpc/linux
+    
+    Pull powerpc updates from Michael Ellerman:
+     "Notable changes:
+    
+       - Mitigations for Spectre v2 on some Freescale (NXP) CPUs.
+    
+       - A large series adding support for pass-through of Nvidia V100 GPUs
+         to guests on Power9.
+    
+       - Another large series to enable hardware assistance for TLB table
+         walk on MPC8xx CPUs.
+    
+       - Some preparatory changes to our DMA code, to make way for further
+         cleanups from Christoph.
+    
+       - Several fixes for our Transactional Memory handling discovered by
+         fuzzing the signal return path.
+    
+       - Support for generating our system call table(s) from a text file
+         like other architectures.
+    
+       - A fix to our page fault handler so that instead of generating a
+         WARN_ON_ONCE, user accesses of kernel addresses instead print a
+         ratelimited and appropriately scary warning.
+    
+       - A cosmetic change to make our unhandled page fault messages more
+         similar to other arches and also more compact and informative.
+    
+       - Freescale updates from Scott:
+           "Highlights include elimination of legacy clock bindings use from
+            dts files, an 83xx watchdog handler, fixes to old dts interrupt
+            errors, and some minor cleanup."
+    
+      And many clean-ups, reworks and minor fixes etc.
+    
+      Thanks to: Alexandre Belloni, Alexey Kardashevskiy, Andrew Donnellan,
+      Aneesh Kumar K.V, Arnd Bergmann, Benjamin Herrenschmidt, Breno Leitao,
+      Christian Lamparter, Christophe Leroy, Christoph Hellwig, Daniel
+      Axtens, Darren Stevens, David Gibson, Diana Craciun, Dmitry V. Levin,
+      Firoz Khan, Geert Uytterhoeven, Greg Kurz, Gustavo Romero, Hari
+      Bathini, Joel Stanley, Kees Cook, Madhavan Srinivasan, Mahesh
+      Salgaonkar, Markus Elfring, Mathieu Malaterre, Michal Suchánek, Naveen
+      N. Rao, Nick Desaulniers, Oliver O'Halloran, Paul Mackerras, Ram Pai,
+      Ravi Bangoria, Rob Herring, Russell Currey, Sabyasachi Gupta, Sam
+      Bobroff, Satheesh Rajendran, Scott Wood, Segher Boessenkool, Stephen
+      Rothwell, Tang Yuantian, Thiago Jung Bauermann, Yangtao Li, Yuantian
+      Tang, Yue Haibing"
+    
+    * tag 'powerpc-4.21-1' of git://git.kernel.org/pub/scm/linux/kernel/git/powerpc/linux: (201 commits)
+      Revert "powerpc/fsl_pci: simplify fsl_pci_dma_set_mask"
+      powerpc/zImage: Also check for stdout-path
+      powerpc: Fix HMIs on big-endian with CONFIG_RELOCATABLE=y
+      macintosh: Use of_node_name_{eq, prefix} for node name comparisons
+      ide: Use of_node_name_eq for node name comparisons
+      powerpc: Use of_node_name_eq for node name comparisons
+      powerpc/pseries/pmem: Convert to %pOFn instead of device_node.name
+      powerpc/mm: Remove very old comment in hash-4k.h
+      powerpc/pseries: Fix node leak in update_lmb_associativity_index()
+      powerpc/configs/85xx: Enable CONFIG_DEBUG_KERNEL
+      powerpc/dts/fsl: Fix dtc-flagged interrupt errors
+      clk: qoriq: add more compatibles strings
+      powerpc/fsl: Use new clockgen binding
+      powerpc/83xx: handle machine check caused by watchdog timer
+      powerpc/fsl-rio: fix spelling mistake "reserverd" -> "reserved"
+      powerpc/fsl_pci: simplify fsl_pci_dma_set_mask
+      arch/powerpc/fsl_rmu: Use dma_zalloc_coherent
+      vfio_pci: Add NVIDIA GV100GL [Tesla V100 SXM2] subdriver
+      vfio_pci: Allow regions to add own capabilities
+      vfio_pci: Allow mapping extra regions
+      ...
+
+diff --cc arch/powerpc/mm/fault.c
+index 2e6fb1d758c3,056b750071bb..a6dcfda3e11e
+--- a/arch/powerpc/mm/fault.c
++++ b/arch/powerpc/mm/fault.c
+@@@ -636,9 -652,9 +652,10 @@@ void bad_page_fault(struct pt_regs *reg
+  	switch (TRAP(regs)) {
+  	case 0x300:
+  	case 0x380:
+ +	case 0xe00:
+- 		printk(KERN_ALERT "Unable to handle kernel paging request for "
+- 			"data at address 0x%08lx\n", regs->dar);
++ 		pr_alert("BUG: %s at 0x%08lx\n",
++ 			 regs->dar < PAGE_SIZE ? "Kernel NULL pointer dereference" :
++ 			 "Unable to handle kernel data access", regs->dar);
+  		break;
+  	case 0x400:
+  	case 0x480:

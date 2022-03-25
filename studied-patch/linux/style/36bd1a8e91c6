@@ -1,0 +1,30 @@
+commit 36bd1a8e91c66e9def12958547548aa549de9cbf
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Tue Nov 6 19:22:23 2018 -0800
+
+    percpu-refcount: Replace call_rcu_sched() with call_rcu()
+    
+    Now that call_rcu()'s callback is not invoked until after all
+    preempt-disable regions of code have completed (in addition to explicitly
+    marked RCU read-side critical sections), call_rcu() can be used in place
+    of call_rcu_sched().  This commit therefore makes that change.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Cc: Ming Lei <ming.lei@redhat.com>
+    Cc: Bart Van Assche <bvanassche@acm.org>
+    Cc: Jens Axboe <axboe@kernel.dk>
+    Acked-by: Tejun Heo <tj@kernel.org>
+
+diff --git a/lib/percpu-refcount.c b/lib/percpu-refcount.c
+index de10b8c0bff6..9877682e49c7 100644
+--- a/lib/percpu-refcount.c
++++ b/lib/percpu-refcount.c
+@@ -181,7 +181,7 @@ static void __percpu_ref_switch_to_atomic(struct percpu_ref *ref,
+ 	ref->confirm_switch = confirm_switch ?: percpu_ref_noop_confirm_switch;
+ 
+ 	percpu_ref_get(ref);	/* put after confirmation */
+-	call_rcu_sched(&ref->rcu, percpu_ref_switch_to_atomic_rcu);
++	call_rcu(&ref->rcu, percpu_ref_switch_to_atomic_rcu);
+ }
+ 
+ static void __percpu_ref_switch_to_percpu(struct percpu_ref *ref)

@@ -1,0 +1,25 @@
+commit 100091156c1a4da11c0764265b9e328d7858f2bb
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Tue Jan 29 07:39:13 2019 +0800
+
+    net: apple: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called in bmac_txdma_intr() when
+    xmit done. It makes drop profiles more friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/apple/bmac.c b/drivers/net/ethernet/apple/bmac.c
+index 6a8e2567f2bd..4d3855ceb500 100644
+--- a/drivers/net/ethernet/apple/bmac.c
++++ b/drivers/net/ethernet/apple/bmac.c
+@@ -777,7 +777,7 @@ static irqreturn_t bmac_txdma_intr(int irq, void *dev_id)
+ 
+ 		if (bp->tx_bufs[bp->tx_empty]) {
+ 			++dev->stats.tx_packets;
+-			dev_kfree_skb_irq(bp->tx_bufs[bp->tx_empty]);
++			dev_consume_skb_irq(bp->tx_bufs[bp->tx_empty]);
+ 		}
+ 		bp->tx_bufs[bp->tx_empty] = NULL;
+ 		bp->tx_fullup = 0;

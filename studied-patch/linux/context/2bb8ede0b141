@@ -1,0 +1,34 @@
+commit 2bb8ede0b14187c19b5eedc62cf0b18b3bf00d3b
+Author: Linus Walleij <linus.walleij@linaro.org>
+Date:   Thu Dec 6 13:43:40 2018 +0100
+
+    regulator: lp8788-ldo: Let core handle GPIO descriptor
+    
+    Use the gpiod_get() rather than the devm_* version so that the
+    regulator core can handle the lifecycle of these descriptors.
+    
+    Fixes: 2468f0d51548 ("regulator: lp8788-ldo: Pass descriptor instead of GPIO number")
+    Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+    Reviewed-by: Marek Szyprowski <m.szyprowski@samsung.com>
+    Reviewed-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+    Signed-off-by: Mark Brown <broonie@kernel.org>
+
+diff --git a/drivers/regulator/lp8788-ldo.c b/drivers/regulator/lp8788-ldo.c
+index 553b4790050f..2ee22e7ea675 100644
+--- a/drivers/regulator/lp8788-ldo.c
++++ b/drivers/regulator/lp8788-ldo.c
+@@ -501,8 +501,12 @@ static int lp8788_config_ldo_enable_mode(struct platform_device *pdev,
+ 		return 0;
+ 	}
+ 
+-	/* FIXME: check default mode for GPIO here: high or low? */
+-	ldo->ena_gpiod = devm_gpiod_get_index_optional(&pdev->dev,
++	/*
++	 * Do not use devm* here: the regulator core takes over the
++	 * lifecycle management of the GPIO descriptor.
++	 * FIXME: check default mode for GPIO here: high or low?
++	 */
++	ldo->ena_gpiod = gpiod_get_index_optional(&pdev->dev,
+ 					       "enable",
+ 					       enable_id,
+ 					       GPIOD_OUT_HIGH |

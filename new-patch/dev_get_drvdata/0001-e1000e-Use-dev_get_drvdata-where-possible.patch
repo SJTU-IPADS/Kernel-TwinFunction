@@ -1,0 +1,48 @@
+From 9905380380d1721995765f40518a9d9fe31c6639 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 22:01:10 +0800
+Subject: [PATCH] e1000e: Use dev_get_drvdata where possible
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/net/ethernet/intel/e1000e/netdev.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/intel/e1000e/netdev.c b/drivers/net/ethernet/intel/e1000e/netdev.c
+index e4baa13b3cda..fa2755849c54 100644
+--- a/drivers/net/ethernet/intel/e1000e/netdev.c
++++ b/drivers/net/ethernet/intel/e1000e/netdev.c
+@@ -6297,7 +6297,7 @@ static void e1000e_flush_lpic(struct pci_dev *pdev)
+ 
+ static int e1000e_pm_freeze(struct device *dev)
+ {
+-	struct net_device *netdev = pci_get_drvdata(to_pci_dev(dev));
++	struct net_device *netdev = dev_get_drvdata(dev);
+ 	struct e1000_adapter *adapter = netdev_priv(netdev);
+ 
+ 	netif_device_detach(netdev);
+@@ -6630,7 +6630,7 @@ static int __e1000_resume(struct pci_dev *pdev)
+ #ifdef CONFIG_PM_SLEEP
+ static int e1000e_pm_thaw(struct device *dev)
+ {
+-	struct net_device *netdev = pci_get_drvdata(to_pci_dev(dev));
++	struct net_device *netdev = dev_get_drvdata(dev);
+ 	struct e1000_adapter *adapter = netdev_priv(netdev);
+ 
+ 	e1000e_set_interrupt_capability(adapter);
+@@ -6679,8 +6679,7 @@ static int e1000e_pm_resume(struct device *dev)
+ 
+ static int e1000e_pm_runtime_idle(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct net_device *netdev = pci_get_drvdata(pdev);
++	struct net_device *netdev = dev_get_drvdata(dev);
+ 	struct e1000_adapter *adapter = netdev_priv(netdev);
+ 	u16 eee_lp;
+ 
+-- 
+2.20.1
+

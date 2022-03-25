@@ -1,0 +1,46 @@
+commit 9065ed1281a57f8cf84695b4a1e86ee9bd586b01
+Author: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date:   Thu Aug 30 13:32:07 2018 +0300
+
+    libnvdimm, label: Switch to bitmap_zalloc()
+    
+    Switch to bitmap_zalloc() to show clearly what we are allocating.
+    Besides that it returns pointer of bitmap type instead of opaque void *.
+    
+    Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+    Reviewed-by: Johannes Thumshirn <jthumshirn@suse.de>
+    Signed-off-by: Dave Jiang <dave.jiang@intel.com>
+    Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+
+diff --git a/drivers/nvdimm/label.c b/drivers/nvdimm/label.c
+index 750dbaa6ce82..a11bf4e6b451 100644
+--- a/drivers/nvdimm/label.c
++++ b/drivers/nvdimm/label.c
+@@ -944,8 +944,7 @@ static int __blk_label_update(struct nd_region *nd_region,
+ 	victims = 0;
+ 	if (old_num_resources) {
+ 		/* convert old local-label-map to dimm-slot victim-map */
+-		victim_map = kcalloc(BITS_TO_LONGS(nslot), sizeof(long),
+-				GFP_KERNEL);
++		victim_map = bitmap_zalloc(nslot, GFP_KERNEL);
+ 		if (!victim_map)
+ 			return -ENOMEM;
+ 
+@@ -968,7 +967,7 @@ static int __blk_label_update(struct nd_region *nd_region,
+ 	/* don't allow updates that consume the last label */
+ 	if (nfree - alloc < 0 || nfree - alloc + victims < 1) {
+ 		dev_info(&nsblk->common.dev, "insufficient label space\n");
+-		kfree(victim_map);
++		bitmap_free(victim_map);
+ 		return -ENOSPC;
+ 	}
+ 	/* from here on we need to abort on error */
+@@ -1140,7 +1139,7 @@ static int __blk_label_update(struct nd_region *nd_region,
+ 
+  out:
+ 	kfree(old_res_list);
+-	kfree(victim_map);
++	bitmap_free(victim_map);
+ 	return rc;
+ 
+  abort:

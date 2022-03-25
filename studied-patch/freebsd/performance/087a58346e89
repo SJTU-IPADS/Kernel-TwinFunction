@@ -1,0 +1,42 @@
+commit 087a58346e893fdf785d5c31508529966661a596
+Author: kib <kib@FreeBSD.org>
+Date:   Fri Sep 22 10:45:51 2017 +0000
+
+    MFC r323616:
+    Batch freeing of the pages in vm_object_page_remove().
+
+diff --git a/sys/vm/vm_object.c b/sys/vm/vm_object.c
+index 066798c140d..3542b9cdb9e 100644
+--- a/sys/vm/vm_object.c
++++ b/sys/vm/vm_object.c
+@@ -1960,6 +1960,7 @@ vm_object_page_remove(vm_object_t object, vm_pindex_t start, vm_pindex_t end,
+ {
+ 	vm_page_t p, next;
+ 	struct mtx *mtx;
++	struct pglist pgl;
+ 
+ 	VM_OBJECT_ASSERT_WLOCKED(object);
+ 	KASSERT((object->flags & OBJ_UNMANAGED) == 0 ||
+@@ -1968,6 +1969,7 @@ vm_object_page_remove(vm_object_t object, vm_pindex_t start, vm_pindex_t end,
+ 	if (object->resident_page_count == 0)
+ 		return;
+ 	vm_object_pip_add(object, 1);
++	TAILQ_INIT(&pgl);
+ again:
+ 	p = vm_page_find_least(object, start);
+ 	mtx = NULL;
+@@ -2019,10 +2021,13 @@ vm_object_page_remove(vm_object_t object, vm_pindex_t start, vm_pindex_t end,
+ 		}
+ 		if ((options & OBJPR_NOTMAPPED) == 0)
+ 			pmap_remove_all(p);
+-		vm_page_free(p);
++		p->flags &= ~PG_ZERO;
++		if (vm_page_free_prep(p, false))
++			TAILQ_INSERT_TAIL(&pgl, p, listq);
+ 	}
+ 	if (mtx != NULL)
+ 		mtx_unlock(mtx);
++	vm_page_free_phys_pglist(&pgl);
+ 	vm_object_pip_wakeup(object);
+ }
+ 

@@ -1,0 +1,37 @@
+commit 894077d5c871f86e6c88a70ac016b6811a910b23
+Author: Linus Walleij <linus.walleij@linaro.org>
+Date:   Thu Dec 6 13:43:41 2018 +0100
+
+    regulator: max8952: Let core handle GPIO descriptor
+    
+    Use the gpiod_get() rather than the devm_* version so that the
+    regulator core can handle the lifecycle of these descriptors.
+    
+    Fixes: d7a261c2d1f2 ("regulator: max8952: Pass descriptor instead of GPIO number")
+    Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+    Reviewed-by: Marek Szyprowski <m.szyprowski@samsung.com>
+    Tested-by: Marek Szyprowski <m.szyprowski@samsung.com>
+    Reviewed-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+    Signed-off-by: Mark Brown <broonie@kernel.org>
+
+diff --git a/drivers/regulator/max8952.c b/drivers/regulator/max8952.c
+index 6c39fff73b8a..cf2a2912cb1b 100644
+--- a/drivers/regulator/max8952.c
++++ b/drivers/regulator/max8952.c
+@@ -231,9 +231,13 @@ static int max8952_pmic_probe(struct i2c_client *client,
+ 	else
+ 		gflags = GPIOD_OUT_LOW;
+ 	gflags |= GPIOD_FLAGS_BIT_NONEXCLUSIVE;
+-	gpiod = devm_gpiod_get_optional(&client->dev,
+-					"max8952,en",
+-					gflags);
++	/*
++	 * Do not use devm* here: the regulator core takes over the
++	 * lifecycle management of the GPIO descriptor.
++	 */
++	gpiod = gpiod_get_optional(&client->dev,
++				   "max8952,en",
++				   gflags);
+ 	if (IS_ERR(gpiod))
+ 		return PTR_ERR(gpiod);
+ 	if (gpiod)

@@ -1,0 +1,40 @@
+commit c79cd9a24ef71c5d9b9185a20b387391abaa6cc7
+Author: Christoph Hellwig <hch@lst.de>
+Date:   Thu Oct 18 15:10:15 2018 +0200
+
+    scsi: dpt_i2o: use dma_set_mask
+    
+    The driver currently uses pci_set_dma_mask despite otherwise using the
+    generic DMA API.  Also move the dma_get_required_mask check before actually
+    setting the dma mask, so that we don't end up with inconsistent settings in
+    corner cases.
+    
+    Signed-off-by: Christoph Hellwig <hch@lst.de>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/scsi/dpt_i2o.c b/drivers/scsi/dpt_i2o.c
+index 37de8fb186d7..d5a474d1434f 100644
+--- a/drivers/scsi/dpt_i2o.c
++++ b/drivers/scsi/dpt_i2o.c
+@@ -934,15 +934,15 @@ static int adpt_install_hba(struct scsi_host_template* sht, struct pci_dev* pDev
+ 	 *	See if we should enable dma64 mode.
+ 	 */
+ 	if (sizeof(dma_addr_t) > 4 &&
+-	    pci_set_dma_mask(pDev, DMA_BIT_MASK(64)) == 0) {
+-		if (dma_get_required_mask(&pDev->dev) > DMA_BIT_MASK(32))
+-			dma64 = 1;
+-	}
+-	if (!dma64 && pci_set_dma_mask(pDev, DMA_BIT_MASK(32)) != 0)
++	    dma_get_required_mask(&pDev->dev) > DMA_BIT_MASK(32) &&
++	    dma_set_mask(&pDev->dev, DMA_BIT_MASK(64)) == 0)
++		dma64 = 1;
++
++	if (!dma64 && dma_set_mask(&pDev->dev, DMA_BIT_MASK(32)) != 0)
+ 		return -EINVAL;
+ 
+ 	/* adapter only supports message blocks below 4GB */
+-	pci_set_consistent_dma_mask(pDev, DMA_BIT_MASK(32));
++	dma_set_coherent_mask(&pDev->dev, DMA_BIT_MASK(32));
+ 
+ 	base_addr0_phys = pci_resource_start(pDev,0);
+ 	hba_map0_area_size = pci_resource_len(pDev,0);

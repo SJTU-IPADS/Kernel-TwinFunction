@@ -1,0 +1,49 @@
+commit a69b080025ea3c7cd15cc91a9188475bce39e921
+Author: Christoph Hellwig <hch@lst.de>
+Date:   Thu Oct 18 15:10:14 2018 +0200
+
+    scsi: bfa: use dma_set_mask_and_coherent
+    
+    The driver currently uses pci_set_dma_mask despite otherwise using the
+    generic DMA API.  Switch it over to the better generic DMA API helper and
+    also ensure we set the coherent mask as well in the resume path.
+    
+    Signed-off-by: Christoph Hellwig <hch@lst.de>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/scsi/bfa/bfad.c b/drivers/scsi/bfa/bfad.c
+index 911efc98d1fd..42a0caf6740d 100644
+--- a/drivers/scsi/bfa/bfad.c
++++ b/drivers/scsi/bfa/bfad.c
+@@ -739,14 +739,10 @@ bfad_pci_init(struct pci_dev *pdev, struct bfad_s *bfad)
+ 
+ 	pci_set_master(pdev);
+ 
+-
+-	if ((pci_set_dma_mask(pdev, DMA_BIT_MASK(64)) != 0) ||
+-	    (pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64)) != 0)) {
+-		if ((pci_set_dma_mask(pdev, DMA_BIT_MASK(32)) != 0) ||
+-		   (pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(32)) != 0)) {
+-			printk(KERN_ERR "pci_set_dma_mask fail %p\n", pdev);
+-			goto out_release_region;
+-		}
++	if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64)) ||
++	    dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32))) {
++		printk(KERN_ERR "dma_set_mask_and_coherent fail %p\n", pdev);
++		goto out_release_region;
+ 	}
+ 
+ 	/* Enable PCIE Advanced Error Recovery (AER) if kernel supports */
+@@ -1565,9 +1561,9 @@ bfad_pci_slot_reset(struct pci_dev *pdev)
+ 	pci_save_state(pdev);
+ 	pci_set_master(pdev);
+ 
+-	if (pci_set_dma_mask(bfad->pcidev, DMA_BIT_MASK(64)) != 0)
+-		if (pci_set_dma_mask(bfad->pcidev, DMA_BIT_MASK(32)) != 0)
+-			goto out_disable_device;
++	if (dma_set_mask_and_coherent(&bfad->pcidev->dev, DMA_BIT_MASK(64)) ||
++	    dma_set_mask_and_coherent(&bfad->pcidev->dev, DMA_BIT_MASK(32)))
++		goto out_disable_device;
+ 
+ 	if (restart_bfa(bfad) == -1)
+ 		goto out_disable_device;

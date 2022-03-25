@@ -1,0 +1,107 @@
+commit 2d2427db5b735ecdb6fe8ad9251f524b4260bb6a
+Author: alc <alc@FreeBSD.org>
+Date:   Sat Oct 7 17:20:31 2017 +0000
+
+    MFC r323973,324087
+      Optimize vm_page_try_to_free().  Specifically, the call to pmap_remove_all()
+      can be avoided when the page's containing object has a reference count of
+      zero.  (If the object has a reference count of zero, then none of its pages
+      can possibly be mapped.)
+    
+      Address nearby style issues in vm_page_try_to_free(), and change its
+      return type to "bool".
+    
+      Optimize vm_object_page_remove() by eliminating pointless calls to
+      pmap_remove_all().  If the object to which a page belongs has no
+      references, then that page cannot possibly be mapped.
+
+diff --git a/sys/vm/vm_object.c b/sys/vm/vm_object.c
+index 705e8d07711..11e1f842754 100644
+--- a/sys/vm/vm_object.c
++++ b/sys/vm/vm_object.c
+@@ -1997,7 +1997,8 @@ vm_object_page_remove(vm_object_t object, vm_pindex_t start, vm_pindex_t end,
+ 			goto again;
+ 		}
+ 		if (p->wire_count != 0) {
+-			if ((options & OBJPR_NOTMAPPED) == 0)
++			if ((options & OBJPR_NOTMAPPED) == 0 &&
++			    object->ref_count != 0)
+ 				pmap_remove_all(p);
+ 			if ((options & OBJPR_CLEANONLY) == 0) {
+ 				p->valid = 0;
+@@ -2014,12 +2015,13 @@ vm_object_page_remove(vm_object_t object, vm_pindex_t start, vm_pindex_t end,
+ 		KASSERT((p->flags & PG_FICTITIOUS) == 0,
+ 		    ("vm_object_page_remove: page %p is fictitious", p));
+ 		if ((options & OBJPR_CLEANONLY) != 0 && p->valid != 0) {
+-			if ((options & OBJPR_NOTMAPPED) == 0)
++			if ((options & OBJPR_NOTMAPPED) == 0 &&
++			    object->ref_count != 0)
+ 				pmap_remove_write(p);
+-			if (p->dirty)
++			if (p->dirty != 0)
+ 				continue;
+ 		}
+-		if ((options & OBJPR_NOTMAPPED) == 0)
++		if ((options & OBJPR_NOTMAPPED) == 0 && object->ref_count != 0)
+ 			pmap_remove_all(p);
+ 		p->flags &= ~PG_ZERO;
+ 		if (vm_page_free_prep(p, false))
+diff --git a/sys/vm/vm_page.c b/sys/vm/vm_page.c
+index 08203f2899a..155d1a849be 100644
+--- a/sys/vm/vm_page.c
++++ b/sys/vm/vm_page.c
+@@ -3056,23 +3056,25 @@ vm_page_launder(vm_page_t m)
+  * vm_page_try_to_free()
+  *
+  *	Attempt to free the page.  If we cannot free it, we do nothing.
+- *	1 is returned on success, 0 on failure.
++ *	true is returned on success, false on failure.
+  */
+-int
++bool
+ vm_page_try_to_free(vm_page_t m)
+ {
+ 
+-	vm_page_lock_assert(m, MA_OWNED);
++	vm_page_assert_locked(m);
+ 	if (m->object != NULL)
+ 		VM_OBJECT_ASSERT_WLOCKED(m->object);
+-	if (m->dirty || m->hold_count || m->wire_count ||
++	if (m->dirty != 0 || m->hold_count != 0 || m->wire_count != 0 ||
+ 	    (m->oflags & VPO_UNMANAGED) != 0 || vm_page_busied(m))
+-		return (0);
+-	pmap_remove_all(m);
+-	if (m->dirty)
+-		return (0);
++		return (false);
++	if (m->object != NULL && m->object->ref_count != 0) {
++		pmap_remove_all(m);
++		if (m->dirty != 0)
++			return (false);
++	}
+ 	vm_page_free(m);
+-	return (1);
++	return (true);
+ }
+ 
+ /*
+diff --git a/sys/vm/vm_page.h b/sys/vm/vm_page.h
+index b7fa86322b0..c95a4cccef1 100644
+--- a/sys/vm/vm_page.h
++++ b/sys/vm/vm_page.h
+@@ -459,7 +459,6 @@ void vm_page_change_lock(vm_page_t m, struct mtx **mtx);
+ vm_page_t vm_page_grab (vm_object_t, vm_pindex_t, int);
+ int vm_page_grab_pages(vm_object_t object, vm_pindex_t pindex, int allocflags,
+     vm_page_t *ma, int count);
+-int vm_page_try_to_free (vm_page_t);
+ void vm_page_deactivate (vm_page_t);
+ void vm_page_deactivate_noreuse(vm_page_t);
+ void vm_page_dequeue(vm_page_t m);
+@@ -495,6 +494,7 @@ void vm_page_set_valid_range(vm_page_t m, int base, int size);
+ int vm_page_sleep_if_busy(vm_page_t m, const char *msg);
+ vm_offset_t vm_page_startup(vm_offset_t vaddr);
+ void vm_page_sunbusy(vm_page_t m);
++bool vm_page_try_to_free(vm_page_t m);
+ int vm_page_trysbusy(vm_page_t m);
+ void vm_page_unhold_pages(vm_page_t *ma, int count);
+ boolean_t vm_page_unwire(vm_page_t m, uint8_t queue);

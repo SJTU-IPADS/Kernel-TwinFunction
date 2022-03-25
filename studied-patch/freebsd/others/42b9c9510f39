@@ -1,0 +1,21 @@
+commit 42b9c9510f39e8944b033dd191038a27569d007e
+Author: tuexen <tuexen@FreeBSD.org>
+Date:   Sat Apr 7 17:40:11 2018 +0000
+
+    MFC r323377:
+    
+    Fix a locking issue found by Coverity scanning the usrsctp library.
+
+diff --git a/sys/netinet6/sctp6_usrreq.c b/sys/netinet6/sctp6_usrreq.c
+index 4e5a64710d9..c88ca96f5c2 100644
+--- a/sys/netinet6/sctp6_usrreq.c
++++ b/sys/netinet6/sctp6_usrreq.c
+@@ -879,7 +879,7 @@ sctp6_connect(struct socket *so, struct sockaddr *addr, struct thread *p)
+ 	if (inp->sctp_flags & SCTP_PCB_FLAGS_CONNECTED) {
+ 		stcb = LIST_FIRST(&inp->sctp_asoc_list);
+ 		if (stcb) {
+-			SCTP_TCB_UNLOCK(stcb);
++			SCTP_TCB_LOCK(stcb);
+ 		}
+ 		SCTP_INP_RUNLOCK(inp);
+ 	} else {

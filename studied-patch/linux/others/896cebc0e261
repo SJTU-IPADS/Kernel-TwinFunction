@@ -1,0 +1,25 @@
+commit 896cebc0e261a29a6f0b20ab21d1bfc06959e91d
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Tue Jan 29 22:40:51 2019 +0800
+
+    net: 8139cp: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called in cp_tx() when skb xmit
+    done. It makes drop profiles(dropwatch, perf) more friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/realtek/8139cp.c b/drivers/net/ethernet/realtek/8139cp.c
+index 44f6e4873aad..4f910c4f67b0 100644
+--- a/drivers/net/ethernet/realtek/8139cp.c
++++ b/drivers/net/ethernet/realtek/8139cp.c
+@@ -691,7 +691,7 @@ static void cp_tx (struct cp_private *cp)
+ 			}
+ 			bytes_compl += skb->len;
+ 			pkts_compl++;
+-			dev_kfree_skb_irq(skb);
++			dev_consume_skb_irq(skb);
+ 		}
+ 
+ 		cp->tx_skb[tx_tail] = NULL;

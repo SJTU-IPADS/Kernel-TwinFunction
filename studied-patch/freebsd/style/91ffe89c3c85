@@ -1,0 +1,38 @@
+commit 91ffe89c3c85fffd5c3bd444fc20b05e1d58bf3b
+Author: hselasky <hselasky@FreeBSD.org>
+Date:   Mon Mar 26 20:52:02 2018 +0000
+
+    MFC r330650:
+    Use device_printf() instead of printf() when printing warnings and errors
+    to dmesg(8) in mlx5core.
+    
+    Submitted by:   Matthew Finlay <matt@mellanox.com>
+    Sponsored by:   Mellanox Technologies
+
+diff --git a/sys/dev/mlx5/mlx5_core/mlx5_core.h b/sys/dev/mlx5/mlx5_core/mlx5_core.h
+index 0e7e56210e5..1cc217253fe 100644
+--- a/sys/dev/mlx5/mlx5_core/mlx5_core.h
++++ b/sys/dev/mlx5/mlx5_core/mlx5_core.h
+@@ -49,14 +49,14 @@ do {									\
+ 		mlx5_core_dbg(dev, format, ##__VA_ARGS__);		\
+ } while (0)
+ 
+-#define mlx5_core_err(dev, format, ...)					\
+-	printf("mlx5_core: ERR: ""%s:%s:%d:(pid %d): " format, \
+-	       (dev)->priv.name, __func__, __LINE__, curthread->td_proc->p_pid, \
+-	       ##__VA_ARGS__)
+-
+-#define mlx5_core_warn(dev, format, ...)				\
+-	printf("mlx5_core: WARN: ""%s:%s:%d:(pid %d): " format, \
+-		(dev)->priv.name, __func__, __LINE__, curthread->td_proc->p_pid, \
++#define mlx5_core_err(_dev, format, ...)					\
++	device_printf((&(_dev)->pdev->dev)->bsddev, "ERR: ""%s:%d:(pid %d): " format, \
++		__func__, __LINE__, curthread->td_proc->p_pid, \
++		##__VA_ARGS__)
++
++#define mlx5_core_warn(_dev, format, ...)				\
++	device_printf((&(_dev)->pdev->dev)->bsddev, "WARN: ""%s:%d:(pid %d): " format, \
++		__func__, __LINE__, curthread->td_proc->p_pid, \
+ 		##__VA_ARGS__)
+ 
+ enum {

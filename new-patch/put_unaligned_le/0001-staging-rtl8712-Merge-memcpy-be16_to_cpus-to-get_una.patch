@@ -1,0 +1,32 @@
+From 2d8e78d84ceb63e75c56139d7fb10f7772ffa8b4 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Fri, 19 Jul 2019 14:53:04 +0800
+Subject: [PATCH] staging: rtl8712: Merge memcpy + be16_to_cpus to
+ get_unaligned_be16
+
+Merge the combo of memcpy and be16_to_cpus.
+Use get_unaligned_be16 instead.
+This simplifies the code.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/staging/rtl8712/rtl871x_recv.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/staging/rtl8712/rtl871x_recv.c b/drivers/staging/rtl8712/rtl871x_recv.c
+index 5298fe603437..9969e5265a40 100644
+--- a/drivers/staging/rtl8712/rtl871x_recv.c
++++ b/drivers/staging/rtl8712/rtl871x_recv.c
+@@ -245,8 +245,7 @@ union recv_frame *r8712_portctrl(struct _adapter *adapter,
+ 	if (auth_alg == 2) {
+ 		/* get ether_type */
+ 		ptr = ptr + pfhdr->attrib.hdrlen + LLC_HEADER_SIZE;
+-		memcpy(&ether_type, ptr, 2);
+-		be16_to_cpus(&ether_type);
++		ether_type = get_unaligned_be16(ptr);
+ 
+ 		if ((psta != NULL) && (psta->ieee8021x_blocked)) {
+ 			/* blocked
+-- 
+2.20.1
+

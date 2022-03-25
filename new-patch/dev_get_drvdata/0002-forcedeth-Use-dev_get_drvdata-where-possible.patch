@@ -1,0 +1,30 @@
+From 9d9b1cdd4e44f4b8e77adb214cecd2ac96ceb3be Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 24 Jul 2019 15:48:45 +0800
+Subject: [PATCH net-next 02/10] forcedeth: Use dev_get_drvdata where possible
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/net/ethernet/nvidia/forcedeth.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/nvidia/forcedeth.c b/drivers/net/ethernet/nvidia/forcedeth.c
+index b327b29f5d57..ecca794c55e2 100644
+--- a/drivers/net/ethernet/nvidia/forcedeth.c
++++ b/drivers/net/ethernet/nvidia/forcedeth.c
+@@ -6126,8 +6126,7 @@ static void nv_remove(struct pci_dev *pci_dev)
+ #ifdef CONFIG_PM_SLEEP
+ static int nv_suspend(struct device *device)
+ {
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct net_device *dev = pci_get_drvdata(pdev);
++	struct net_device *dev = dev_get_drvdata(device);
+ 	struct fe_priv *np = netdev_priv(dev);
+ 	u8 __iomem *base = get_hwbase(dev);
+ 	int i;
+-- 
+2.20.1
+

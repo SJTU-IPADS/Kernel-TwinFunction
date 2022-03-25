@@ -1,0 +1,36 @@
+commit 9f540c3e1d6668d9507f18107dc63113b9a675be
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 22:00:30 2018 +0200
+
+    pinctrl: pinctrl-amd: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+
+diff --git a/drivers/pinctrl/pinctrl-amd.c b/drivers/pinctrl/pinctrl-amd.c
+index 67718b0f978d..2a7d638978d8 100644
+--- a/drivers/pinctrl/pinctrl-amd.c
++++ b/drivers/pinctrl/pinctrl-amd.c
+@@ -791,8 +791,7 @@ static bool amd_gpio_should_save(struct amd_gpio *gpio_dev, unsigned int pin)
+ 
+ static int amd_gpio_suspend(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct amd_gpio *gpio_dev = platform_get_drvdata(pdev);
++	struct amd_gpio *gpio_dev = dev_get_drvdata(dev);
+ 	struct pinctrl_desc *desc = gpio_dev->pctrl->desc;
+ 	int i;
+ 
+@@ -810,8 +809,7 @@ static int amd_gpio_suspend(struct device *dev)
+ 
+ static int amd_gpio_resume(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct amd_gpio *gpio_dev = platform_get_drvdata(pdev);
++	struct amd_gpio *gpio_dev = dev_get_drvdata(dev);
+ 	struct pinctrl_desc *desc = gpio_dev->pctrl->desc;
+ 	int i;
+ 

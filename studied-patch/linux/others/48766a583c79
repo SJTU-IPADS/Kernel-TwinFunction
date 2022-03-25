@@ -1,0 +1,58 @@
+commit 48766a583c7961af080de2df692f476624a9a21a
+Author: Tung Nguyen <tung.q.nguyen@dektech.com.au>
+Date:   Tue Feb 19 11:20:48 2019 +0700
+
+    tipc: improve function tipc_wait_for_rcvmsg()
+    
+    This commit replaces schedule_timeout() with wait_woken()
+    in function tipc_wait_for_rcvmsg(). wait_woken() uses
+    memory barriers in its implementation to avoid potential
+    race condition when putting a process into sleeping state
+    and then waking it up.
+    
+    Acked-by: Ying Xue <ying.xue@windriver.com>
+    Acked-by: Jon Maloy <jon.maloy@ericsson.com>
+    Signed-off-by: Tung Nguyen <tung.q.nguyen@dektech.com.au>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/net/tipc/socket.c b/net/tipc/socket.c
+index 81b87916a0eb..684f2125fc6b 100644
+--- a/net/tipc/socket.c
++++ b/net/tipc/socket.c
+@@ -1677,7 +1677,7 @@ static void tipc_sk_send_ack(struct tipc_sock *tsk)
+ static int tipc_wait_for_rcvmsg(struct socket *sock, long *timeop)
+ {
+ 	struct sock *sk = sock->sk;
+-	DEFINE_WAIT(wait);
++	DEFINE_WAIT_FUNC(wait, woken_wake_function);
+ 	long timeo = *timeop;
+ 	int err = sock_error(sk);
+ 
+@@ -1685,15 +1685,17 @@ static int tipc_wait_for_rcvmsg(struct socket *sock, long *timeop)
+ 		return err;
+ 
+ 	for (;;) {
+-		prepare_to_wait(sk_sleep(sk), &wait, TASK_INTERRUPTIBLE);
+ 		if (timeo && skb_queue_empty(&sk->sk_receive_queue)) {
+ 			if (sk->sk_shutdown & RCV_SHUTDOWN) {
+ 				err = -ENOTCONN;
+ 				break;
+ 			}
++			add_wait_queue(sk_sleep(sk), &wait);
+ 			release_sock(sk);
+-			timeo = schedule_timeout(timeo);
++			timeo = wait_woken(&wait, TASK_INTERRUPTIBLE, timeo);
++			sched_annotate_sleep();
+ 			lock_sock(sk);
++			remove_wait_queue(sk_sleep(sk), &wait);
+ 		}
+ 		err = 0;
+ 		if (!skb_queue_empty(&sk->sk_receive_queue))
+@@ -1709,7 +1711,6 @@ static int tipc_wait_for_rcvmsg(struct socket *sock, long *timeop)
+ 		if (err)
+ 			break;
+ 	}
+-	finish_wait(sk_sleep(sk), &wait);
+ 	*timeop = timeo;
+ 	return err;
+ }

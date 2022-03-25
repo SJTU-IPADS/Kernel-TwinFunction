@@ -1,0 +1,35 @@
+commit e8d26f29b7c48aa037a4796e2aa878c58a04609c
+Author: Dongli Zhang <dongli.zhang@oracle.com>
+Date:   Mon Dec 10 08:54:34 2018 +0800
+
+    virtio: remove deprecated VIRTIO_PCI_CONFIG()
+    
+    VIRTIO_PCI_CONFIG() is deprecated. Use VIRTIO_PCI_CONFIG_OFF() instead.
+    
+    Signed-off-by: Dongli Zhang <dongli.zhang@oracle.com>
+    Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+
+diff --git a/drivers/virtio/virtio_pci_legacy.c b/drivers/virtio/virtio_pci_legacy.c
+index de062fb201bc..eff9ddc7c4ab 100644
+--- a/drivers/virtio/virtio_pci_legacy.c
++++ b/drivers/virtio/virtio_pci_legacy.c
+@@ -52,7 +52,8 @@ static void vp_get(struct virtio_device *vdev, unsigned offset,
+ {
+ 	struct virtio_pci_device *vp_dev = to_vp_device(vdev);
+ 	void __iomem *ioaddr = vp_dev->ioaddr +
+-				VIRTIO_PCI_CONFIG(vp_dev) + offset;
++			VIRTIO_PCI_CONFIG_OFF(vp_dev->msix_enabled) +
++			offset;
+ 	u8 *ptr = buf;
+ 	int i;
+ 
+@@ -67,7 +68,8 @@ static void vp_set(struct virtio_device *vdev, unsigned offset,
+ {
+ 	struct virtio_pci_device *vp_dev = to_vp_device(vdev);
+ 	void __iomem *ioaddr = vp_dev->ioaddr +
+-				VIRTIO_PCI_CONFIG(vp_dev) + offset;
++			VIRTIO_PCI_CONFIG_OFF(vp_dev->msix_enabled) +
++			offset;
+ 	const u8 *ptr = buf;
+ 	int i;
+ 

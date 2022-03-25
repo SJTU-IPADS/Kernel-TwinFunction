@@ -1,0 +1,68 @@
+commit 10a5ce98539948affbdc28dc0f39a1b6b2307f9d
+Author: Martin KaFai Lau <kafai@fb.com>
+Date:   Mon Dec 10 10:53:24 2018 -0800
+
+    bpf: bpftool: Fix newline and p_err issue
+    
+    This patch fixes a few newline issues and also
+    replaces p_err with p_info in prog.c
+    
+    Fixes: b053b439b72a ("bpf: libbpf: bpftool: Print bpf_line_info during prog dump")
+    Cc: Jakub Kicinski <jakub.kicinski@netronome.com>
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Acked-by: Jakub Kicinski <jakub.kicinski@netronome.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+diff --git a/tools/bpf/bpftool/Documentation/bpftool-prog.rst b/tools/bpf/bpftool/Documentation/bpftool-prog.rst
+index 7c30731a9b73..bb1aeb98b6da 100644
+--- a/tools/bpf/bpftool/Documentation/bpftool-prog.rst
++++ b/tools/bpf/bpftool/Documentation/bpftool-prog.rst
+@@ -73,6 +73,7 @@ DESCRIPTION
+ 		  be displayed by default.  If **linum** is specified,
+ 		  the filename, line number and line column will also be
+ 		  displayed on top of the source line.
++
+ 	**bpftool prog dump jited**  *PROG* [{ **file** *FILE* | **opcodes** | **linum** }]
+ 		  Dump jited image (host machine code) of the program.
+ 		  If *FILE* is specified image will be written to a file,
+@@ -84,6 +85,7 @@ DESCRIPTION
+ 		  be displayed by default.  If **linum** is specified,
+ 		  the filename, line number and line column will also be
+ 		  displayed on top of the source line.
++
+ 	**bpftool prog pin** *PROG* *FILE*
+ 		  Pin program *PROG* as *FILE*.
+ 
+diff --git a/tools/bpf/bpftool/main.h b/tools/bpf/bpftool/main.h
+index d9393abdba78..0b37599f8cda 100644
+--- a/tools/bpf/bpftool/main.h
++++ b/tools/bpf/bpftool/main.h
+@@ -194,7 +194,6 @@ void disasm_print_insn(unsigned char *image, ssize_t len, int opcodes,
+ 		       const struct bpf_prog_linfo *prog_linfo,
+ 		       __u64 func_ksym, unsigned int func_idx,
+ 		       bool linum)
+-
+ {
+ }
+ static inline int disasm_init(void)
+diff --git a/tools/bpf/bpftool/prog.c b/tools/bpf/bpftool/prog.c
+index 65b921ffd10a..9a78ebbcea1d 100644
+--- a/tools/bpf/bpftool/prog.c
++++ b/tools/bpf/bpftool/prog.c
+@@ -592,7 +592,6 @@ static int do_dump(int argc, char **argv)
+ 	info.jited_line_info_rec_size = jited_linfo_rec_size;
+ 	info.jited_line_info = ptr_to_u64(jited_linfo);
+ 
+-
+ 	err = bpf_obj_get_info_by_fd(fd, &info, &len);
+ 	close(fd);
+ 	if (err) {
+@@ -674,7 +673,7 @@ static int do_dump(int argc, char **argv)
+ 	if (linfo_cnt) {
+ 		prog_linfo = bpf_prog_linfo__new(&info);
+ 		if (!prog_linfo)
+-			p_err("error in processing bpf_line_info.  continue without it.");
++			p_info("error in processing bpf_line_info.  continue without it.");
+ 	}
+ 
+ 	if (filepath) {

@@ -1,0 +1,74 @@
+commit ca880420665dbc8beec3693bee9f5eccb89de4a6
+Author: Eric Biggers <ebiggers@google.com>
+Date:   Fri Dec 28 00:34:43 2018 -0800
+
+    userfaultfd: convert userfaultfd_ctx::refcount to refcount_t
+    
+    Reference counters should use refcount_t rather than atomic_t, since the
+    refcount_t implementation can prevent overflows, reducing the
+    exploitability of reference leak bugs.  userfaultfd_ctx::refcount is a
+    reference counter with the usual semantics, so convert it to refcount_t.
+    
+    Note: I replaced the BUG() on incrementing a 0 refcount with just
+    refcount_inc(), since part of the semantics of refcount_t is that that
+    incrementing a 0 refcount is not allowed; with CONFIG_REFCOUNT_FULL,
+    refcount_inc() already checks for it and warns.
+    
+    Link: http://lkml.kernel.org/r/20181115003916.63381-1-ebiggers@kernel.org
+    Signed-off-by: Eric Biggers <ebiggers@google.com>
+    Reviewed-by: Andrew Morton <akpm@linux-foundation.org>
+    Cc: Andrea Arcangeli <aarcange@redhat.com>
+    Reviewed-by: Mike Rapoport <rppt@linux.ibm.com>
+    Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+    Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+
+diff --git a/fs/userfaultfd.c b/fs/userfaultfd.c
+index 59dc28047030..e211b99d33c4 100644
+--- a/fs/userfaultfd.c
++++ b/fs/userfaultfd.c
+@@ -53,7 +53,7 @@ struct userfaultfd_ctx {
+ 	/* a refile sequence protected by fault_pending_wqh lock */
+ 	struct seqcount refile_seq;
+ 	/* pseudo fd refcounting */
+-	atomic_t refcount;
++	refcount_t refcount;
+ 	/* userfaultfd syscall flags */
+ 	unsigned int flags;
+ 	/* features requested from the userspace */
+@@ -140,8 +140,7 @@ static int userfaultfd_wake_function(wait_queue_entry_t *wq, unsigned mode,
+  */
+ static void userfaultfd_ctx_get(struct userfaultfd_ctx *ctx)
+ {
+-	if (!atomic_inc_not_zero(&ctx->refcount))
+-		BUG();
++	refcount_inc(&ctx->refcount);
+ }
+ 
+ /**
+@@ -154,7 +153,7 @@ static void userfaultfd_ctx_get(struct userfaultfd_ctx *ctx)
+  */
+ static void userfaultfd_ctx_put(struct userfaultfd_ctx *ctx)
+ {
+-	if (atomic_dec_and_test(&ctx->refcount)) {
++	if (refcount_dec_and_test(&ctx->refcount)) {
+ 		VM_BUG_ON(spin_is_locked(&ctx->fault_pending_wqh.lock));
+ 		VM_BUG_ON(waitqueue_active(&ctx->fault_pending_wqh));
+ 		VM_BUG_ON(spin_is_locked(&ctx->fault_wqh.lock));
+@@ -686,7 +685,7 @@ int dup_userfaultfd(struct vm_area_struct *vma, struct list_head *fcs)
+ 			return -ENOMEM;
+ 		}
+ 
+-		atomic_set(&ctx->refcount, 1);
++		refcount_set(&ctx->refcount, 1);
+ 		ctx->flags = octx->flags;
+ 		ctx->state = UFFD_STATE_RUNNING;
+ 		ctx->features = octx->features;
+@@ -1927,7 +1926,7 @@ SYSCALL_DEFINE1(userfaultfd, int, flags)
+ 	if (!ctx)
+ 		return -ENOMEM;
+ 
+-	atomic_set(&ctx->refcount, 1);
++	refcount_set(&ctx->refcount, 1);
+ 	ctx->flags = flags;
+ 	ctx->features = 0;
+ 	ctx->state = UFFD_STATE_WAIT_API;

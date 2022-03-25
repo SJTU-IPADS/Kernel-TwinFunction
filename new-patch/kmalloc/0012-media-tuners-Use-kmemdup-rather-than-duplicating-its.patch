@@ -1,0 +1,66 @@
+From f9a1a347944b71e3e1e628601f5121f8f6050b4b Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 3 Jul 2019 23:31:13 +0800
+Subject: [PATCH v2 12/35] media/tuners: Use kmemdup rather than duplicating
+ its implementation
+
+kmemdup is introduced to duplicate a region of memory in a neat way.
+Rather than kmalloc/kzalloc + memcpy, which the programmer needs to
+write the size twice (sometimes lead to mistakes), kmemdup improves
+readability, leads to smaller code and also reduce the chances of mistakes.
+Suggestion to use kmemdup rather than using kmalloc/kzalloc + memcpy.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Fix a typo in commit message (memset -> memcpy)
+
+ drivers/media/tuners/tuner-xc2028.c | 3 +--
+ drivers/media/tuners/xc4000.c       | 3 +--
+ 2 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/media/tuners/tuner-xc2028.c b/drivers/media/tuners/tuner-xc2028.c
+index aa6861dcd3fd..574c3bb135d7 100644
+--- a/drivers/media/tuners/tuner-xc2028.c
++++ b/drivers/media/tuners/tuner-xc2028.c
+@@ -381,7 +381,7 @@ static int load_all_firmwares(struct dvb_frontend *fe,
+ 			goto corrupt;
+ 		}
+ 
+-		priv->firm[n].ptr = kzalloc(size, GFP_KERNEL);
++		priv->firm[n].ptr = kmemdup(p, size, GFP_KERNEL);
+ 		if (priv->firm[n].ptr == NULL) {
+ 			tuner_err("Not enough memory to load firmware file.\n");
+ 			rc = -ENOMEM;
+@@ -394,7 +394,6 @@ static int load_all_firmwares(struct dvb_frontend *fe,
+ 			       type, (unsigned long long)id, size);
+ 		}
+ 
+-		memcpy(priv->firm[n].ptr, p, size);
+ 		priv->firm[n].type = type;
+ 		priv->firm[n].id   = id;
+ 		priv->firm[n].size = size;
+diff --git a/drivers/media/tuners/xc4000.c b/drivers/media/tuners/xc4000.c
+index 43925e219d81..d9606738ce43 100644
+--- a/drivers/media/tuners/xc4000.c
++++ b/drivers/media/tuners/xc4000.c
+@@ -812,7 +812,7 @@ static int xc4000_fwupload(struct dvb_frontend *fe)
+ 			goto corrupt;
+ 		}
+ 
+-		priv->firm[n].ptr = kzalloc(size, GFP_KERNEL);
++		priv->firm[n].ptr = kmemdup(p, size, GFP_KERNEL);
+ 		if (priv->firm[n].ptr == NULL) {
+ 			printk(KERN_ERR "Not enough memory to load firmware file.\n");
+ 			rc = -ENOMEM;
+@@ -826,7 +826,6 @@ static int xc4000_fwupload(struct dvb_frontend *fe)
+ 			       type, (unsigned long long)id, size);
+ 		}
+ 
+-		memcpy(priv->firm[n].ptr, p, size);
+ 		priv->firm[n].type = type;
+ 		priv->firm[n].id   = id;
+ 		priv->firm[n].size = size;
+-- 
+2.11.0
+

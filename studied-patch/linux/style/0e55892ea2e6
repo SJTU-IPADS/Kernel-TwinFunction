@@ -1,0 +1,33 @@
+commit 0e55892ea2e62c66fee24a3d73eea3ad0b287ba4
+Author: Souptick Joarder <jrdr.linux@gmail.com>
+Date:   Thu Nov 1 09:49:09 2018 +0530
+
+    scsi: aic94xx: Use dma_pool_zalloc
+    
+    Replaced dma_pool_alloc + memset with dma_pool_zalloc.
+    
+    Signed-off-by: Brajeswar Ghosh <brajeswar.linux@gmail.com>
+    Signed-off-by: Souptick Joarder <jrdr.linux@gmail.com>
+    Reviewed-by: Kees Cook <keescook@chromium.org>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/scsi/aic94xx/aic94xx_hwi.c b/drivers/scsi/aic94xx/aic94xx_hwi.c
+index 3b8ad55e59de..2bc7615193bd 100644
+--- a/drivers/scsi/aic94xx/aic94xx_hwi.c
++++ b/drivers/scsi/aic94xx/aic94xx_hwi.c
+@@ -1057,14 +1057,13 @@ static struct asd_ascb *asd_ascb_alloc(struct asd_ha_struct *asd_ha,
+ 
+ 	if (ascb) {
+ 		ascb->dma_scb.size = sizeof(struct scb);
+-		ascb->dma_scb.vaddr = dma_pool_alloc(asd_ha->scb_pool,
++		ascb->dma_scb.vaddr = dma_pool_zalloc(asd_ha->scb_pool,
+ 						     gfp_flags,
+ 						    &ascb->dma_scb.dma_handle);
+ 		if (!ascb->dma_scb.vaddr) {
+ 			kmem_cache_free(asd_ascb_cache, ascb);
+ 			return NULL;
+ 		}
+-		memset(ascb->dma_scb.vaddr, 0, sizeof(struct scb));
+ 		asd_init_ascb(asd_ha, ascb);
+ 
+ 		spin_lock_irqsave(&seq->tc_index_lock, flags);

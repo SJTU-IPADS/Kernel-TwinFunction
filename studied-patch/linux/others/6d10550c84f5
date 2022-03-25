@@ -1,0 +1,62 @@
+commit 6d10550c84f51cb7c449c51d1a6fd31185a6ba6c
+Author: Allen Pais <allen.pais@oracle.com>
+Date:   Mon Oct 22 19:30:43 2018 +0530
+
+    RDMA/hns: prefer dma_zalloc_coherent to dma_alloc_coherent/memse
+    
+    This is a mechanical transformation, no change in logic.
+    
+    Signed-off-by: Allen Pais <allen.lkml@gmail.com>
+    Signed-off-by: Doug Ledford <dledford@redhat.com>
+
+diff --git a/drivers/infiniband/hw/hns/hns_roce_hw_v2.c b/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
+index a4c62ae23a9a..d4609e7eb3c0 100644
+--- a/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
++++ b/drivers/infiniband/hw/hns/hns_roce_hw_v2.c
+@@ -4972,13 +4972,12 @@ static int hns_roce_mhop_alloc_eq(struct hns_roce_dev *hr_dev,
+ 				eqe_alloc = i * (buf_chk_sz / eq->eqe_size);
+ 				size = (eq->entries - eqe_alloc) * eq->eqe_size;
+ 			}
+-			eq->buf[i] = dma_alloc_coherent(dev, size,
++			eq->buf[i] = dma_zalloc_coherent(dev, size,
+ 							&(eq->buf_dma[i]),
+ 							GFP_KERNEL);
+ 			if (!eq->buf[i])
+ 				goto err_dma_alloc_buf;
+ 
+-			memset(eq->buf[i], 0, size);
+ 			*(eq->bt_l0 + i) = eq->buf_dma[i];
+ 
+ 			eq_buf_cnt++;
+@@ -5008,13 +5007,12 @@ static int hns_roce_mhop_alloc_eq(struct hns_roce_dev *hr_dev,
+ 					size = (eq->entries - eqe_alloc)
+ 						* eq->eqe_size;
+ 				}
+-				eq->buf[idx] = dma_alloc_coherent(dev, size,
++				eq->buf[idx] = dma_zalloc_coherent(dev, size,
+ 							    &(eq->buf_dma[idx]),
+ 							    GFP_KERNEL);
+ 				if (!eq->buf[idx])
+ 					goto err_dma_alloc_buf;
+ 
+-				memset(eq->buf[idx], 0, size);
+ 				*(eq->bt_l1[i] + j) = eq->buf_dma[idx];
+ 
+ 				eq_buf_cnt++;
+@@ -5124,7 +5122,7 @@ static int hns_roce_v2_create_eq(struct hns_roce_dev *hr_dev,
+ 			goto free_cmd_mbox;
+ 		}
+ 
+-		eq->buf_list->buf = dma_alloc_coherent(dev, buf_chk_sz,
++		eq->buf_list->buf = dma_zalloc_coherent(dev, buf_chk_sz,
+ 						       &(eq->buf_list->map),
+ 						       GFP_KERNEL);
+ 		if (!eq->buf_list->buf) {
+@@ -5132,7 +5130,6 @@ static int hns_roce_v2_create_eq(struct hns_roce_dev *hr_dev,
+ 			goto err_alloc_buf;
+ 		}
+ 
+-		memset(eq->buf_list->buf, 0, buf_chk_sz);
+ 	} else {
+ 		ret = hns_roce_mhop_alloc_eq(hr_dev, eq);
+ 		if (ret) {

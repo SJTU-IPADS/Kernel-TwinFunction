@@ -1,0 +1,27 @@
+commit 6e0856d317440a950b17c00a9283114f025e5699
+Author: Pan Bian <bianpan2016@163.com>
+Date:   Thu Nov 22 08:52:33 2018 +0800
+
+    HID: intel-ish-hid: fixes incorrect error handling
+    
+    The memory chunk allocated by hid_allocate_device() should be released
+    by hid_destroy_device(), not kfree().
+    
+    Fixes: 0b28cb4bcb1("HID: intel-ish-hid: ISH HID client driver")
+    Signed-off-by: Pan Bian <bianpan2016@163.com>
+    Reviewed-by: Benjamin Tissoires <benjamin.tissoires@redhat.com>
+    Signed-off-by: Jiri Kosina <jkosina@suse.cz>
+
+diff --git a/drivers/hid/intel-ish-hid/ishtp-hid.c b/drivers/hid/intel-ish-hid/ishtp-hid.c
+index cd23903ddcf1..e918d78e541c 100644
+--- a/drivers/hid/intel-ish-hid/ishtp-hid.c
++++ b/drivers/hid/intel-ish-hid/ishtp-hid.c
+@@ -222,7 +222,7 @@ int ishtp_hid_probe(unsigned int cur_hid_dev,
+ err_hid_device:
+ 	kfree(hid_data);
+ err_hid_data:
+-	kfree(hid);
++	hid_destroy_device(hid);
+ 	return rv;
+ }
+ 

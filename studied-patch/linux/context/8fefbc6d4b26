@@ -1,0 +1,28 @@
+commit 8fefbc6d4b26604be3ce627910a22aaeb7c382fd
+Author: Mark Tomlinson <mark.tomlinson@alliedtelesis.co.nz>
+Date:   Tue Nov 27 09:57:23 2018 +1300
+
+    tty/sysrq: Do not call sync directly from sysrq_do_reset()
+    
+    sysrq_do_reset() is called in softirq context, so it cannot call
+    sync() directly. Instead, call orderly_reboot(), which creates a work
+    item to run /sbin/reboot, or do emergency_sync and restart if the
+    command fails.
+    
+    Signed-off-by: Mark Tomlinson <mark.tomlinson@alliedtelesis.co.nz>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/tty/sysrq.c b/drivers/tty/sysrq.c
+index 28fb20e9f984..1f03078ec352 100644
+--- a/drivers/tty/sysrq.c
++++ b/drivers/tty/sysrq.c
+@@ -653,8 +653,7 @@ static void sysrq_do_reset(struct timer_list *t)
+ 
+ 	state->reset_requested = true;
+ 
+-	ksys_sync();
+-	kernel_restart(NULL);
++	orderly_reboot();
+ }
+ 
+ static void sysrq_handle_reset_request(struct sysrq_state *state)

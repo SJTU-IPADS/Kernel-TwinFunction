@@ -1,0 +1,97 @@
+commit c8d1da4000b0b95bf95d3e13b7450eec5428da1e
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Sun Nov 11 11:43:59 2018 -0800
+
+    netfilter: Replace call_rcu_bh(), rcu_barrier_bh(), and synchronize_rcu_bh()
+    
+    Now that call_rcu()'s callback is not invoked until after bh-disable
+    regions of code have completed (in addition to explicitly marked
+    RCU read-side critical sections), call_rcu() can be used in place
+    of call_rcu_bh().  Similarly, rcu_barrier() can be used in place of
+    rcu_barrier_bh() and synchronize_rcu() in place of synchronize_rcu_bh().
+    This commit therefore makes these changes.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+    Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+
+diff --git a/net/ipv4/netfilter/ipt_CLUSTERIP.c b/net/ipv4/netfilter/ipt_CLUSTERIP.c
+index 2c8d313ae216..5b0c1ee6ae26 100644
+--- a/net/ipv4/netfilter/ipt_CLUSTERIP.c
++++ b/net/ipv4/netfilter/ipt_CLUSTERIP.c
+@@ -94,7 +94,7 @@ static inline void
+ clusterip_config_put(struct clusterip_config *c)
+ {
+ 	if (refcount_dec_and_test(&c->refcount))
+-		call_rcu_bh(&c->rcu, clusterip_config_rcu_free);
++		call_rcu(&c->rcu, clusterip_config_rcu_free);
+ }
+ 
+ /* decrease the count of entries using/referencing this config.  If last
+@@ -876,8 +876,8 @@ static void __exit clusterip_tg_exit(void)
+ 	xt_unregister_target(&clusterip_tg_reg);
+ 	unregister_pernet_subsys(&clusterip_net_ops);
+ 
+-	/* Wait for completion of call_rcu_bh()'s (clusterip_config_rcu_free) */
+-	rcu_barrier_bh();
++	/* Wait for completion of call_rcu()'s (clusterip_config_rcu_free) */
++	rcu_barrier();
+ }
+ 
+ module_init(clusterip_tg_init);
+diff --git a/net/netfilter/ipset/ip_set_hash_gen.h b/net/netfilter/ipset/ip_set_hash_gen.h
+index e287da68d5fa..2c9609929c71 100644
+--- a/net/netfilter/ipset/ip_set_hash_gen.h
++++ b/net/netfilter/ipset/ip_set_hash_gen.h
+@@ -67,7 +67,7 @@ tune_ahash_max(u8 curr, u32 multi)
+ 
+ /* A hash bucket */
+ struct hbucket {
+-	struct rcu_head rcu;	/* for call_rcu_bh */
++	struct rcu_head rcu;	/* for call_rcu */
+ 	/* Which positions are used in the array */
+ 	DECLARE_BITMAP(used, AHASH_MAX_TUNED);
+ 	u8 size;		/* size of the array */
+@@ -664,7 +664,7 @@ mtype_resize(struct ip_set *set, bool retried)
+ 	spin_unlock_bh(&set->lock);
+ 
+ 	/* Give time to other readers of the set */
+-	synchronize_rcu_bh();
++	synchronize_rcu();
+ 
+ 	pr_debug("set %s resized from %u (%p) to %u (%p)\n", set->name,
+ 		 orig->htable_bits, orig, t->htable_bits, t);
+diff --git a/net/netfilter/nfnetlink_log.c b/net/netfilter/nfnetlink_log.c
+index 332c69d27b47..b1f9c5303f02 100644
+--- a/net/netfilter/nfnetlink_log.c
++++ b/net/netfilter/nfnetlink_log.c
+@@ -148,7 +148,7 @@ static void
+ instance_put(struct nfulnl_instance *inst)
+ {
+ 	if (inst && refcount_dec_and_test(&inst->use))
+-		call_rcu_bh(&inst->rcu, nfulnl_instance_free_rcu);
++		call_rcu(&inst->rcu, nfulnl_instance_free_rcu);
+ }
+ 
+ static void nfulnl_timer(struct timer_list *t);
+diff --git a/net/netfilter/xt_hashlimit.c b/net/netfilter/xt_hashlimit.c
+index 3e7d259e5d8d..8138b68a9a44 100644
+--- a/net/netfilter/xt_hashlimit.c
++++ b/net/netfilter/xt_hashlimit.c
+@@ -260,7 +260,7 @@ static inline void
+ dsthash_free(struct xt_hashlimit_htable *ht, struct dsthash_ent *ent)
+ {
+ 	hlist_del_rcu(&ent->node);
+-	call_rcu_bh(&ent->rcu, dsthash_free_rcu);
++	call_rcu(&ent->rcu, dsthash_free_rcu);
+ 	ht->count--;
+ }
+ static void htable_gc(struct work_struct *work);
+@@ -1329,7 +1329,7 @@ static void __exit hashlimit_mt_exit(void)
+ 	xt_unregister_matches(hashlimit_mt_reg, ARRAY_SIZE(hashlimit_mt_reg));
+ 	unregister_pernet_subsys(&hashlimit_net_ops);
+ 
+-	rcu_barrier_bh();
++	rcu_barrier();
+ 	kmem_cache_destroy(hashlimit_cachep);
+ }
+ 

@@ -1,0 +1,91 @@
+From 747c79fc29df90b3d7d313de1f986eed4f5429b6 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Fri, 9 Aug 2019 14:38:14 +0800
+Subject: [PATCH v4 4/8] printk: Replace strncmp with str_has_prefix
+
+strncmp(str, const, len) is error-prone because len
+is easy to have typo.
+The example is the hard-coded len has counting error
+or sizeof(const) forgets - 1.
+So we prefer using newly introduced str_has_prefix()
+to substitute such strncmp to make code better.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v4:
+  - Eliminate assignments in if conditions.
+
+ kernel/printk/braille.c | 15 +++++++++++----
+ kernel/printk/printk.c  | 22 ++++++++++++++++------
+ 2 files changed, 27 insertions(+), 10 deletions(-)
+
+diff --git a/kernel/printk/braille.c b/kernel/printk/braille.c
+index 1d21ebacfdb8..17a9591e54ff 100644
+--- a/kernel/printk/braille.c
++++ b/kernel/printk/braille.c
+@@ -11,11 +11,18 @@
+ 
+ int _braille_console_setup(char **str, char **brl_options)
+ {
+-	if (!strncmp(*str, "brl,", 4)) {
++	size_t len;
++
++	len = str_has_prefix(*str, "brl,");
++	if (len) {
+ 		*brl_options = "";
+-		*str += 4;
+-	} else if (!strncmp(*str, "brl=", 4)) {
+-		*brl_options = *str + 4;
++		*str += len;
++		return 0;
++	}
++
++	len = str_has_prefix(*str, "brl=");
++	if (len) {
++		*brl_options = *str + len;
+ 		*str = strchr(*brl_options, ',');
+ 		if (!*str) {
+ 			pr_err("need port name after brl=\n");
+diff --git a/kernel/printk/printk.c b/kernel/printk/printk.c
+index 1888f6a3b694..43a31015ec93 100644
+--- a/kernel/printk/printk.c
++++ b/kernel/printk/printk.c
+@@ -118,19 +118,29 @@ static unsigned int __read_mostly devkmsg_log = DEVKMSG_LOG_MASK_DEFAULT;
+ 
+ static int __control_devkmsg(char *str)
+ {
++	size_t len;
++
+ 	if (!str)
+ 		return -EINVAL;
+ 
+-	if (!strncmp(str, "on", 2)) {
++	len = str_has_prefix(str, "on");
++	if (len) {
+ 		devkmsg_log = DEVKMSG_LOG_MASK_ON;
+-		return 2;
+-	} else if (!strncmp(str, "off", 3)) {
++		return len;
++	}
++
++	len = str_has_prefix(str, "off");
++	if (len) {
+ 		devkmsg_log = DEVKMSG_LOG_MASK_OFF;
+-		return 3;
+-	} else if (!strncmp(str, "ratelimit", 9)) {
++		return len;
++	}
++
++	len = str_has_prefix(str, "ratelimit");
++	if (len) {
+ 		devkmsg_log = DEVKMSG_LOG_MASK_DEFAULT;
+-		return 9;
++		return len;
+ 	}
++
+ 	return -EINVAL;
+ }
+ 
+-- 
+2.20.1
+

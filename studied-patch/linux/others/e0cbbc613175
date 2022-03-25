@@ -1,0 +1,26 @@
+commit e0cbbc613175e1c67bd82721230692047923d845
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Wed Feb 6 00:22:54 2019 +0800
+
+    net: via-velocity: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called in velocity_free_tx_buf()
+    when skb xmit done. It makes drop profiles(dropwatch, perf) more
+    friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/via/via-velocity.c b/drivers/net/ethernet/via/via-velocity.c
+index 82412691ee66..27f6cf140845 100644
+--- a/drivers/net/ethernet/via/via-velocity.c
++++ b/drivers/net/ethernet/via/via-velocity.c
+@@ -1740,7 +1740,7 @@ static void velocity_free_tx_buf(struct velocity_info *vptr,
+ 		dma_unmap_single(vptr->dev, tdinfo->skb_dma[i],
+ 				 le16_to_cpu(pktlen), DMA_TO_DEVICE);
+ 	}
+-	dev_kfree_skb_irq(skb);
++	dev_consume_skb_irq(skb);
+ 	tdinfo->skb = NULL;
+ }
+ 

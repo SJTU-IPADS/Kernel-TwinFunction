@@ -1,0 +1,38 @@
+From 5300169898567e61792474d7c71a01ffe6283392 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 24 Jul 2019 20:28:37 +0800
+Subject: [PATCH] tty: nozomi: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/tty/nozomi.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/tty/nozomi.c b/drivers/tty/nozomi.c
+index 3214e22e79f3..ed99948f3b7f 100644
+--- a/drivers/tty/nozomi.c
++++ b/drivers/tty/nozomi.c
+@@ -1282,7 +1282,7 @@ static void nozomi_setup_private_data(struct nozomi *dc)
+ static ssize_t card_type_show(struct device *dev, struct device_attribute *attr,
+ 			  char *buf)
+ {
+-	const struct nozomi *dc = pci_get_drvdata(to_pci_dev(dev));
++	const struct nozomi *dc = dev_get_drvdata(dev);
+ 
+ 	return sprintf(buf, "%d\n", dc->card_type);
+ }
+@@ -1291,7 +1291,7 @@ static DEVICE_ATTR_RO(card_type);
+ static ssize_t open_ttys_show(struct device *dev, struct device_attribute *attr,
+ 			  char *buf)
+ {
+-	const struct nozomi *dc = pci_get_drvdata(to_pci_dev(dev));
++	const struct nozomi *dc = dev_get_drvdata(dev);
+ 
+ 	return sprintf(buf, "%u\n", dc->open_ttys);
+ }
+-- 
+2.20.1
+

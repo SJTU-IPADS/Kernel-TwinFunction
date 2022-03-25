@@ -1,0 +1,21 @@
+commit da8137aa0953e043abe072f58ba0250a10940439
+Author: kib <kib@FreeBSD.org>
+Date:   Sat Nov 11 12:08:07 2017 +0000
+
+    MFC r325386:
+    Convert explicit panic() call to assert.
+
+diff --git a/sys/kern/kern_umtx.c b/sys/kern/kern_umtx.c
+index c33d00cc314..b549c1e7d30 100644
+--- a/sys/kern/kern_umtx.c
++++ b/sys/kern/kern_umtx.c
+@@ -1577,8 +1577,7 @@ umtx_pi_setowner(struct umtx_pi *pi, struct thread *owner)
+ 
+ 	uq_owner = owner->td_umtxq;
+ 	mtx_assert(&umtx_lock, MA_OWNED);
+-	if (pi->pi_owner != NULL)
+-		panic("pi_owner != NULL");
++	MPASS(pi->pi_owner == NULL);
+ 	pi->pi_owner = owner;
+ 	TAILQ_INSERT_TAIL(&uq_owner->uq_pi_contested, pi, pi_link);
+ }

@@ -1,0 +1,43 @@
+commit d71589f290a13bc2aa0d3d847aa8991d815d2f9e
+Author: David Francis <David.Francis@amd.com>
+Date:   Wed Nov 21 10:44:07 2018 -0500
+
+    drm/amd/display: Warn instead of error on REG_WAIT timeout
+    
+    [Why]
+    DC warns when a REG_WAIT takes a while and full-on errors
+    with stack dump on REG_WAIT timeout.  Most of the time it isn't
+    a real issue.
+    
+    [How]
+    Make DC cool its jets - taking a while is a debug message (because
+    it is not something that normal users should need to be aware of),
+    and timeouts are warnings (because it technically shouldn't
+    happen, but it's not a big deal if it does)
+    
+    Signed-off-by: David Francis <David.Francis@amd.com>
+    Reviewed-by: Harry Wentland <Harry.Wentland@amd.com>
+    Acked-by: Leo Li <sunpeng.li@amd.com>
+    Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_helper.c b/drivers/gpu/drm/amd/display/dc/dc_helper.c
+index fcfd50b5dba0..4842d2378bbf 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_helper.c
++++ b/drivers/gpu/drm/amd/display/dc/dc_helper.c
+@@ -234,14 +234,14 @@ uint32_t generic_reg_wait(const struct dc_context *ctx,
+ 		if (field_value == condition_value) {
+ 			if (i * delay_between_poll_us > 1000 &&
+ 					!IS_FPGA_MAXIMUS_DC(ctx->dce_environment))
+-				dm_output_to_console("REG_WAIT taking a while: %dms in %s line:%d\n",
++				DC_LOG_DC("REG_WAIT taking a while: %dms in %s line:%d\n",
+ 						delay_between_poll_us * i / 1000,
+ 						func_name, line);
+ 			return reg_val;
+ 		}
+ 	}
+ 
+-	dm_error("REG_WAIT timeout %dus * %d tries - %s line:%d\n",
++	DC_LOG_WARNING("REG_WAIT timeout %dus * %d tries - %s line:%d\n",
+ 			delay_between_poll_us, time_out_num_tries,
+ 			func_name, line);
+ 

@@ -1,0 +1,59 @@
+commit 899e5b132ff545966a9fb3ea47e0da356c5f3ed9
+Author: gonzo <gonzo@FreeBSD.org>
+Date:   Mon Apr 2 20:54:33 2018 +0000
+
+    MFC r308533 by andrew:
+    
+    Use ofw_bus_node_is_compatible in more drivers used on arm.
+    
+    Sponsored by:   ABT Systems Ltd
+
+diff --git a/sys/dev/fdt/fdt_arm_platform.c b/sys/dev/fdt/fdt_arm_platform.c
+index 22e935b146f..fe1f4046168 100644
+--- a/sys/dev/fdt/fdt_arm_platform.c
++++ b/sys/dev/fdt/fdt_arm_platform.c
+@@ -35,6 +35,7 @@ __FBSDID("$FreeBSD$");
+ #include <arm/include/platformvar.h>
+ 
+ #include <dev/ofw/openfirm.h>
++#include <dev/ofw/ofw_bus_subr.h>
+ #include <dev/fdt/fdt_common.h>
+ 
+ #include "platform_if.h"
+@@ -58,7 +59,7 @@ fdt_platform_probe(platform_t plat)
+ 	/* Is the device is compatible? */
+ 	root = OF_finddevice("/");
+ 	compat = FDT_PLATFORM(plat)->fdt_compatible;
+-	if (fdt_is_compatible(root, compat) != 0)
++	if (ofw_bus_node_is_compatible(root, compat) != 0)
+ 		return 0;
+ 
+ 	/* Not compatible, return an error */
+diff --git a/sys/dev/uart/uart_bus_fdt.c b/sys/dev/uart/uart_bus_fdt.c
+index adcf5d2bfa0..8ad3714e2f6 100644
+--- a/sys/dev/uart/uart_bus_fdt.c
++++ b/sys/dev/uart/uart_bus_fdt.c
+@@ -123,7 +123,7 @@ uart_fdt_find_compatible(phandle_t node, const struct ofw_compat_data *cd)
+ 	const struct ofw_compat_data *ocd;
+ 
+ 	for (ocd = cd; ocd->ocd_str != NULL; ocd++) {
+-		if (fdt_is_compatible(node, ocd->ocd_str))
++		if (ofw_bus_node_is_compatible(node, ocd->ocd_str))
+ 			return (ocd);
+ 	}
+ 	return (NULL);
+diff --git a/sys/dev/usb/net/if_smsc.c b/sys/dev/usb/net/if_smsc.c
+index 25a737795ae..375ab5f2189 100644
+--- a/sys/dev/usb/net/if_smsc.c
++++ b/sys/dev/usb/net/if_smsc.c
+@@ -1568,8 +1568,8 @@ smsc_fdt_find_eth_node(phandle_t start)
+ 
+ 	/* Traverse through entire tree to find usb ethernet nodes. */
+ 	for (node = OF_child(start); node != 0; node = OF_peer(node)) {
+-		if (fdt_is_compatible(node, "net,ethernet") &&
+-		    fdt_is_compatible(node, "usb,device"))
++		if (ofw_bus_node_is_compatible(node, "net,ethernet") &&
++		    ofw_bus_node_is_compatible(node, "usb,device"))
+ 			return (node);
+ 		child = smsc_fdt_find_eth_node(node);
+ 		if (child != -1)

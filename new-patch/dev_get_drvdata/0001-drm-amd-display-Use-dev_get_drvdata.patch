@@ -1,0 +1,30 @@
+From 7382f1260e5958bb0202549389ea4616c7ad0ebe Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 16:55:23 +0800
+Subject: [PATCH] drm/amd/display: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 4a29f72334d0..524e1e19017e 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -2428,8 +2428,7 @@ static ssize_t s3_debug_store(struct device *device,
+ {
+ 	int ret;
+ 	int s3_state;
+-	struct pci_dev *pdev = to_pci_dev(device);
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
++	struct drm_device *drm_dev = dev_get_drvdata(device);
+ 	struct amdgpu_device *adev = drm_dev->dev_private;
+ 
+ 	ret = kstrtoint(buf, 0, &s3_state);
+-- 
+2.20.1
+

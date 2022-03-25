@@ -1,0 +1,28 @@
+commit 8b5e8679f46b5dd22905f07fb3709e1372cf7e83
+Author: ian <ian@FreeBSD.org>
+Date:   Thu Apr 26 16:40:59 2018 +0000
+
+    MFC r308767 by br:
+    
+    Make gpiobus early driver at BUS_PAS_BUS.
+    
+    The gpiobus driver is attached explicitly and generally should be
+    at the same pass as its parent. Making it use BUS_PAS_BUS ensures
+    that it attaches immediately after parent adds it (assuming the
+    parent itself attached at BUS_PAS_BUS and above).
+    
+    Submitted by:   kan
+    Sponsored by:   DARPA, AFRL
+
+diff --git a/sys/dev/gpio/gpiobus.c b/sys/dev/gpio/gpiobus.c
+index 90823233030..90e447d065d 100644
+--- a/sys/dev/gpio/gpiobus.c
++++ b/sys/dev/gpio/gpiobus.c
+@@ -855,5 +855,6 @@ driver_t gpiobus_driver = {
+ 
+ devclass_t	gpiobus_devclass;
+ 
+-DRIVER_MODULE(gpiobus, gpio, gpiobus_driver, gpiobus_devclass, 0, 0);
++EARLY_DRIVER_MODULE(gpiobus, gpio, gpiobus_driver, gpiobus_devclass, 0, 0,
++    BUS_PASS_BUS + BUS_PASS_ORDER_MIDDLE);
+ MODULE_VERSION(gpiobus, 1);

@@ -1,0 +1,34 @@
+commit acfe63ec1c591629ad04b299ee7bb1d18d299c69
+Author: Rob Herring <robh@kernel.org>
+Date:   Wed Aug 29 09:08:57 2018 -0500
+
+    mtd: Convert to using %pOFn instead of device_node.name
+    
+    In preparation to remove the node name pointer from struct device_node,
+    convert printf users to use the %pOFn format specifier.
+    
+    Cc: David Woodhouse <dwmw2@infradead.org>
+    Cc: Brian Norris <computersforpeace@gmail.com>
+    Cc: Boris Brezillon <boris.brezillon@bootlin.com>
+    Cc: Marek Vasut <marek.vasut@gmail.com>
+    Cc: Richard Weinberger <richard@nod.at>
+    Cc: Benjamin Herrenschmidt <benh@kernel.crashing.org>
+    Cc: Paul Mackerras <paulus@samba.org>
+    Cc: Michael Ellerman <mpe@ellerman.id.au>
+    Cc: linux-mtd@lists.infradead.org
+    Cc: linuxppc-dev@lists.ozlabs.org
+    Signed-off-by: Rob Herring <robh@kernel.org>
+
+diff --git a/drivers/mtd/devices/powernv_flash.c b/drivers/mtd/devices/powernv_flash.c
+index 33593122e49b..22f753e555ac 100644
+--- a/drivers/mtd/devices/powernv_flash.c
++++ b/drivers/mtd/devices/powernv_flash.c
+@@ -212,7 +212,7 @@ static int powernv_flash_set_driver_info(struct device *dev,
+ 	 * Going to have to check what details I need to set and how to
+ 	 * get them
+ 	 */
+-	mtd->name = of_get_property(dev->of_node, "name", NULL);
++	mtd->name = devm_kasprintf(dev, GFP_KERNEL, "%pOFn", dev->of_node);
+ 	mtd->type = MTD_NORFLASH;
+ 	mtd->flags = MTD_WRITEABLE;
+ 	mtd->size = size;

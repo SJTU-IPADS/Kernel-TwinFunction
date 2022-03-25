@@ -1,0 +1,26 @@
+commit c50e964b76903b03a1516a04463c2faf945ec140
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Wed Feb 6 00:12:04 2019 +0800
+
+    net: fec_mpc52xx: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called in mpc52xx_fec_tx_interrupt()
+    when skb xmit done. It makes drop profiles(dropwatch, perf) more
+    friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/freescale/fec_mpc52xx.c b/drivers/net/ethernet/freescale/fec_mpc52xx.c
+index b90bab72efdb..c1968b3ecec8 100644
+--- a/drivers/net/ethernet/freescale/fec_mpc52xx.c
++++ b/drivers/net/ethernet/freescale/fec_mpc52xx.c
+@@ -369,7 +369,7 @@ static irqreturn_t mpc52xx_fec_tx_interrupt(int irq, void *dev_id)
+ 		dma_unmap_single(dev->dev.parent, bd->skb_pa, skb->len,
+ 				 DMA_TO_DEVICE);
+ 
+-		dev_kfree_skb_irq(skb);
++		dev_consume_skb_irq(skb);
+ 	}
+ 	spin_unlock(&priv->lock);
+ 

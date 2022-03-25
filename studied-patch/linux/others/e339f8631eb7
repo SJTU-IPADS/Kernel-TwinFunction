@@ -1,0 +1,30 @@
+commit e339f8631eb70fb48b2801e9e66a267c9a730a6a
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Tue Jan 29 23:32:22 2019 +0800
+
+    net: caif: call dev_consume_skb_any when skb xmit done
+    
+    The skb shouled be consumed when xmit done, it makes drop profiles
+    (dropwatch, perf) more friendly.
+    dev_kfree_skb_irq()/kfree_skb() shouled be replaced by
+    dev_consume_skb_any(), it makes code cleaner.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/caif/caif_serial.c b/drivers/net/caif/caif_serial.c
+index a0f954f36c09..44e6c7b1b222 100644
+--- a/drivers/net/caif/caif_serial.c
++++ b/drivers/net/caif/caif_serial.c
+@@ -257,10 +257,7 @@ static int handle_tx(struct ser_device *ser)
+ 		if (skb->len == 0) {
+ 			struct sk_buff *tmp = skb_dequeue(&ser->head);
+ 			WARN_ON(tmp != skb);
+-			if (in_interrupt())
+-				dev_kfree_skb_irq(skb);
+-			else
+-				kfree_skb(skb);
++			dev_consume_skb_any(skb);
+ 		}
+ 	}
+ 	/* Send flow off if queue is empty */

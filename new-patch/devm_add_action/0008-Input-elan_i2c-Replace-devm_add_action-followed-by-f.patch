@@ -1,0 +1,35 @@
+From 572a4028db11366fb0e984fff8493b85cfef5cc9 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Mon, 8 Jul 2019 15:05:09 +0800
+Subject: [PATCH 08/14] Input: elan_i2c - Replace devm_add_action() followed by
+ failure action with devm_add_action_or_reset()
+
+devm_add_action_or_reset() is introduced as a helper function which 
+internally calls devm_add_action(). If devm_add_action() fails 
+then it will execute the action mentioned and return the error code.
+This reduce source code size (avoid writing the action twice) 
+and reduce the likelyhood of bugs.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/input/mouse/elan_i2c_core.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/input/mouse/elan_i2c_core.c b/drivers/input/mouse/elan_i2c_core.c
+index 420efaab3860..a8d4f3bd09bf 100644
+--- a/drivers/input/mouse/elan_i2c_core.c
++++ b/drivers/input/mouse/elan_i2c_core.c
+@@ -1234,9 +1234,8 @@ static int elan_probe(struct i2c_client *client,
+ 		return error;
+ 	}
+ 
+-	error = devm_add_action(dev, elan_remove_sysfs_groups, data);
++	error = devm_add_action_or_reset(dev, elan_remove_sysfs_groups, data);
+ 	if (error) {
+-		elan_remove_sysfs_groups(data);
+ 		dev_err(dev, "Failed to add sysfs cleanup action: %d\n",
+ 			error);
+ 		return error;
+-- 
+2.11.0
+

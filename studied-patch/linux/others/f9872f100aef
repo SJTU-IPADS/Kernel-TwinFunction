@@ -1,0 +1,34 @@
+commit f9872f100aefd3b80eb4a61dbea326ee28cdc94a
+Author: James Zhu <James.Zhu@amd.com>
+Date:   Mon Dec 3 22:04:28 2018 -0500
+
+    drm/amdgpu/vcn: Update vcn.cur_state during suspend
+    
+    Replace vcn_v1_0_stop with vcn_v1_0_set_powergating_state during suspend,
+    to keep adev->vcn.cur_state update. It will fix VCN S3 hung issue.
+    
+    Signed-off-by: James Zhu <James.Zhu@amd.com>
+    Reviewed-by: Leo Liu <leo.liu@amd.com>
+    Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index c1a03505f956..4f8352044563 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -48,6 +48,7 @@ static void vcn_v1_0_set_enc_ring_funcs(struct amdgpu_device *adev);
+ static void vcn_v1_0_set_jpeg_ring_funcs(struct amdgpu_device *adev);
+ static void vcn_v1_0_set_irq_funcs(struct amdgpu_device *adev);
+ static void vcn_v1_0_jpeg_ring_set_patch_ring(struct amdgpu_ring *ring, uint32_t ptr);
++static int vcn_v1_0_set_powergating_state(void *handle, enum amd_powergating_state state);
+ 
+ /**
+  * vcn_v1_0_early_init - set function pointers
+@@ -214,7 +215,7 @@ static int vcn_v1_0_hw_fini(void *handle)
+ 	struct amdgpu_ring *ring = &adev->vcn.ring_dec;
+ 
+ 	if (RREG32_SOC15(VCN, 0, mmUVD_STATUS))
+-		vcn_v1_0_stop(adev);
++		vcn_v1_0_set_powergating_state(adev, AMD_PG_STATE_GATE);
+ 
+ 	ring->sched.ready = false;
+ 

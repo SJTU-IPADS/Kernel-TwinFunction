@@ -1,0 +1,27 @@
+commit 52930bc6e87191af3894bec302774f334e117f7b
+Author: Markus Elfring <elfring@users.sourceforge.net>
+Date:   Thu Jan 11 18:10:02 2018 +0100
+
+    powerpc/4xx: Use seq_putc() in ocm_debugfs_show()
+    
+    A single character (line break) should be put into a sequence.
+    Thus use the corresponding function "seq_putc".
+    
+    This issue was detected by using the Coccinelle software.
+    
+    Signed-off-by: Markus Elfring <elfring@users.sourceforge.net>
+    Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+
+diff --git a/arch/powerpc/platforms/4xx/ocm.c b/arch/powerpc/platforms/4xx/ocm.c
+index cf0043d9f536..9bbcfc468a11 100644
+--- a/arch/powerpc/platforms/4xx/ocm.c
++++ b/arch/powerpc/platforms/4xx/ocm.c
+@@ -264,7 +264,7 @@ static int ocm_debugfs_show(struct seq_file *m, void *v)
+ 						blk->size, blk->owner);
+ 		}
+ 
+-		seq_printf(m, "\n");
++		seq_putc(m, '\n');
+ 	}
+ 
+ 	return 0;

@@ -1,0 +1,38 @@
+From fe8ded57fa3df69ff50fd547d9bb14046aa39485 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 11 Jul 2019 10:56:18 +0800
+Subject: [PATCH 1/2] drm/ttm: use the same attributes when freeing
+ d_page->vaddr
+
+In function __ttm_dma_alloc_page(), d_page->addr is allocated
+by dma_alloc_attrs() but freed with use dma_free_coherent() in
+__ttm_dma_free_page().
+Use the correct dma_free_attrs() to free d_page->vaddr.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/gpu/drm/ttm/ttm_page_alloc_dma.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/ttm/ttm_page_alloc_dma.c b/drivers/gpu/drm/ttm/ttm_page_alloc_dma.c
+index d594f7520b7b..7d78e6deac89 100644
+--- a/drivers/gpu/drm/ttm/ttm_page_alloc_dma.c
++++ b/drivers/gpu/drm/ttm/ttm_page_alloc_dma.c
+@@ -285,9 +285,13 @@ static int ttm_set_pages_caching(struct dma_pool *pool,
+ 
+ static void __ttm_dma_free_page(struct dma_pool *pool, struct dma_page *d_page)
+ {
++	unsigned long attrs = 0;
+ 	dma_addr_t dma = d_page->dma;
+ 	d_page->vaddr &= ~VADDR_FLAG_HUGE_POOL;
+-	dma_free_coherent(pool->dev, pool->size, (void *)d_page->vaddr, dma);
++	if (pool->type & IS_HUGE)
++		attrs = DMA_ATTR_NO_WARN;
++
++	dma_free_attrs(pool->dev, pool->size, (void *)d_page->vaddr, dma, attrs);
+ 
+ 	kfree(d_page);
+ 	d_page = NULL;
+-- 
+2.11.0
+

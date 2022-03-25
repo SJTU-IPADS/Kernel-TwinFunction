@@ -1,0 +1,67 @@
+commit 3d244c192afeee7dd4f5fb1b916ea4e47420d401
+Author: Kees Cook <keescook@chromium.org>
+Date:   Wed Jan 16 16:35:25 2019 -0800
+
+    selftests/seccomp: Abort without user notification support
+    
+    In the face of missing user notification support, the self test needs
+    to stop executing a test (ASSERT_*) instead of just reporting and
+    continuing (EXPECT_*). This adjusts the user notification tests to do
+    that where needed.
+    
+    Reported-by: Shuah Khan <shuah@kernel.org>
+    Fixes: 6a21cc50f0c7 ("seccomp: add a return code to trap to userspace")
+    Signed-off-by: Kees Cook <keescook@chromium.org>
+    Reviewed-by: Tycho Andersen <tycho@tycho.ws>
+    Tested-by: Shuah Khan <shuah@kernel.org>
+    Signed-off-by: Shuah Khan <shuah@kernel.org>
+
+diff --git a/tools/testing/selftests/seccomp/seccomp_bpf.c b/tools/testing/selftests/seccomp/seccomp_bpf.c
+index 067cb4607d6c..496a9a8c773a 100644
+--- a/tools/testing/selftests/seccomp/seccomp_bpf.c
++++ b/tools/testing/selftests/seccomp/seccomp_bpf.c
+@@ -3044,7 +3044,7 @@ TEST(user_notification_basic)
+ 	/* Check that the basic notification machinery works */
+ 	listener = user_trap_syscall(__NR_getpid,
+ 				     SECCOMP_FILTER_FLAG_NEW_LISTENER);
+-	EXPECT_GE(listener, 0);
++	ASSERT_GE(listener, 0);
+ 
+ 	/* Installing a second listener in the chain should EBUSY */
+ 	EXPECT_EQ(user_trap_syscall(__NR_getpid,
+@@ -3103,7 +3103,7 @@ TEST(user_notification_kill_in_middle)
+ 
+ 	listener = user_trap_syscall(__NR_getpid,
+ 				     SECCOMP_FILTER_FLAG_NEW_LISTENER);
+-	EXPECT_GE(listener, 0);
++	ASSERT_GE(listener, 0);
+ 
+ 	/*
+ 	 * Check that nothing bad happens when we kill the task in the middle
+@@ -3152,7 +3152,7 @@ TEST(user_notification_signal)
+ 
+ 	listener = user_trap_syscall(__NR_gettid,
+ 				     SECCOMP_FILTER_FLAG_NEW_LISTENER);
+-	EXPECT_GE(listener, 0);
++	ASSERT_GE(listener, 0);
+ 
+ 	pid = fork();
+ 	ASSERT_GE(pid, 0);
+@@ -3215,7 +3215,7 @@ TEST(user_notification_closed_listener)
+ 
+ 	listener = user_trap_syscall(__NR_getpid,
+ 				     SECCOMP_FILTER_FLAG_NEW_LISTENER);
+-	EXPECT_GE(listener, 0);
++	ASSERT_GE(listener, 0);
+ 
+ 	/*
+ 	 * Check that we get an ENOSYS when the listener is closed.
+@@ -3376,7 +3376,7 @@ TEST(seccomp_get_notif_sizes)
+ {
+ 	struct seccomp_notif_sizes sizes;
+ 
+-	EXPECT_EQ(seccomp(SECCOMP_GET_NOTIF_SIZES, 0, &sizes), 0);
++	ASSERT_EQ(seccomp(SECCOMP_GET_NOTIF_SIZES, 0, &sizes), 0);
+ 	EXPECT_EQ(sizes.seccomp_notif, sizeof(struct seccomp_notif));
+ 	EXPECT_EQ(sizes.seccomp_notif_resp, sizeof(struct seccomp_notif_resp));
+ }

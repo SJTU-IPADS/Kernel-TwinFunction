@@ -1,0 +1,91 @@
+commit db5b21a24e01d35495014076700efa02d6dcbb68
+Author: Bart Van Assche <bvanassche@acm.org>
+Date:   Tue Nov 27 15:51:59 2018 -0800
+
+    scsi: target/core: Use system workqueues for TMF
+    
+    A quote from SAM-5: "The order in which task management requests are
+    processed is not specified by the SCSI architecture model.  The SCSI
+    architecture model does not require in-order delivery of such task
+    management requests or processing by the task manager in the order
+    received. To guarantee the processing order of task management requests
+    referencing sent to a specific logical unit, an application client should
+    not have more than one such task management request pending to that logical
+    unit." This means that it is safe to use the system workqueues instead of
+    tmr_wq for processing TMFs. An intended side effect of this patch is that
+    it enables concurrent processing of TMFs.
+    
+    Reviewed-by: Christoph Hellwig <hch@lst.de>
+    Cc: Nicholas Bellinger <nab@linux-iscsi.org>
+    Cc: Mike Christie <mchristi@redhat.com>
+    Cc: David Disseldorp <ddiss@suse.de>
+    Cc: Hannes Reinecke <hare@suse.de>
+    Signed-off-by: Bart Van Assche <bvanassche@acm.org>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/target/target_core_device.c b/drivers/target/target_core_device.c
+index 1d51df2b3e77..15805dec697b 100644
+--- a/drivers/target/target_core_device.c
++++ b/drivers/target/target_core_device.c
+@@ -987,18 +987,6 @@ int target_configure_device(struct se_device *dev)
+ 		goto out_destroy_device;
+ 
+ 	/*
+-	 * Startup the struct se_device processing thread
+-	 */
+-	dev->tmr_wq = alloc_workqueue("tmr-%s", WQ_MEM_RECLAIM | WQ_UNBOUND, 1,
+-				      dev->transport->name);
+-	if (!dev->tmr_wq) {
+-		pr_err("Unable to create tmr workqueue for %s\n",
+-			dev->transport->name);
+-		ret = -ENOMEM;
+-		goto out_free_alua;
+-	}
+-
+-	/*
+ 	 * Setup work_queue for QUEUE_FULL
+ 	 */
+ 	INIT_WORK(&dev->qf_work_queue, target_qf_do_work);
+@@ -1026,8 +1014,6 @@ int target_configure_device(struct se_device *dev)
+ 
+ 	return 0;
+ 
+-out_free_alua:
+-	core_alua_free_lu_gp_mem(dev);
+ out_destroy_device:
+ 	dev->transport->destroy_device(dev);
+ out_free_index:
+@@ -1046,8 +1032,6 @@ void target_free_device(struct se_device *dev)
+ 	WARN_ON(!list_empty(&dev->dev_sep_list));
+ 
+ 	if (target_dev_configured(dev)) {
+-		destroy_workqueue(dev->tmr_wq);
+-
+ 		dev->transport->destroy_device(dev);
+ 
+ 		mutex_lock(&device_mutex);
+diff --git a/drivers/target/target_core_transport.c b/drivers/target/target_core_transport.c
+index b0416978ab99..999178e7d9a5 100644
+--- a/drivers/target/target_core_transport.c
++++ b/drivers/target/target_core_transport.c
+@@ -3412,7 +3412,7 @@ int transport_generic_handle_tmr(
+ 	}
+ 
+ 	INIT_WORK(&cmd->work, target_tmr_work);
+-	queue_work(cmd->se_dev->tmr_wq, &cmd->work);
++	schedule_work(&cmd->work);
+ 	return 0;
+ }
+ EXPORT_SYMBOL(transport_generic_handle_tmr);
+diff --git a/include/target/target_core_base.h b/include/target/target_core_base.h
+index 6e34ec4df6b7..9d827e49fcc6 100644
+--- a/include/target/target_core_base.h
++++ b/include/target/target_core_base.h
+@@ -796,7 +796,6 @@ struct se_device {
+ 	struct t10_pr_registration *dev_pr_res_holder;
+ 	struct list_head	dev_sep_list;
+ 	struct list_head	dev_tmr_list;
+-	struct workqueue_struct *tmr_wq;
+ 	struct work_struct	qf_work_queue;
+ 	struct list_head	delayed_cmd_list;
+ 	struct list_head	state_list;

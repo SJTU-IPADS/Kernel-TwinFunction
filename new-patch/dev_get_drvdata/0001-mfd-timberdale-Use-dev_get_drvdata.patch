@@ -1,0 +1,30 @@
+From 3aeb25aad8bd0f7ce69c5b52dd3e281d077d16df Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 19:39:36 +0800
+Subject: [PATCH] mfd: timberdale: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/mfd/timberdale.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/mfd/timberdale.c b/drivers/mfd/timberdale.c
+index 60c122e9b39f..faecbca6dba3 100644
+--- a/drivers/mfd/timberdale.c
++++ b/drivers/mfd/timberdale.c
+@@ -626,8 +626,7 @@ static const struct mfd_cell timberdale_cells_bar2[] = {
+ static ssize_t show_fw_ver(struct device *dev, struct device_attribute *attr,
+ 	char *buf)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct timberdale_device *priv = pci_get_drvdata(pdev);
++	struct timberdale_device *priv = dev_get_drvdata(dev);
+ 
+ 	return sprintf(buf, "%d.%d.%d\n", priv->fw.major, priv->fw.minor,
+ 		priv->fw.config);
+-- 
+2.20.1
+

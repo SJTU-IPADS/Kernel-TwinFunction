@@ -1,0 +1,87 @@
+commit b6b2735514bcd70ad1556a33892a636b20ece671
+Author: Steven Rostedt (VMware) <rostedt@goodmis.org>
+Date:   Thu Dec 20 13:20:07 2018 -0500
+
+    tracing: Use str_has_prefix() instead of using fixed sizes
+    
+    There are several instances of strncmp(str, "const", 123), where 123 is the
+    strlen of the const string to check if "const" is the prefix of str. But
+    this can be error prone. Use str_has_prefix() instead.
+    
+    Acked-by: Namhyung Kim <namhyung@kernel.org>
+    Signed-off-by: Steven Rostedt (VMware) <rostedt@goodmis.org>
+
+diff --git a/kernel/trace/trace.c b/kernel/trace/trace.c
+index 5afcfecb4bc2..eac2824a18ab 100644
+--- a/kernel/trace/trace.c
++++ b/kernel/trace/trace.c
+@@ -4411,7 +4411,7 @@ static int trace_set_options(struct trace_array *tr, char *option)
+ 
+ 	cmp = strstrip(option);
+ 
+-	if (strncmp(cmp, "no", 2) == 0) {
++	if (str_has_prefix(cmp, "no")) {
+ 		neg = 1;
+ 		cmp += 2;
+ 	}
+diff --git a/kernel/trace/trace_events.c b/kernel/trace/trace_events.c
+index bd0162c0467c..5b3b0c3c8a47 100644
+--- a/kernel/trace/trace_events.c
++++ b/kernel/trace/trace_events.c
+@@ -1251,7 +1251,7 @@ static int f_show(struct seq_file *m, void *v)
+ 	 */
+ 	array_descriptor = strchr(field->type, '[');
+ 
+-	if (!strncmp(field->type, "__data_loc", 10))
++	if (str_has_prefix(field->type, "__data_loc"))
+ 		array_descriptor = NULL;
+ 
+ 	if (!array_descriptor)
+diff --git a/kernel/trace/trace_events_hist.c b/kernel/trace/trace_events_hist.c
+index 9d590138f870..0d878dcd1e4b 100644
+--- a/kernel/trace/trace_events_hist.c
++++ b/kernel/trace/trace_events_hist.c
+@@ -518,7 +518,7 @@ static int synth_event_define_fields(struct trace_event_call *call)
+ 
+ static bool synth_field_signed(char *type)
+ {
+-	if (strncmp(type, "u", 1) == 0)
++	if (str_has_prefix(type, "u"))
+ 		return false;
+ 
+ 	return true;
+diff --git a/kernel/trace/trace_probe.c b/kernel/trace/trace_probe.c
+index ff86417c0149..541375737403 100644
+--- a/kernel/trace/trace_probe.c
++++ b/kernel/trace/trace_probe.c
+@@ -194,7 +194,7 @@ static int parse_probe_vars(char *arg, const struct fetch_type *t,
+ 			code->op = FETCH_OP_RETVAL;
+ 		else
+ 			ret = -EINVAL;
+-	} else if (strncmp(arg, "stack", 5) == 0) {
++	} else if (str_has_prefix(arg, "stack")) {
+ 		if (arg[5] == '\0') {
+ 			code->op = FETCH_OP_STACKP;
+ 		} else if (isdigit(arg[5])) {
+@@ -213,7 +213,7 @@ static int parse_probe_vars(char *arg, const struct fetch_type *t,
+ #ifdef CONFIG_HAVE_FUNCTION_ARG_ACCESS_API
+ 	} else if (((flags & TPARG_FL_MASK) ==
+ 		    (TPARG_FL_KERNEL | TPARG_FL_FENTRY)) &&
+-		   strncmp(arg, "arg", 3) == 0) {
++		   str_has_prefix(arg, "arg")) {
+ 		if (!isdigit(arg[3]))
+ 			return -EINVAL;
+ 		ret = kstrtoul(arg + 3, 10, &param);
+diff --git a/kernel/trace/trace_stack.c b/kernel/trace/trace_stack.c
+index e2a153fc1afc..3641f28c343f 100644
+--- a/kernel/trace/trace_stack.c
++++ b/kernel/trace/trace_stack.c
+@@ -448,7 +448,7 @@ static char stack_trace_filter_buf[COMMAND_LINE_SIZE+1] __initdata;
+ 
+ static __init int enable_stacktrace(char *str)
+ {
+-	if (strncmp(str, "_filter=", 8) == 0)
++	if (str_has_prefix(str, "_filter="))
+ 		strncpy(stack_trace_filter_buf, str+8, COMMAND_LINE_SIZE);
+ 
+ 	stack_tracer_enabled = 1;

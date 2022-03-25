@@ -1,0 +1,47 @@
+From e731d93c62c831b4729555d88c90fba5c1152238 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Fri, 19 Jul 2019 16:19:55 +0800
+Subject: [PATCH] usbnet: smsc75xx: Merge memcpy + le32_to_cpus to
+ get_unaligned_le32
+
+Merge the combo use of memcpy and le32_to_cpus.
+Use get_unaligned_le32 instead.
+This simplifies the code.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/net/usb/smsc75xx.c | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/net/usb/smsc75xx.c b/drivers/net/usb/smsc75xx.c
+index 1417a22962a1..7fac9db5380d 100644
+--- a/drivers/net/usb/smsc75xx.c
++++ b/drivers/net/usb/smsc75xx.c
+@@ -661,8 +661,7 @@ static void smsc75xx_status(struct usbnet *dev, struct urb *urb)
+ 		return;
+ 	}
+ 
+-	memcpy(&intdata, urb->transfer_buffer, 4);
+-	le32_to_cpus(&intdata);
++	intdata = get_unaligned_le32(urb->transfer_buffer);
+ 
+ 	netif_dbg(dev, link, dev->net, "intdata: 0x%08X\n", intdata);
+ 
+@@ -2181,12 +2180,10 @@ static int smsc75xx_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
+ 		struct sk_buff *ax_skb;
+ 		unsigned char *packet;
+ 
+-		memcpy(&rx_cmd_a, skb->data, sizeof(rx_cmd_a));
+-		le32_to_cpus(&rx_cmd_a);
++		rx_cmd_a = get_unaligned_le32(skb->data);
+ 		skb_pull(skb, 4);
+ 
+-		memcpy(&rx_cmd_b, skb->data, sizeof(rx_cmd_b));
+-		le32_to_cpus(&rx_cmd_b);
++		rx_cmd_b = get_unaligned_le32(skb->data);
+ 		skb_pull(skb, 4 + RXW_PADDING);
+ 
+ 		packet = skb->data;
+-- 
+2.20.1
+

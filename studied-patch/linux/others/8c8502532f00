@@ -1,0 +1,30 @@
+commit 8c8502532f0064d0f04335bfe0f80d9431866a73
+Author: Rahul Verma <rverma@marvell.com>
+Date:   Wed Feb 6 14:43:46 2019 -0800
+
+    qed: Change verbosity for coalescing message.
+    
+    Fix unnecessary logging of message in an expected
+    default case where coalescing value read (via ethtool -c)
+    migh not be valid unless they are configured explicitly
+    in the hardware using ethtool -C.
+    
+    Signed-off-by: Rahul Verma <rverma@marvell.com>
+    Signed-off-by: Manish Chopra <manishc@marvell.com>
+    Signed-off-by: Ariel Elior <aelior@marvell.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/qlogic/qed/qed_l2.c b/drivers/net/ethernet/qlogic/qed/qed_l2.c
+index 64ac95ca4df2..58be1c4c6668 100644
+--- a/drivers/net/ethernet/qlogic/qed/qed_l2.c
++++ b/drivers/net/ethernet/qlogic/qed/qed_l2.c
+@@ -2871,7 +2871,8 @@ static int qed_get_coalesce(struct qed_dev *cdev, u16 *coal, void *handle)
+ 	p_hwfn = p_cid->p_owner;
+ 	rc = qed_get_queue_coalesce(p_hwfn, coal, handle);
+ 	if (rc)
+-		DP_NOTICE(p_hwfn, "Unable to read queue coalescing\n");
++		DP_VERBOSE(cdev, QED_MSG_DEBUG,
++			   "Unable to read queue coalescing\n");
+ 
+ 	return rc;
+ }

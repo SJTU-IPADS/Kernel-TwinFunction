@@ -1,0 +1,45 @@
+commit eb9714a201f46ac46c1314849242d9eba56752e4
+Author: Wenjing Liu <Wenjing.Liu@amd.com>
+Date:   Mon Oct 22 16:34:32 2018 -0400
+
+    drm/amd/display: resolve minor log problems
+    
+    [Why]
+    dc_add_stream_to_context is used to check bw requirement.
+    It is not an error if it fails.
+    
+    [How]
+    Replace DC_ERROR with DC_LOG_WARNING.
+    
+    Signed-off-by: Wenjing Liu <Wenjing.Liu@amd.com>
+    Reviewed-by: Jun Lei <Jun.Lei@amd.com>
+    Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+    Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index fc65b0055167..d09aa35f4181 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -1796,11 +1796,11 @@ enum dc_status dc_add_stream_to_ctx(
+ 		struct dc_state *new_ctx,
+ 		struct dc_stream_state *stream)
+ {
+-	struct dc_context *dc_ctx = dc->ctx;
+ 	enum dc_status res;
++	DC_LOGGER_INIT(dc->ctx->logger);
+ 
+ 	if (new_ctx->stream_count >= dc->res_pool->timing_generator_count) {
+-		DC_ERROR("Max streams reached, can't add stream %p !\n", stream);
++		DC_LOG_WARNING("Max streams reached, can't add stream %p !\n", stream);
+ 		return DC_ERROR_UNEXPECTED;
+ 	}
+ 
+@@ -1810,7 +1810,7 @@ enum dc_status dc_add_stream_to_ctx(
+ 
+ 	res = dc->res_pool->funcs->add_stream_to_ctx(dc, new_ctx, stream);
+ 	if (res != DC_OK)
+-		DC_ERROR("Adding stream %p to context failed with err %d!\n", stream, res);
++		DC_LOG_WARNING("Adding stream %p to context failed with err %d!\n", stream, res);
+ 
+ 	return res;
+ }

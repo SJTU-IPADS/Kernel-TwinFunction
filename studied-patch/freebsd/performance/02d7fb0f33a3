@@ -1,0 +1,277 @@
+commit 02d7fb0f33a38219c0cbf5d144766130710ff3e4
+Author: avg <avg@FreeBSD.org>
+Date:   Wed Nov 8 09:36:59 2017 +0000
+
+    MFC r324195: MFV r323795: 8604 Avoid unnecessary work search in VFS when unmounting snapshots
+
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/dsl_destroy.c b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/dsl_destroy.c
+index 133b47108cb..d11d8c5f72a 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/dsl_destroy.c
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/dsl_destroy.c
+@@ -488,23 +488,29 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
+ 	if (nvlist_next_nvpair(snaps, NULL) == NULL)
+ 		return (0);
+ 
+-	nvlist_t *arg = fnvlist_alloc();
+-	nvlist_t *snaps_normalized = fnvlist_alloc();
+ 	/*
+ 	 * lzc_destroy_snaps() is documented to take an nvlist whose
+-	 * values "don't matter".  We need to convert that nvlist to one
+-	 * that we know can be converted to LUA.
++	 * values "don't matter".  We need to convert that nvlist to
++	 * one that we know can be converted to LUA. We also don't
++	 * care about any duplicate entries because the nvlist will
++	 * be converted to a LUA table which should take care of this.
+ 	 */
++	nvlist_t *snaps_normalized;
++	VERIFY0(nvlist_alloc(&snaps_normalized, 0, KM_SLEEP));
+ 	for (nvpair_t *pair = nvlist_next_nvpair(snaps, NULL);
+ 	    pair != NULL; pair = nvlist_next_nvpair(snaps, pair)) {
+ 		fnvlist_add_boolean_value(snaps_normalized,
+ 		    nvpair_name(pair), B_TRUE);
+ 	}
++
++	nvlist_t *arg;
++	VERIFY0(nvlist_alloc(&arg, 0, KM_SLEEP));
+ 	fnvlist_add_nvlist(arg, "snaps", snaps_normalized);
+ 	fnvlist_free(snaps_normalized);
+ 	fnvlist_add_boolean_value(arg, "defer", defer);
+ 
+-	nvlist_t *wrapper = fnvlist_alloc();
++	nvlist_t *wrapper;
++	VERIFY0(nvlist_alloc(&wrapper, 0, KM_SLEEP));
+ 	fnvlist_add_nvlist(wrapper, ZCP_ARG_ARGLIST, arg);
+ 	fnvlist_free(arg);
+ 
+@@ -538,7 +544,7 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
+ 	    program,
+ 	    0,
+ 	    zfs_lua_max_memlimit,
+-	    fnvlist_lookup_nvpair(wrapper, ZCP_ARG_ARGLIST), result);
++	    nvlist_next_nvpair(wrapper, NULL), result);
+ 	if (error != 0) {
+ 		char *errorstr = NULL;
+ 		(void) nvlist_lookup_string(result, ZCP_RET_ERROR, &errorstr);
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zfs_ioctl.h b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zfs_ioctl.h
+index 7c3cf1faed0..c3d47ba1707 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zfs_ioctl.h
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/sys/zfs_ioctl.h
+@@ -21,7 +21,7 @@
+ /*
+  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+  * Copyright (c) 2011-2012 Pawel Jakub Dawidek. All rights reserved.
+- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
++ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+  * Copyright 2016 RackTop Systems.
+  * Copyright (c) 2014 Integros [integros.com]
+  */
+@@ -424,9 +424,10 @@ extern int zfs_secpolicy_snapshot_perms(const char *, cred_t *);
+ extern int zfs_secpolicy_rename_perms(const char *, const char *, cred_t *);
+ extern int zfs_secpolicy_destroy_perms(const char *, cred_t *);
+ extern int zfs_busy(void);
+-extern int zfs_unmount_snap(const char *);
++extern void zfs_unmount_snap(const char *);
+ extern void zfs_destroy_unmount_origin(const char *);
+ extern int getzfsvfs_impl(struct objset *, struct zfsvfs **);
++extern int getzfsvfs(const char *, struct zfsvfs **);
+ 
+ /*
+  * ZFS minor numbers can refer to either a control device instance or
+diff --git a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_ioctl.c b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_ioctl.c
+index 1cc963b625f..3faea09a270 100644
+--- a/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_ioctl.c
++++ b/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_ioctl.c
+@@ -1459,7 +1459,8 @@ getzfsvfs_impl(objset_t *os, zfsvfs_t **zfvp)
+ 	return (error);
+ }
+ 
+-static int
++#ifdef illumos
++int
+ getzfsvfs(const char *dsname, zfsvfs_t **zfvp)
+ {
+ 	objset_t *os;
+@@ -1471,16 +1472,44 @@ getzfsvfs(const char *dsname, zfsvfs_t **zfvp)
+ 
+ 	error = getzfsvfs_impl(os, zfvp);
+ 	dmu_objset_rele(os, FTAG);
+-	if (error == 0) {
+-		error = vfs_busy((*zfvp)->z_vfs, 0);
+-		vfs_rel((*zfvp)->z_vfs);
+-		if (error != 0) {
+-			*zfvp = NULL;
+-			error = SET_ERROR(ESRCH);
+-		}
++	return (error);
++}
++
++#else
++
++static int
++getzfsvfs_ref(const char *dsname, zfsvfs_t **zfvp)
++{
++	objset_t *os;
++	int error;
++
++	error = dmu_objset_hold(dsname, FTAG, &os);
++	if (error != 0)
++		return (error);
++
++	error = getzfsvfs_impl(os, zfvp);
++	dmu_objset_rele(os, FTAG);
++	return (error);
++}
++
++int
++getzfsvfs(const char *dsname, zfsvfs_t **zfvp)
++{
++	objset_t *os;
++	int error;
++
++	error = getzfsvfs_ref(dsname, zfvp);
++	if (error != 0)
++		return (error);
++	error = vfs_busy((*zfvp)->z_vfs, 0);
++	vfs_rel((*zfvp)->z_vfs);
++	if (error != 0) {
++		*zfvp = NULL;
++		error = SET_ERROR(ESRCH);
+ 	}
+ 	return (error);
+ }
++#endif
+ 
+ /*
+  * Find a zfsvfs_t for a mounted filesystem, or create our own, in which
+@@ -3054,27 +3083,6 @@ zfs_ioc_get_fsacl(zfs_cmd_t *zc)
+ 	return (error);
+ }
+ 
+-/*
+- * Search the vfs list for a specified resource.  Returns a pointer to it
+- * or NULL if no suitable entry is found. The caller of this routine
+- * is responsible for releasing the returned vfs pointer.
+- */
+-static vfs_t *
+-zfs_get_vfs(const char *resource)
+-{
+-	vfs_t *vfsp;
+-
+-	mtx_lock(&mountlist_mtx);
+-	TAILQ_FOREACH(vfsp, &mountlist, mnt_list) {
+-		if (strcmp(refstr_value(vfsp->vfs_resource), resource) == 0) {
+-			vfs_ref(vfsp);
+-			break;
+-		}
+-	}
+-	mtx_unlock(&mountlist_mtx);
+-	return (vfsp);
+-}
+-
+ /* ARGSUSED */
+ static void
+ zfs_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
+@@ -3556,30 +3564,29 @@ zfs_ioc_nextboot(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
+  * Returns 0 if the argument is not a snapshot, or it is not currently a
+  * filesystem, or we were able to unmount it.  Returns error code otherwise.
+  */
+-int
++void
+ zfs_unmount_snap(const char *snapname)
+ {
+-	vfs_t *vfsp;
+-	zfsvfs_t *zfsvfs;
+-#ifdef illumos
+-	int err;
+-#endif
++	vfs_t *vfsp = NULL;
++	zfsvfs_t *zfsvfs = NULL;
+ 
+ 	if (strchr(snapname, '@') == NULL)
+-		return (0);
++		return;
+ 
+-	vfsp = zfs_get_vfs(snapname);
+-	if (vfsp == NULL)
+-		return (0);
++	int err = getzfsvfs_ref(snapname, &zfsvfs);
++	if (err != 0) {
++		ASSERT3P(zfsvfs, ==, NULL);
++		return;
++	}
++	vfsp = zfsvfs->z_vfs;
+ 
+-	zfsvfs = vfsp->vfs_data;
+ 	ASSERT(!dsl_pool_config_held(dmu_objset_pool(zfsvfs->z_os)));
+ 
+ #ifdef illumos
+ 	err = vn_vfswlock(vfsp->vfs_vnodecovered);
+ 	VFS_RELE(vfsp);
+ 	if (err != 0)
+-		return (SET_ERROR(err));
++		return;
+ #endif
+ 
+ 	/*
+@@ -3590,14 +3597,14 @@ zfs_unmount_snap(const char *snapname)
+ #else
+ 	(void) dounmount(vfsp, MS_FORCE, curthread);
+ #endif
+-	return (0);
+ }
+ 
+ /* ARGSUSED */
+ static int
+ zfs_unmount_snap_cb(const char *snapname, void *arg)
+ {
+-	return (zfs_unmount_snap(snapname));
++	zfs_unmount_snap(snapname);
++	return (0);
+ }
+ 
+ /*
+@@ -3620,7 +3627,7 @@ zfs_destroy_unmount_origin(const char *fsname)
+ 		char originname[ZFS_MAX_DATASET_NAME_LEN];
+ 		dsl_dataset_name(ds->ds_prev, originname);
+ 		dmu_objset_rele(os, FTAG);
+-		(void) zfs_unmount_snap(originname);
++		zfs_unmount_snap(originname);
+ 	} else {
+ 		dmu_objset_rele(os, FTAG);
+ 	}
+@@ -3661,9 +3668,7 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+ 		    (name[poollen] != '/' && name[poollen] != '@'))
+ 			return (SET_ERROR(EXDEV));
+ 
+-		error = zfs_unmount_snap(name);
+-		if (error != 0)
+-			return (error);
++		zfs_unmount_snap(nvpair_name(pair));
+ #if defined(__FreeBSD__)
+ 		zvol_remove_minors(name);
+ #endif
+@@ -3809,11 +3814,8 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
+ {
+ 	int err;
+ 
+-	if (zc->zc_objset_type == DMU_OST_ZFS) {
+-		err = zfs_unmount_snap(zc->zc_name);
+-		if (err != 0)
+-			return (err);
+-	}
++	if (zc->zc_objset_type == DMU_OST_ZFS)
++		zfs_unmount_snap(zc->zc_name);
+ 
+ 	if (strchr(zc->zc_name, '@'))
+ 		err = dsl_destroy_snapshot(zc->zc_name, zc->zc_defer_destroy);
+@@ -3885,7 +3887,9 @@ recursive_unmount(const char *fsname, void *arg)
+ 	char fullname[ZFS_MAX_DATASET_NAME_LEN];
+ 
+ 	(void) snprintf(fullname, sizeof (fullname), "%s@%s", fsname, snapname);
+-	return (zfs_unmount_snap(fullname));
++	zfs_unmount_snap(fullname);
++
++	return (0);
+ }
+ 
+ /*

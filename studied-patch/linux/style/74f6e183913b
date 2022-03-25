@@ -1,0 +1,114 @@
+commit 74f6e183913b5dc90a004cafa84159ddb61cd0f0
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Wed Sep 26 11:47:07 2018 +0100
+
+    drm/i915: Convert to BITS_PER_TYPE
+    
+    In commit 9144d75e22ca ("include/linux/bitops.h: introduce BITS_PER_TYPE"),
+    we made BITS_PER_TYPE available to all and now we can use the macro to
+    replace some open-coded computation of sizeof(T) * BITS_PER_BYTE.
+    
+    Suggested-by: Ville Syrjälä <ville.syrjala@linux.intel.com>
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+    Cc: Ville Syrjälä <ville.syrjala@linux.intel.com>
+    Cc: Jani Nikula <jani.nikula@intel.com>
+    Cc: Joonas Lahtinen <joonas.lahtinen@linux.intel.com>
+    Cc: Tvrtko Ursulin <tvrtko.ursulin@intel.com>
+    Reviewed-by: Jani Nikula <jani.nikula@intel.com>
+    Reviewed-by: Ville Syrjälä <ville.syrjala@linux.intel.com>
+    Link: https://patchwork.freedesktop.org/patch/msgid/20180926104707.17410-1-chris@chris-wilson.co.uk
+
+diff --git a/drivers/gpu/drm/i915/i915_drv.c b/drivers/gpu/drm/i915/i915_drv.c
+index 44e2c0f5ec50..ade9bca250fa 100644
+--- a/drivers/gpu/drm/i915/i915_drv.c
++++ b/drivers/gpu/drm/i915/i915_drv.c
+@@ -1649,8 +1649,8 @@ i915_driver_create(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 	device_info->device_id = pdev->device;
+ 
+ 	BUILD_BUG_ON(INTEL_MAX_PLATFORMS >
+-		     sizeof(device_info->platform_mask) * BITS_PER_BYTE);
+-	BUG_ON(device_info->gen > sizeof(device_info->gen_mask) * BITS_PER_BYTE);
++		     BITS_PER_TYPE(device_info->platform_mask));
++	BUG_ON(device_info->gen > BITS_PER_TYPE(device_info->gen_mask));
+ 
+ 	return i915;
+ }
+diff --git a/drivers/gpu/drm/i915/i915_gem.c b/drivers/gpu/drm/i915/i915_gem.c
+index db9688d14912..717f4321e987 100644
+--- a/drivers/gpu/drm/i915/i915_gem.c
++++ b/drivers/gpu/drm/i915/i915_gem.c
+@@ -5959,7 +5959,7 @@ void i915_gem_track_fb(struct drm_i915_gem_object *old,
+ 	 * the bits.
+ 	 */
+ 	BUILD_BUG_ON(INTEL_FRONTBUFFER_BITS_PER_PIPE * I915_MAX_PIPES >
+-		     sizeof(atomic_t) * BITS_PER_BYTE);
++		     BITS_PER_TYPE(atomic_t));
+ 
+ 	if (old) {
+ 		WARN_ON(!(atomic_read(&old->frontbuffer_bits) & frontbuffer_bits));
+diff --git a/drivers/gpu/drm/i915/i915_query.c b/drivers/gpu/drm/i915/i915_query.c
+index 3f502eef2431..5821002cad42 100644
+--- a/drivers/gpu/drm/i915/i915_query.c
++++ b/drivers/gpu/drm/i915/i915_query.c
+@@ -28,7 +28,7 @@ static int query_topology_info(struct drm_i915_private *dev_priv,
+ 	slice_length = sizeof(sseu->slice_mask);
+ 	subslice_length = sseu->max_slices *
+ 		DIV_ROUND_UP(sseu->max_subslices,
+-			     sizeof(sseu->subslice_mask[0]) * BITS_PER_BYTE);
++			     BITS_PER_TYPE(sseu->subslice_mask[0]));
+ 	eu_length = sseu->max_slices * sseu->max_subslices *
+ 		DIV_ROUND_UP(sseu->max_eus_per_subslice, BITS_PER_BYTE);
+ 
+diff --git a/drivers/gpu/drm/i915/i915_syncmap.c b/drivers/gpu/drm/i915/i915_syncmap.c
+index 58f8d0cc125c..60404dbb2e9f 100644
+--- a/drivers/gpu/drm/i915/i915_syncmap.c
++++ b/drivers/gpu/drm/i915/i915_syncmap.c
+@@ -92,7 +92,7 @@ void i915_syncmap_init(struct i915_syncmap **root)
+ {
+ 	BUILD_BUG_ON_NOT_POWER_OF_2(KSYNCMAP);
+ 	BUILD_BUG_ON_NOT_POWER_OF_2(SHIFT);
+-	BUILD_BUG_ON(KSYNCMAP > BITS_PER_BYTE * sizeof((*root)->bitmap));
++	BUILD_BUG_ON(KSYNCMAP > BITS_PER_TYPE((*root)->bitmap));
+ 	*root = NULL;
+ }
+ 
+diff --git a/drivers/gpu/drm/i915/i915_utils.h b/drivers/gpu/drm/i915/i915_utils.h
+index 395dd2511568..5858a43e19da 100644
+--- a/drivers/gpu/drm/i915/i915_utils.h
++++ b/drivers/gpu/drm/i915/i915_utils.h
+@@ -68,7 +68,7 @@
+ 
+ /* Note we don't consider signbits :| */
+ #define overflows_type(x, T) \
+-	(sizeof(x) > sizeof(T) && (x) >> (sizeof(T) * BITS_PER_BYTE))
++	(sizeof(x) > sizeof(T) && (x) >> BITS_PER_TYPE(T))
+ 
+ #define ptr_mask_bits(ptr, n) ({					\
+ 	unsigned long __v = (unsigned long)(ptr);			\
+diff --git a/drivers/gpu/drm/i915/intel_device_info.c b/drivers/gpu/drm/i915/intel_device_info.c
+index 0ef0c6448d53..31f6be774833 100644
+--- a/drivers/gpu/drm/i915/intel_device_info.c
++++ b/drivers/gpu/drm/i915/intel_device_info.c
+@@ -750,8 +750,7 @@ void intel_device_info_runtime_init(struct intel_device_info *info)
+ 		info->num_scalers[PIPE_C] = 1;
+ 	}
+ 
+-	BUILD_BUG_ON(I915_NUM_ENGINES >
+-		     sizeof(intel_ring_mask_t) * BITS_PER_BYTE);
++	BUILD_BUG_ON(I915_NUM_ENGINES > BITS_PER_TYPE(intel_ring_mask_t));
+ 
+ 	/*
+ 	 * Skylake and Broxton currently don't expose the topmost plane as its
+diff --git a/drivers/gpu/drm/i915/intel_engine_cs.c b/drivers/gpu/drm/i915/intel_engine_cs.c
+index 217ed3ee1cab..6726d57f018f 100644
+--- a/drivers/gpu/drm/i915/intel_engine_cs.c
++++ b/drivers/gpu/drm/i915/intel_engine_cs.c
+@@ -335,7 +335,7 @@ int intel_engines_init_mmio(struct drm_i915_private *dev_priv)
+ 
+ 	WARN_ON(ring_mask == 0);
+ 	WARN_ON(ring_mask &
+-		GENMASK(sizeof(mask) * BITS_PER_BYTE - 1, I915_NUM_ENGINES));
++		GENMASK(BITS_PER_TYPE(mask) - 1, I915_NUM_ENGINES));
+ 
+ 	for (i = 0; i < ARRAY_SIZE(intel_engines); i++) {
+ 		if (!HAS_ENGINE(dev_priv, i))

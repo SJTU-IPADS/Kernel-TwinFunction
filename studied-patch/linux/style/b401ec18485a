@@ -1,0 +1,26 @@
+commit b401ec18485ab95c49c160b170514f7ab0f8f774
+Author: Paul E. McKenney <paulmck@linux.ibm.com>
+Date:   Tue Nov 6 19:30:34 2018 -0800
+
+    mm: Replace call_rcu_sched() with call_rcu()
+    
+    Now that call_rcu()'s callback is not invoked until after all
+    preempt-disable regions of code have completed (in addition to explicitly
+    marked RCU read-side critical sections), call_rcu() can be used in place
+    of call_rcu_sched().  This commit therefore makes that change.
+    
+    Signed-off-by: Paul E. McKenney <paulmck@linux.ibm.com>
+
+diff --git a/mm/mmu_gather.c b/mm/mmu_gather.c
+index 2a9fbc4a37d5..f2f03c655807 100644
+--- a/mm/mmu_gather.c
++++ b/mm/mmu_gather.c
+@@ -199,7 +199,7 @@ void tlb_table_flush(struct mmu_gather *tlb)
+ 
+ 	if (*batch) {
+ 		tlb_table_invalidate(tlb);
+-		call_rcu_sched(&(*batch)->rcu, tlb_remove_table_rcu);
++		call_rcu(&(*batch)->rcu, tlb_remove_table_rcu);
+ 		*batch = NULL;
+ 	}
+ }

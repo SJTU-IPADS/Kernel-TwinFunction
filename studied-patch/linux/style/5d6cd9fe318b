@@ -1,0 +1,41 @@
+commit 5d6cd9fe318b4a6ed2ecee83306db3f543a4f9c4
+Author: Bart Van Assche <bvanassche@acm.org>
+Date:   Tue Nov 27 15:51:56 2018 -0800
+
+    scsi: target/core: Use kvcalloc() instead of open-coding it
+    
+    This patch does not change any functionality. Note: the code that frees
+    sess_cmd_map already uses kvfree() so that code does not need to be
+    modified.
+    
+    Reviewed-by: David Disseldorp <ddiss@suse.de>
+    Cc: Nicholas Bellinger <nab@linux-iscsi.org>
+    Cc: Mike Christie <mchristi@redhat.com>
+    Cc: Christoph Hellwig <hch@lst.de>
+    Cc: Hannes Reinecke <hare@suse.de>
+    Signed-off-by: Bart Van Assche <bvanassche@acm.org>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/target/target_core_transport.c b/drivers/target/target_core_transport.c
+index 50785cfd79ef..4d1651e46ea9 100644
+--- a/drivers/target/target_core_transport.c
++++ b/drivers/target/target_core_transport.c
+@@ -273,14 +273,11 @@ int transport_alloc_session_tags(struct se_session *se_sess,
+ {
+ 	int rc;
+ 
+-	se_sess->sess_cmd_map = kcalloc(tag_size, tag_num,
+-					GFP_KERNEL | __GFP_NOWARN | __GFP_RETRY_MAYFAIL);
++	se_sess->sess_cmd_map = kvcalloc(tag_size, tag_num,
++					 GFP_KERNEL | __GFP_RETRY_MAYFAIL);
+ 	if (!se_sess->sess_cmd_map) {
+-		se_sess->sess_cmd_map = vzalloc(array_size(tag_size, tag_num));
+-		if (!se_sess->sess_cmd_map) {
+-			pr_err("Unable to allocate se_sess->sess_cmd_map\n");
+-			return -ENOMEM;
+-		}
++		pr_err("Unable to allocate se_sess->sess_cmd_map\n");
++		return -ENOMEM;
+ 	}
+ 
+ 	rc = sbitmap_queue_init_node(&se_sess->sess_tag_pool, tag_num, -1,

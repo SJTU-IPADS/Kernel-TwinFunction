@@ -1,0 +1,22 @@
+commit 421999627a0a4cd844964230a704c8764ccf3ecb
+Author: mav <mav@FreeBSD.org>
+Date:   Sat Aug 12 10:22:18 2017 +0000
+
+    MFC r322302: Do not loose CCB flags after r320493.
+    
+    There is at least CAM_UNLOCKED that should be kept.
+
+diff --git a/sys/cam/ctl/scsi_ctl.c b/sys/cam/ctl/scsi_ctl.c
+index 18d429bdb60..c1244228a24 100644
+--- a/sys/cam/ctl/scsi_ctl.c
++++ b/sys/cam/ctl/scsi_ctl.c
+@@ -1009,7 +1009,8 @@ ctlfe_requeue_ccb(struct cam_periph *periph, union ccb *ccb, int unlock)
+ 	 * target/lun.  Reset the target and LUN fields back to the wildcard
+ 	 * values before we send them back down to the SIM.
+ 	 */
+-	xpt_setup_ccb(&ccb->ccb_h, periph->path, CAM_PRIORITY_NONE);
++	xpt_setup_ccb_flags(&ccb->ccb_h, periph->path, CAM_PRIORITY_NONE,
++	    ccb->ccb_h.flags);
+ 
+ 	xpt_action(ccb);
+ }

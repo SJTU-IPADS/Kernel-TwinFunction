@@ -1,0 +1,45 @@
+From 2c1774ada5a1a98e267a3377762127ef6de7839f Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 19:17:39 +0800
+Subject: [PATCH] ide: Use dev_get_drvdata where possible
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/ide/siimage.c   | 3 +--
+ drivers/ide/via82cxxx.c | 3 +--
+ 2 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/ide/siimage.c b/drivers/ide/siimage.c
+index 57eea5a9047f..c4b20f350b84 100644
+--- a/drivers/ide/siimage.c
++++ b/drivers/ide/siimage.c
+@@ -648,8 +648,7 @@ static void sil_quirkproc(ide_drive_t *drive)
+ 
+ static void init_iops_siimage(ide_hwif_t *hwif)
+ {
+-	struct pci_dev *dev = to_pci_dev(hwif->dev);
+-	struct ide_host *host = pci_get_drvdata(dev);
++	struct ide_host *host = dev_get_drvdata(hwif->dev);
+ 
+ 	hwif->hwif_data = NULL;
+ 
+diff --git a/drivers/ide/via82cxxx.c b/drivers/ide/via82cxxx.c
+index 977cb00398b0..63a3aca506fc 100644
+--- a/drivers/ide/via82cxxx.c
++++ b/drivers/ide/via82cxxx.c
+@@ -175,8 +175,7 @@ static void via_set_speed(ide_hwif_t *hwif, u8 dn, struct ide_timing *timing)
+ static void via_set_drive(ide_hwif_t *hwif, ide_drive_t *drive)
+ {
+ 	ide_drive_t *peer = ide_get_pair_dev(drive);
+-	struct pci_dev *dev = to_pci_dev(hwif->dev);
+-	struct ide_host *host = pci_get_drvdata(dev);
++	struct ide_host *host = dev_get_drvdata(hwif->dev);
+ 	struct via82cxxx_dev *vdev = host->host_priv;
+ 	struct ide_timing t, p;
+ 	unsigned int T, UT;
+-- 
+2.20.1
+

@@ -1,0 +1,106 @@
+commit 71a4a9923122091be1167bac9379d5d1cfdb1153
+Author: John Garry <john.garry@huawei.com>
+Date:   Thu Nov 15 18:20:30 2018 +0800
+
+    scsi: libsas: Drop sas_printk()
+    
+    The printk wrapper sas_printk() adds little value now that libsas logs
+    already have the "sas" prefix through pr_fmt(fmt), so just use pr_notice()
+    directly.
+    
+    In addition, strings which span multiple lines are reunited.
+    
+    Originally-from: Joe Perches <joe@perches.com>
+    Signed-off-by: John Garry <john.garry@huawei.com>
+    Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+
+diff --git a/drivers/scsi/libsas/sas_expander.c b/drivers/scsi/libsas/sas_expander.c
+index 0d1f72752ca2..579304ded008 100644
+--- a/drivers/scsi/libsas/sas_expander.c
++++ b/drivers/scsi/libsas/sas_expander.c
+@@ -393,7 +393,7 @@ static int sas_ex_phy_discover_helper(struct domain_device *dev, u8 *disc_req,
+ 		return res;
+ 	dr = &((struct smp_resp *)disc_resp)->disc;
+ 	if (memcmp(dev->sas_addr, dr->attached_sas_addr, SAS_ADDR_SIZE) == 0) {
+-		sas_printk("Found loopback topology, just ignore it!\n");
++		pr_notice("Found loopback topology, just ignore it!\n");
+ 		return 0;
+ 	}
+ 	sas_set_ex_phy(dev, single, disc_resp);
+@@ -1262,19 +1262,17 @@ static void sas_print_parent_topology_bug(struct domain_device *child,
+ 	};
+ 	struct domain_device *parent = child->parent;
+ 
+-	sas_printk("%s ex %016llx phy 0x%x <--> %s ex %016llx "
+-		   "phy 0x%x has %c:%c routing link!\n",
++	pr_notice("%s ex %016llx phy 0x%x <--> %s ex %016llx phy 0x%x has %c:%c routing link!\n",
++		  ex_type[parent->dev_type],
++		  SAS_ADDR(parent->sas_addr),
++		  parent_phy->phy_id,
+ 
+-		   ex_type[parent->dev_type],
+-		   SAS_ADDR(parent->sas_addr),
+-		   parent_phy->phy_id,
++		  ex_type[child->dev_type],
++		  SAS_ADDR(child->sas_addr),
++		  child_phy->phy_id,
+ 
+-		   ex_type[child->dev_type],
+-		   SAS_ADDR(child->sas_addr),
+-		   child_phy->phy_id,
+-
+-		   sas_route_char(parent, parent_phy),
+-		   sas_route_char(child, child_phy));
++		  sas_route_char(parent, parent_phy),
++		  sas_route_char(child, child_phy));
+ }
+ 
+ static int sas_check_eeds(struct domain_device *child,
+diff --git a/drivers/scsi/libsas/sas_init.c b/drivers/scsi/libsas/sas_init.c
+index ede0af78144f..a3c25e22b939 100644
+--- a/drivers/scsi/libsas/sas_init.c
++++ b/drivers/scsi/libsas/sas_init.c
+@@ -623,8 +623,8 @@ struct asd_sas_event *sas_alloc_event(struct asd_sas_phy *phy)
+ 	if (atomic_read(&phy->event_nr) > phy->ha->event_thres) {
+ 		if (i->dft->lldd_control_phy) {
+ 			if (cmpxchg(&phy->in_shutdown, 0, 1) == 0) {
+-				sas_printk("The phy%02d bursting events, shut it down.\n",
+-					phy->id);
++				pr_notice("The phy%02d bursting events, shut it down.\n",
++					  phy->id);
+ 				sas_notify_phy_event(phy, PHYE_SHUTDOWN);
+ 			}
+ 		} else {
+diff --git a/drivers/scsi/libsas/sas_internal.h b/drivers/scsi/libsas/sas_internal.h
+index 94ebf4183717..910aa3145715 100644
+--- a/drivers/scsi/libsas/sas_internal.h
++++ b/drivers/scsi/libsas/sas_internal.h
+@@ -40,8 +40,6 @@
+ 
+ #define pr_fmt(fmt) SAS_FMT fmt
+ 
+-#define sas_printk(fmt, ...) printk(KERN_NOTICE fmt, ## __VA_ARGS__)
+-
+ #define SAS_DPRINTK(fmt, ...) printk(KERN_DEBUG fmt, ## __VA_ARGS__)
+ 
+ 
+diff --git a/drivers/scsi/libsas/sas_phy.c b/drivers/scsi/libsas/sas_phy.c
+index bf3e1b979ca6..0374243c85d0 100644
+--- a/drivers/scsi/libsas/sas_phy.c
++++ b/drivers/scsi/libsas/sas_phy.c
+@@ -122,11 +122,11 @@ static void sas_phye_shutdown(struct work_struct *work)
+ 		phy->enabled = 0;
+ 		ret = i->dft->lldd_control_phy(phy, PHY_FUNC_DISABLE, NULL);
+ 		if (ret)
+-			sas_printk("lldd disable phy%02d returned %d\n",
+-				phy->id, ret);
++			pr_notice("lldd disable phy%02d returned %d\n",
++				  phy->id, ret);
+ 	} else
+-		sas_printk("phy%02d is not enabled, cannot shutdown\n",
+-			phy->id);
++		pr_notice("phy%02d is not enabled, cannot shutdown\n",
++			  phy->id);
+ }
+ 
+ /* ---------- Phy class registration ---------- */

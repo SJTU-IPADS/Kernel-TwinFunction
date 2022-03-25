@@ -1,0 +1,53 @@
+commit d0c196dbee7957ea446c4047c501537aeccf5fa0
+Author: Thierry Reding <treding@nvidia.com>
+Date:   Thu Dec 20 18:19:53 2018 +0100
+
+    mailbox: sti: Use device-managed registration API
+    
+    Get rid of some boilerplate driver removal code by using the newly added
+    device-managed registration API.
+    
+    Acked-by: Lee Jones <lee.jones@linaro.org>
+    Signed-off-by: Thierry Reding <treding@nvidia.com>
+    Signed-off-by: Jassi Brar <jaswinder.singh@linaro.org>
+
+diff --git a/drivers/mailbox/mailbox-sti.c b/drivers/mailbox/mailbox-sti.c
+index 779d41262ef0..adf82b85dbb2 100644
+--- a/drivers/mailbox/mailbox-sti.c
++++ b/drivers/mailbox/mailbox-sti.c
+@@ -462,7 +462,7 @@ static int sti_mbox_probe(struct platform_device *pdev)
+ 	mbox->chans		= chans;
+ 	mbox->num_chans		= STI_MBOX_CHAN_MAX;
+ 
+-	ret = mbox_controller_register(mbox);
++	ret = devm_mbox_controller_register(&pdev->dev, mbox);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -480,7 +480,6 @@ static int sti_mbox_probe(struct platform_device *pdev)
+ 					IRQF_ONESHOT, mdev->name, mdev);
+ 	if (ret) {
+ 		dev_err(&pdev->dev, "Can't claim IRQ %d\n", irq);
+-		mbox_controller_unregister(mbox);
+ 		return -EINVAL;
+ 	}
+ 
+@@ -489,18 +488,8 @@ static int sti_mbox_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int sti_mbox_remove(struct platform_device *pdev)
+-{
+-	struct sti_mbox_device *mdev = platform_get_drvdata(pdev);
+-
+-	mbox_controller_unregister(mdev->mbox);
+-
+-	return 0;
+-}
+-
+ static struct platform_driver sti_mbox_driver = {
+ 	.probe = sti_mbox_probe,
+-	.remove = sti_mbox_remove,
+ 	.driver = {
+ 		.name = "sti-mailbox",
+ 		.of_match_table = sti_mailbox_match,

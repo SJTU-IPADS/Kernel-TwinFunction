@@ -1,0 +1,149 @@
+commit 6e9982918c3fc4f0c4c32c95d1eb0a345baea5f1
+Author: Martin Kelly <martin@martingkelly.com>
+Date:   Sun Dec 9 19:14:55 2018 -0800
+
+    iio: bmi160: use all devm functions in probe
+    
+    Currently, we're using the devm version of some but not all functions.
+    Switch to the devm version of iio_triggered_buffer_setup and
+    iio_device_register to simplify the code a bit and decrease the chance of
+    bugs.
+    
+    Signed-off-by: Martin Kelly <martin@martingkelly.com>
+    Signed-off-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+
+diff --git a/drivers/iio/imu/bmi160/bmi160.h b/drivers/iio/imu/bmi160/bmi160.h
+index e7b11e74fd1d..2351049d930b 100644
+--- a/drivers/iio/imu/bmi160/bmi160.h
++++ b/drivers/iio/imu/bmi160/bmi160.h
+@@ -6,6 +6,5 @@ extern const struct regmap_config bmi160_regmap_config;
+ 
+ int bmi160_core_probe(struct device *dev, struct regmap *regmap,
+ 		      const char *name, bool use_spi);
+-void bmi160_core_remove(struct device *dev);
+ 
+ #endif  /* BMI160_H_ */
+diff --git a/drivers/iio/imu/bmi160/bmi160_core.c b/drivers/iio/imu/bmi160/bmi160_core.c
+index c85659ca9507..b10330b0f93f 100644
+--- a/drivers/iio/imu/bmi160/bmi160_core.c
++++ b/drivers/iio/imu/bmi160/bmi160_core.c
+@@ -542,10 +542,12 @@ static int bmi160_chip_init(struct bmi160_data *data, bool use_spi)
+ 	return 0;
+ }
+ 
+-static void bmi160_chip_uninit(struct bmi160_data *data)
++static void bmi160_chip_uninit(void *data)
+ {
+-	bmi160_set_mode(data, BMI160_GYRO, false);
+-	bmi160_set_mode(data, BMI160_ACCEL, false);
++	struct bmi160_data *bmi_data = data;
++
++	bmi160_set_mode(bmi_data, BMI160_GYRO, false);
++	bmi160_set_mode(bmi_data, BMI160_ACCEL, false);
+ }
+ 
+ int bmi160_core_probe(struct device *dev, struct regmap *regmap,
+@@ -567,6 +569,10 @@ int bmi160_core_probe(struct device *dev, struct regmap *regmap,
+ 	if (ret < 0)
+ 		return ret;
+ 
++	ret = devm_add_action_or_reset(dev, bmi160_chip_uninit, data);
++	if (ret < 0)
++		return ret;
++
+ 	if (!name && ACPI_HANDLE(dev))
+ 		name = bmi160_match_acpi_device(dev);
+ 
+@@ -577,35 +583,19 @@ int bmi160_core_probe(struct device *dev, struct regmap *regmap,
+ 	indio_dev->modes = INDIO_DIRECT_MODE;
+ 	indio_dev->info = &bmi160_info;
+ 
+-	ret = iio_triggered_buffer_setup(indio_dev, NULL,
+-					 bmi160_trigger_handler, NULL);
++	ret = devm_iio_triggered_buffer_setup(dev, indio_dev, NULL,
++					      bmi160_trigger_handler, NULL);
+ 	if (ret < 0)
+-		goto uninit;
++		return ret;
+ 
+-	ret = iio_device_register(indio_dev);
++	ret = devm_iio_device_register(dev, indio_dev);
+ 	if (ret < 0)
+-		goto buffer_cleanup;
++		return ret;
+ 
+ 	return 0;
+-buffer_cleanup:
+-	iio_triggered_buffer_cleanup(indio_dev);
+-uninit:
+-	bmi160_chip_uninit(data);
+-	return ret;
+ }
+ EXPORT_SYMBOL_GPL(bmi160_core_probe);
+ 
+-void bmi160_core_remove(struct device *dev)
+-{
+-	struct iio_dev *indio_dev = dev_get_drvdata(dev);
+-	struct bmi160_data *data = iio_priv(indio_dev);
+-
+-	iio_device_unregister(indio_dev);
+-	iio_triggered_buffer_cleanup(indio_dev);
+-	bmi160_chip_uninit(data);
+-}
+-EXPORT_SYMBOL_GPL(bmi160_core_remove);
+-
+ MODULE_AUTHOR("Daniel Baluta <daniel.baluta@intel.com");
+ MODULE_DESCRIPTION("Bosch BMI160 driver");
+ MODULE_LICENSE("GPL v2");
+diff --git a/drivers/iio/imu/bmi160/bmi160_i2c.c b/drivers/iio/imu/bmi160/bmi160_i2c.c
+index 155a31f72445..5b1f7e6af651 100644
+--- a/drivers/iio/imu/bmi160/bmi160_i2c.c
++++ b/drivers/iio/imu/bmi160/bmi160_i2c.c
+@@ -38,13 +38,6 @@ static int bmi160_i2c_probe(struct i2c_client *client,
+ 	return bmi160_core_probe(&client->dev, regmap, name, false);
+ }
+ 
+-static int bmi160_i2c_remove(struct i2c_client *client)
+-{
+-	bmi160_core_remove(&client->dev);
+-
+-	return 0;
+-}
+-
+ static const struct i2c_device_id bmi160_i2c_id[] = {
+ 	{"bmi160", 0},
+ 	{}
+@@ -72,7 +65,6 @@ static struct i2c_driver bmi160_i2c_driver = {
+ 		.of_match_table		= of_match_ptr(bmi160_of_match),
+ 	},
+ 	.probe		= bmi160_i2c_probe,
+-	.remove		= bmi160_i2c_remove,
+ 	.id_table	= bmi160_i2c_id,
+ };
+ module_i2c_driver(bmi160_i2c_driver);
+diff --git a/drivers/iio/imu/bmi160/bmi160_spi.c b/drivers/iio/imu/bmi160/bmi160_spi.c
+index d34dfdfd1a7d..e521ad14eeac 100644
+--- a/drivers/iio/imu/bmi160/bmi160_spi.c
++++ b/drivers/iio/imu/bmi160/bmi160_spi.c
+@@ -29,13 +29,6 @@ static int bmi160_spi_probe(struct spi_device *spi)
+ 	return bmi160_core_probe(&spi->dev, regmap, id->name, true);
+ }
+ 
+-static int bmi160_spi_remove(struct spi_device *spi)
+-{
+-	bmi160_core_remove(&spi->dev);
+-
+-	return 0;
+-}
+-
+ static const struct spi_device_id bmi160_spi_id[] = {
+ 	{"bmi160", 0},
+ 	{}
+@@ -58,7 +51,6 @@ MODULE_DEVICE_TABLE(of, bmi160_of_match);
+ 
+ static struct spi_driver bmi160_spi_driver = {
+ 	.probe		= bmi160_spi_probe,
+-	.remove		= bmi160_spi_remove,
+ 	.id_table	= bmi160_spi_id,
+ 	.driver = {
+ 		.acpi_match_table	= ACPI_PTR(bmi160_acpi_match),

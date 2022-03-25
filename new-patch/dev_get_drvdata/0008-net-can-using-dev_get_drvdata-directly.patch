@@ -1,0 +1,43 @@
+From 02a317f9cd1bcb074a24f8c11371d9158717f006 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 4 Jul 2019 09:20:52 +0800
+Subject: [Patch v2 08/10] net/can: using dev_get_drvdata directly
+
+Several drivers cast a struct device pointer to a struct
+platform_device pointer only to then call platform_get_drvdata().
+To improve readability, these constructs can be simplified
+by using dev_get_drvdata() directly.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Make the commit message more clearly.
+
+ drivers/net/can/softing/softing_main.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/can/softing/softing_main.c b/drivers/net/can/softing/softing_main.c
+index 68bb58a57f3b..8242fb287cbb 100644
+--- a/drivers/net/can/softing/softing_main.c
++++ b/drivers/net/can/softing/softing_main.c
+@@ -683,7 +683,7 @@ static void softing_netdev_cleanup(struct net_device *netdev)
+ static ssize_t show_##name(struct device *dev, \
+ 		struct device_attribute *attr, char *buf) \
+ { \
+-	struct softing *card = platform_get_drvdata(to_platform_device(dev)); \
++	struct softing *card = dev_get_drvdata(dev); \
+ 	return sprintf(buf, "%u\n", card->member); \
+ } \
+ static DEVICE_ATTR(name, 0444, show_##name, NULL)
+@@ -692,7 +692,7 @@ static DEVICE_ATTR(name, 0444, show_##name, NULL)
+ static ssize_t show_##name(struct device *dev, \
+ 		struct device_attribute *attr, char *buf) \
+ { \
+-	struct softing *card = platform_get_drvdata(to_platform_device(dev)); \
++	struct softing *card = dev_get_drvdata(dev); \
+ 	return sprintf(buf, "%s\n", card->member); \
+ } \
+ static DEVICE_ATTR(name, 0444, show_##name, NULL)
+-- 
+2.11.0
+

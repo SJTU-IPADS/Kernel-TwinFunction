@@ -1,0 +1,36 @@
+commit b86077207d0c08e181c7715bc75f50a3ad2fdf74
+Author: Lance Roy <ldr709@gmail.com>
+Date:   Tue Oct 2 22:38:51 2018 -0700
+
+    igbvf: Replace spin_is_locked() with lockdep
+    
+    lockdep_assert_held() is better suited to checking locking requirements,
+    since it won't get confused when someone else holds the lock. This is
+    also a step towards possibly removing spin_is_locked().
+    
+    Signed-off-by: Lance Roy <ldr709@gmail.com>
+    Tested-by: Aaron Brown <aaron.f.brown@intel.com>
+    Signed-off-by: Jeff Kirsher <jeffrey.t.kirsher@intel.com>
+
+diff --git a/drivers/net/ethernet/intel/igbvf/mbx.c b/drivers/net/ethernet/intel/igbvf/mbx.c
+index 163e5838f7c2..a3cd7ac48d4b 100644
+--- a/drivers/net/ethernet/intel/igbvf/mbx.c
++++ b/drivers/net/ethernet/intel/igbvf/mbx.c
+@@ -241,7 +241,7 @@ static s32 e1000_write_mbx_vf(struct e1000_hw *hw, u32 *msg, u16 size)
+ 	s32 err;
+ 	u16 i;
+ 
+-	WARN_ON_ONCE(!spin_is_locked(&hw->mbx_lock));
++	lockdep_assert_held(&hw->mbx_lock);
+ 
+ 	/* lock the mailbox to prevent pf/vf race condition */
+ 	err = e1000_obtain_mbx_lock_vf(hw);
+@@ -279,7 +279,7 @@ static s32 e1000_read_mbx_vf(struct e1000_hw *hw, u32 *msg, u16 size)
+ 	s32 err;
+ 	u16 i;
+ 
+-	WARN_ON_ONCE(!spin_is_locked(&hw->mbx_lock));
++	lockdep_assert_held(&hw->mbx_lock);
+ 
+ 	/* lock the mailbox to prevent pf/vf race condition */
+ 	err = e1000_obtain_mbx_lock_vf(hw);

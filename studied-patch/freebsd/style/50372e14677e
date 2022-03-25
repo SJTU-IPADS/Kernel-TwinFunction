@@ -1,0 +1,35 @@
+commit 50372e14677eb14a4a579c50d3202c4c2d5037d5
+Author: markj <markj@FreeBSD.org>
+Date:   Fri Dec 8 16:25:05 2017 +0000
+
+    MFC r326286:
+    Don't use pcpu_find() to determine if a CPU ID is valid.
+
+diff --git a/sys/cddl/dev/dtrace/dtrace_ioctl.c b/sys/cddl/dev/dtrace/dtrace_ioctl.c
+index 6e2b558ca88..4ac3b0d4e99 100644
+--- a/sys/cddl/dev/dtrace/dtrace_ioctl.c
++++ b/sys/cddl/dev/dtrace/dtrace_ioctl.c
+@@ -236,9 +236,7 @@ dtrace_ioctl(struct cdev *dev, u_long cmd, caddr_t addr,
+ 		    "DTRACEIOC_AGGSNAP":"DTRACEIOC_BUFSNAP",
+ 		    curcpu, desc.dtbd_cpu);
+ 
+-		if (desc.dtbd_cpu >= NCPU)
+-			return (ENOENT);
+-		if (pcpu_find(desc.dtbd_cpu) == NULL)
++		if (desc.dtbd_cpu >= MAXCPU || CPU_ABSENT(desc.dtbd_cpu))
+ 			return (ENOENT);
+ 
+ 		mutex_enter(&dtrace_lock);
+@@ -801,11 +799,7 @@ dtrace_ioctl(struct cdev *dev, u_long cmd, caddr_t addr,
+ 		nerrs = state->dts_errors;
+ 		dstate = &state->dts_vstate.dtvs_dynvars;
+ 
+-		for (i = 0; i < NCPU; i++) {
+-#ifndef illumos
+-			if (pcpu_find(i) == NULL)
+-				continue;
+-#endif
++		CPU_FOREACH(i) {
+ 			dtrace_dstate_percpu_t *dcpu = &dstate->dtds_percpu[i];
+ 
+ 			stat->dtst_dyndrops += dcpu->dtdsc_drops;

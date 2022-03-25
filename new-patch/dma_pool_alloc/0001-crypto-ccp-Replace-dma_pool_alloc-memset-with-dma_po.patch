@@ -1,0 +1,38 @@
+From 1246e77a02416860c6c2b00d5fea65e8c1ec037b Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 18 Jul 2019 20:31:39 +0800
+Subject: [PATCH] crypto: ccp - Replace dma_pool_alloc + memset with
+ dma_pool_zalloc
+
+Use dma_pool_zalloc instead of using dma_pool_alloc to allocate
+memory and then zeroing it with memset 0.
+This simplifies the code.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/crypto/ccp/ccp-ops.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/crypto/ccp/ccp-ops.c b/drivers/crypto/ccp/ccp-ops.c
+index 866b2e05ca77..03797c42b336 100644
+--- a/drivers/crypto/ccp/ccp-ops.c
++++ b/drivers/crypto/ccp/ccp-ops.c
+@@ -150,14 +150,13 @@ static int ccp_init_dm_workarea(struct ccp_dm_workarea *wa,
+ 	if (len <= CCP_DMAPOOL_MAX_SIZE) {
+ 		wa->dma_pool = cmd_q->dma_pool;
+ 
+-		wa->address = dma_pool_alloc(wa->dma_pool, GFP_KERNEL,
++		wa->address = dma_pool_zalloc(wa->dma_pool, GFP_KERNEL,
+ 					     &wa->dma.address);
+ 		if (!wa->address)
+ 			return -ENOMEM;
+ 
+ 		wa->dma.length = CCP_DMAPOOL_MAX_SIZE;
+ 
+-		memset(wa->address, 0, CCP_DMAPOOL_MAX_SIZE);
+ 	} else {
+ 		wa->address = kzalloc(len, GFP_KERNEL);
+ 		if (!wa->address)
+-- 
+2.20.1
+

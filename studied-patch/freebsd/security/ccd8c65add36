@@ -1,0 +1,21 @@
+commit ccd8c65add361971bc8f1116511bb22c38f17c46
+Author: emaste <emaste@FreeBSD.org>
+Date:   Wed Sep 6 02:04:14 2017 +0000
+
+    MFC r323040: xls_ehci: eliminate string literal warning
+    
+    Sponsored by:   The FreeBSD Foundation
+
+diff --git a/sys/mips/rmi/xls_ehci.c b/sys/mips/rmi/xls_ehci.c
+index 4451d13d7f8..00183f7a14d 100644
+--- a/sys/mips/rmi/xls_ehci.c
++++ b/sys/mips/rmi/xls_ehci.c
+@@ -130,7 +130,7 @@ ehci_xls_attach(device_t self)
+ 	device_set_ivars(sc->sc_bus.bdev, &sc->sc_bus);
+ 	device_set_desc(sc->sc_bus.bdev, xlr_usb_dev_desc);
+ 
+-	sprintf(sc->sc_vendor, xlr_vendor_desc);
++	strlcpy(sc->sc_vendor, xlr_vendor_desc, sizeof(sc->sc_vendor));
+ 
+ 	err = bus_setup_intr(self, sc->sc_irq_res,
+ 	    INTR_TYPE_BIO | INTR_MPSAFE, NULL,

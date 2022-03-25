@@ -1,0 +1,36 @@
+commit b312f6f4ac84bcd9587fd24316b5de7c3f319b88
+Author: Shubhrajyoti Datta <shubhrajyoti.datta@xilinx.com>
+Date:   Tue Oct 16 15:48:04 2018 +0530
+
+    serial-uartlite: Fix the unbind path
+    
+    Currently the clocks are not enabled at probe but when the port is used.
+    Remove the unconditional disable at remove.
+    
+    Fixes the below
+    [   77.660196] ------------[ cut here ]------------
+    [   77.664749] WARNING: CPU: 0 PID: 1992 at drivers/clk/clk.c:622
+    clk_core_disable+0x78/0x80
+    [   77.672892] Modules linked in:
+    [   77.675930] CPU: 0 PID: 1992 Comm: sh Not tainted 4.14.0 #23
+    [   77.681570] Hardware name: xlnx,zynqmp (DT)
+    [   77.685736] task: ffffffc879e2e580 task.stack: ffffff800be30000
+    [   77.691641] PC is at clk_core_disable+0x78/0x80
+    
+    Signed-off-by: Shubhrajyoti Datta <shubhrajyoti.datta@xilinx.com>
+    Signed-off-by: Michal Simek <michal.simek@xilinx.com>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/tty/serial/uartlite.c b/drivers/tty/serial/uartlite.c
+index 58296ebb9f7e..4a7989df5ff5 100644
+--- a/drivers/tty/serial/uartlite.c
++++ b/drivers/tty/serial/uartlite.c
+@@ -857,7 +857,7 @@ static int ulite_remove(struct platform_device *pdev)
+ 	struct uartlite_data *pdata = port->private_data;
+ 	int rc;
+ 
+-	clk_disable_unprepare(pdata->clk);
++	clk_unprepare(pdata->clk);
+ 	rc = ulite_release(&pdev->dev);
+ 	pm_runtime_disable(&pdev->dev);
+ 	pm_runtime_set_suspended(&pdev->dev);

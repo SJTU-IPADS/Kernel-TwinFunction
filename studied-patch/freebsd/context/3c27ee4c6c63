@@ -1,0 +1,24 @@
+commit 3c27ee4c6c63a7026e62bd03ffa274561a4a728a
+Author: eadler <eadler@FreeBSD.org>
+Date:   Thu Mar 1 04:28:54 2018 +0000
+
+    MFC r305999:
+    
+    [iwm] Use htole16 for policy field in struct iwm_time_event_cmd_v2.
+    
+    The htole32 was working fine for little-endian machines, but would
+    have been broken on big-endian.
+
+diff --git a/sys/dev/iwm/if_iwm_time_event.c b/sys/dev/iwm/if_iwm_time_event.c
+index 706b6c62c54..9655c1e9192 100644
+--- a/sys/dev/iwm/if_iwm_time_event.c
++++ b/sys/dev/iwm/if_iwm_time_event.c
+@@ -266,7 +266,7 @@ iwm_mvm_protect_session(struct iwm_softc *sc, struct iwm_node *in,
+ 	time_cmd.duration = htole32(duration);
+ 	time_cmd.repeat = 1;
+ 	time_cmd.policy
+-	    = htole32(IWM_TE_V2_NOTIF_HOST_EVENT_START |
++	    = htole16(IWM_TE_V2_NOTIF_HOST_EVENT_START |
+ 	        IWM_TE_V2_NOTIF_HOST_EVENT_END |
+ 		IWM_T2_V2_START_IMMEDIATELY);
+ 

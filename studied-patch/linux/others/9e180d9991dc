@@ -1,0 +1,28 @@
+commit 9e180d9991dc4d9c6b18ffede928841e6b0e35f4
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Tue Oct 9 12:12:59 2018 +0100
+
+    drm/i915: Downgrade unknown firmware warnings
+    
+    If we have released no firmware yet for a platform, stop scaring the
+    consumer and merely note its expected absence.
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+    Cc: Petri Latvala <petri.latvala@intel.com>
+    Reviewed-by: Joonas Lahtinen <joonas.lahtinen@linux.intel.com>
+    Link: https://patchwork.freedesktop.org/patch/msgid/20181009111259.20807-1-chris@chris-wilson.co.uk
+
+diff --git a/drivers/gpu/drm/i915/intel_guc_fw.c b/drivers/gpu/drm/i915/intel_guc_fw.c
+index ae8e103a2c4d..a67144ee5ceb 100644
+--- a/drivers/gpu/drm/i915/intel_guc_fw.c
++++ b/drivers/gpu/drm/i915/intel_guc_fw.c
+@@ -78,7 +78,8 @@ static void guc_fw_select(struct intel_uc_fw *guc_fw)
+ 		guc_fw->major_ver_wanted = KBL_FW_MAJOR;
+ 		guc_fw->minor_ver_wanted = KBL_FW_MINOR;
+ 	} else {
+-		DRM_WARN("%s: No firmware known for this platform!\n",
++		dev_info(dev_priv->drm.dev,
++			 "%s: No firmware known for this platform!\n",
+ 			 intel_uc_fw_type_repr(guc_fw->type));
+ 	}
+ }

@@ -1,0 +1,38 @@
+From f7b24d0e40ca9c091bf18f75dc2b80d625be7a7b Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 3 Jul 2019 19:03:23 +0800
+Subject: [PATCH 08/30] infiniband: Use kmemdup rather than duplicating its
+ implementation
+
+kmemdup is introduced to duplicate a region of memory in a neat way.
+Rather than kmalloc/kzalloc + memset, which the programmer needs to
+write the size twice (sometimes lead to mistakes), kmemdup improves
+readability, leads to smaller code and also reduce the chances of mistakes.
+Suggestion to use kmemdup rather than using kmalloc/kzalloc + memset.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/infiniband/hw/i40iw/i40iw_cm.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/infiniband/hw/i40iw/i40iw_cm.c b/drivers/infiniband/hw/i40iw/i40iw_cm.c
+index 8233f5a4e623..84b3ff2687fb 100644
+--- a/drivers/infiniband/hw/i40iw/i40iw_cm.c
++++ b/drivers/infiniband/hw/i40iw/i40iw_cm.c
+@@ -4276,11 +4276,11 @@ static void i40iw_qhash_ctrl(struct i40iw_device *iwdev,
+ 	/* if not found then add a child listener if interface is going up */
+ 	if (!ifup)
+ 		return;
+-	child_listen_node = kzalloc(sizeof(*child_listen_node), GFP_ATOMIC);
++	child_listen_node = kmemdup(parent_listen_node,
++			sizeof(*child_listen_node), GFP_ATOMIC);
+ 	if (!child_listen_node)
+ 		return;
+ 	node_allocated = true;
+-	memcpy(child_listen_node, parent_listen_node, sizeof(*child_listen_node));
+ 
+ 	memcpy(child_listen_node->loc_addr, ipaddr,  ipv4 ? 4 : 16);
+ 
+-- 
+2.11.0
+

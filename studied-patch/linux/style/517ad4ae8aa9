@@ -1,0 +1,46 @@
+commit 517ad4ae8aa93dccdb9a88c27257ecb421c9e848
+Author: Alexey Kardashevskiy <aik@ozlabs.ru>
+Date:   Tue Oct 2 13:22:31 2018 +1000
+
+    vfio/spapr_tce: Get rid of possible infinite loop
+    
+    As a part of cleanup, the SPAPR TCE IOMMU subdriver releases preregistered
+    memory. If there is a bug in memory release, the loop in
+    tce_iommu_release() becomes infinite; this actually happened to me.
+    
+    This makes the loop finite and prints a warning on every failure to make
+    the code more bug prone.
+    
+    Signed-off-by: Alexey Kardashevskiy <aik@ozlabs.ru>
+    Reviewed-by: David Gibson <david@gibson.dropbear.id.au>
+    Acked-by: Alex Williamson <alex.williamson@redhat.com>
+    Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+
+diff --git a/drivers/vfio/vfio_iommu_spapr_tce.c b/drivers/vfio/vfio_iommu_spapr_tce.c
+index b30926e11d87..ad637250938d 100644
+--- a/drivers/vfio/vfio_iommu_spapr_tce.c
++++ b/drivers/vfio/vfio_iommu_spapr_tce.c
+@@ -371,6 +371,7 @@ static void tce_iommu_release(void *iommu_data)
+ {
+ 	struct tce_container *container = iommu_data;
+ 	struct tce_iommu_group *tcegrp;
++	struct tce_iommu_prereg *tcemem, *tmtmp;
+ 	long i;
+ 
+ 	while (tce_groups_attached(container)) {
+@@ -393,13 +394,8 @@ static void tce_iommu_release(void *iommu_data)
+ 		tce_iommu_free_table(container, tbl);
+ 	}
+ 
+-	while (!list_empty(&container->prereg_list)) {
+-		struct tce_iommu_prereg *tcemem;
+-
+-		tcemem = list_first_entry(&container->prereg_list,
+-				struct tce_iommu_prereg, next);
+-		WARN_ON_ONCE(tce_iommu_prereg_free(container, tcemem));
+-	}
++	list_for_each_entry_safe(tcemem, tmtmp, &container->prereg_list, next)
++		WARN_ON(tce_iommu_prereg_free(container, tcemem));
+ 
+ 	tce_iommu_disable(container);
+ 	if (container->mm)

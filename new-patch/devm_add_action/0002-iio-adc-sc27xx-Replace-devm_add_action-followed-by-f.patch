@@ -1,0 +1,47 @@
+From 51c04cf695ac2998a73f8924155e9aa4415f2eed Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Mon, 8 Jul 2019 14:41:08 +0800
+Subject: [PATCH 02/14] iio: adc: sc27xx: Replace devm_add_action() followed by
+ failure action with devm_add_action_or_reset()
+
+devm_add_action_or_reset() is introduced as a helper function which 
+internally calls devm_add_action(). If devm_add_action() fails 
+then it will execute the action mentioned and return the error code.
+This reduce source code size (avoid writing the action twice) 
+and reduce the likelyhood of bugs.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/iio/adc/sc27xx_adc.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/iio/adc/sc27xx_adc.c b/drivers/iio/adc/sc27xx_adc.c
+index ec86f640e963..d7ca002cbb17 100644
+--- a/drivers/iio/adc/sc27xx_adc.c
++++ b/drivers/iio/adc/sc27xx_adc.c
+@@ -546,10 +546,9 @@ static int sc27xx_adc_probe(struct platform_device *pdev)
+ 		return -ENXIO;
+ 	}
+ 
+-	ret = devm_add_action(dev, sc27xx_adc_free_hwlock,
++	ret = devm_add_action_or_reset(dev, sc27xx_adc_free_hwlock,
+ 			      sc27xx_data->hwlock);
+ 	if (ret) {
+-		sc27xx_adc_free_hwlock(sc27xx_data->hwlock);
+ 		dev_err(dev, "failed to add hwspinlock action\n");
+ 		return ret;
+ 	}
+@@ -563,9 +562,8 @@ static int sc27xx_adc_probe(struct platform_device *pdev)
+ 		return ret;
+ 	}
+ 
+-	ret = devm_add_action(dev, sc27xx_adc_disable, sc27xx_data);
++	ret = devm_add_action_or_reset(dev, sc27xx_adc_disable, sc27xx_data);
+ 	if (ret) {
+-		sc27xx_adc_disable(sc27xx_data);
+ 		dev_err(dev, "failed to add ADC disable action\n");
+ 		return ret;
+ 	}
+-- 
+2.11.0
+

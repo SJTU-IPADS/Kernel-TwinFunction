@@ -1,0 +1,63 @@
+commit 89d5efcc311cca135de623e9e4a81267e7a9eaa8
+Author: Chris Wilson <chris@chris-wilson.co.uk>
+Date:   Mon Oct 1 20:44:44 2018 +0100
+
+    drm/i915: Replace some open-coded i915_coherent_map_type()
+    
+    A few callsites were deciding on using WC or WB maps based on
+    HAS_LLC(), so replace them with the equivalent helper function
+    i915_coherent_map_type().
+    
+    Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+    Reviewed-by: Tvrtko Ursulin <tvrtko.ursulin@intel.com>
+    Link: https://patchwork.freedesktop.org/patch/msgid/20181001194447.29910-1-chris@chris-wilson.co.uk
+
+diff --git a/drivers/gpu/drm/i915/intel_ringbuffer.c b/drivers/gpu/drm/i915/intel_ringbuffer.c
+index c092d5099ebf..b8a7a014d46d 100644
+--- a/drivers/gpu/drm/i915/intel_ringbuffer.c
++++ b/drivers/gpu/drm/i915/intel_ringbuffer.c
+@@ -1023,8 +1023,7 @@ i915_emit_bb_start(struct i915_request *rq,
+ int intel_ring_pin(struct intel_ring *ring)
+ {
+ 	struct i915_vma *vma = ring->vma;
+-	enum i915_map_type map =
+-		HAS_LLC(vma->vm->i915) ? I915_MAP_WB : I915_MAP_WC;
++	enum i915_map_type map = i915_coherent_map_type(vma->vm->i915);
+ 	unsigned int flags;
+ 	void *addr;
+ 	int ret;
+diff --git a/drivers/gpu/drm/i915/selftests/intel_hangcheck.c b/drivers/gpu/drm/i915/selftests/intel_hangcheck.c
+index db378226ac10..51d0e2bed9e1 100644
+--- a/drivers/gpu/drm/i915/selftests/intel_hangcheck.c
++++ b/drivers/gpu/drm/i915/selftests/intel_hangcheck.c
+@@ -76,7 +76,7 @@ static int hang_init(struct hang *h, struct drm_i915_private *i915)
+ 	h->seqno = memset(vaddr, 0xff, PAGE_SIZE);
+ 
+ 	vaddr = i915_gem_object_pin_map(h->obj,
+-					HAS_LLC(i915) ? I915_MAP_WB : I915_MAP_WC);
++					i915_coherent_map_type(i915));
+ 	if (IS_ERR(vaddr)) {
+ 		err = PTR_ERR(vaddr);
+ 		goto err_unpin_hws;
+@@ -234,7 +234,7 @@ hang_create_request(struct hang *h, struct intel_engine_cs *engine)
+ 			return ERR_CAST(obj);
+ 
+ 		vaddr = i915_gem_object_pin_map(obj,
+-						HAS_LLC(h->i915) ? I915_MAP_WB : I915_MAP_WC);
++						i915_coherent_map_type(h->i915));
+ 		if (IS_ERR(vaddr)) {
+ 			i915_gem_object_put(obj);
+ 			return ERR_CAST(vaddr);
+diff --git a/drivers/gpu/drm/i915/selftests/intel_lrc.c b/drivers/gpu/drm/i915/selftests/intel_lrc.c
+index c8b7f03c35bd..9f241d1c72db 100644
+--- a/drivers/gpu/drm/i915/selftests/intel_lrc.c
++++ b/drivers/gpu/drm/i915/selftests/intel_lrc.c
+@@ -49,7 +49,7 @@ static int spinner_init(struct spinner *spin, struct drm_i915_private *i915)
+ 	}
+ 	spin->seqno = memset(vaddr, 0xff, PAGE_SIZE);
+ 
+-	mode = HAS_LLC(i915) ? I915_MAP_WB : I915_MAP_WC;
++	mode = i915_coherent_map_type(i915);
+ 	vaddr = i915_gem_object_pin_map(spin->obj, mode);
+ 	if (IS_ERR(vaddr)) {
+ 		err = PTR_ERR(vaddr);

@@ -1,0 +1,53 @@
+commit 42bd0384d77ef7552954056928018f5cfa91a013
+Author: Javier González <javier@javigon.com>
+Date:   Tue Dec 11 20:16:21 2018 +0100
+
+    lightnvm: pblk: avoid ref warning on cache creation
+    
+    The current kref implementation around pblk global caches triggers a
+    false positive on refcount_inc_checked() (when called) as the kref is
+    initialized to 0. Instead of usint kref_inc() on a 0 reference, which is
+    in principle correct, use kref_init() to avoid the check. This is also
+    more explicit about what actually happens on cache creation.
+    
+    In the process, do a small refactoring to use kref helpers.
+    
+    Fixes: 1864de94ec9d6 "lightnvm: pblk: stop recreating global caches"
+    Signed-off-by: Javier González <javier@cnexlabs.com>
+    Reviewed-by: Hans Holmberg <hans.holmberg@cnexlabs.com>
+    Signed-off-by: Matias Bjørling <mb@lightnvm.io>
+    Signed-off-by: Jens Axboe <axboe@kernel.dk>
+
+diff --git a/drivers/lightnvm/pblk-init.c b/drivers/lightnvm/pblk-init.c
+index 0e37104de596..72ad3e70318c 100644
+--- a/drivers/lightnvm/pblk-init.c
++++ b/drivers/lightnvm/pblk-init.c
+@@ -347,23 +347,19 @@ static int pblk_create_global_caches(void)
+ 
+ static int pblk_get_global_caches(void)
+ {
+-	int ret;
++	int ret = 0;
+ 
+ 	mutex_lock(&pblk_caches.mutex);
+ 
+-	if (kref_read(&pblk_caches.kref) > 0) {
+-		kref_get(&pblk_caches.kref);
+-		mutex_unlock(&pblk_caches.mutex);
+-		return 0;
+-	}
++	if (kref_get_unless_zero(&pblk_caches.kref))
++		goto out;
+ 
+ 	ret = pblk_create_global_caches();
+-
+ 	if (!ret)
+-		kref_get(&pblk_caches.kref);
++		kref_init(&pblk_caches.kref);
+ 
++out:
+ 	mutex_unlock(&pblk_caches.mutex);
+-
+ 	return ret;
+ }
+ 

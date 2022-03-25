@@ -1,0 +1,63 @@
+From 9552f0a2ef4140c27cd586b37e80906a58240715 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Fri, 26 Jul 2019 18:36:16 +0800
+Subject: [PATCH] iio: maxim_thermocouple: Use device-managed APIs
+
+Use device-managed APIs to simplify the code.
+The remove functions are redundant now and can
+be deleted.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/iio/temperature/maxim_thermocouple.c | 23 ++++----------------
+ 1 file changed, 4 insertions(+), 19 deletions(-)
+
+diff --git a/drivers/iio/temperature/maxim_thermocouple.c b/drivers/iio/temperature/maxim_thermocouple.c
+index c613a64c017f..314b6e11e386 100644
+--- a/drivers/iio/temperature/maxim_thermocouple.c
++++ b/drivers/iio/temperature/maxim_thermocouple.c
+@@ -230,29 +230,15 @@ static int maxim_thermocouple_probe(struct spi_device *spi)
+ 	data->spi = spi;
+ 	data->chip = chip;
+ 
+-	ret = iio_triggered_buffer_setup(indio_dev, NULL,
++	ret = devm_iio_triggered_buffer_setup(&spi->dev,
++				indio_dev, NULL,
+ 				maxim_thermocouple_trigger_handler, NULL);
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = iio_device_register(indio_dev);
++	ret = devm_iio_device_register(&spi->dev, indio_dev);
+ 	if (ret)
+-		goto error_unreg_buffer;
+-
+-	return 0;
+-
+-error_unreg_buffer:
+-	iio_triggered_buffer_cleanup(indio_dev);
+-
+-	return ret;
+-}
+-
+-static int maxim_thermocouple_remove(struct spi_device *spi)
+-{
+-	struct iio_dev *indio_dev = spi_get_drvdata(spi);
+-
+-	iio_device_unregister(indio_dev);
+-	iio_triggered_buffer_cleanup(indio_dev);
++		return ret;
+ 
+ 	return 0;
+ }
+@@ -277,7 +263,6 @@ static struct spi_driver maxim_thermocouple_driver = {
+ 		.of_match_table = maxim_thermocouple_of_match,
+ 	},
+ 	.probe		= maxim_thermocouple_probe,
+-	.remove		= maxim_thermocouple_remove,
+ 	.id_table	= maxim_thermocouple_id,
+ };
+ module_spi_driver(maxim_thermocouple_driver);
+-- 
+2.20.1
+

@@ -1,0 +1,37 @@
+commit 6809d2167c404c2c8cbbbe1667c70ea88576ccac
+Author: Ben Dooks <ben.dooks@codethink.co.uk>
+Date:   Wed Nov 14 11:50:21 2018 +0000
+
+    usbnet: smsc95xx: fix memcpy for accessing rx-data
+    
+    Change the RX code to use get_unaligned_le32() instead of the combo
+    of memcpy and cpu_to_le32s(&var).
+    
+    Signed-off-by: Ben Dooks <ben.dooks@codethink.co.uk>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/usb/smsc95xx.c b/drivers/net/usb/smsc95xx.c
+index 924ca94d3495..a50cb9fd10fb 100644
+--- a/drivers/net/usb/smsc95xx.c
++++ b/drivers/net/usb/smsc95xx.c
+@@ -618,9 +618,7 @@ static void smsc95xx_status(struct usbnet *dev, struct urb *urb)
+ 		return;
+ 	}
+ 
+-	memcpy(&intdata, urb->transfer_buffer, 4);
+-	le32_to_cpus(&intdata);
+-
++	intdata = get_unaligned_le32(urb->transfer_buffer);
+ 	netif_dbg(dev, link, dev->net, "intdata: 0x%08X\n", intdata);
+ 
+ 	if (intdata & INT_ENP_PHY_INT_)
+@@ -1934,8 +1932,7 @@ static int smsc95xx_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
+ 		unsigned char *packet;
+ 		u16 size;
+ 
+-		memcpy(&header, skb->data, sizeof(header));
+-		le32_to_cpus(&header);
++		header = get_unaligned_le32(skb->data);
+ 		skb_pull(skb, 4 + NET_IP_ALIGN);
+ 		packet = skb->data;
+ 

@@ -1,0 +1,34 @@
+commit 8d64124a6a93ec68fda6f781e48a7b95d9dd17d9
+Author: Al Viro <viro@zeniv.linux.org.uk>
+Date:   Mon Dec 10 15:34:12 2018 -0500
+
+    selinux; don't open-code a loop in sb_finish_set_opts()
+    
+    Reviewed-by: David Howells <dhowells@redhat.com>
+    Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+index 59b164d7134d..630fe8883957 100644
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -571,10 +571,9 @@ static int sb_finish_set_opts(struct super_block *sb)
+ 	   during get_sb by a pseudo filesystem that directly
+ 	   populates itself. */
+ 	spin_lock(&sbsec->isec_lock);
+-next_inode:
+-	if (!list_empty(&sbsec->isec_head)) {
++	while (!list_empty(&sbsec->isec_head)) {
+ 		struct inode_security_struct *isec =
+-				list_entry(sbsec->isec_head.next,
++				list_first_entry(&sbsec->isec_head,
+ 					   struct inode_security_struct, list);
+ 		struct inode *inode = isec->inode;
+ 		list_del_init(&isec->list);
+@@ -586,7 +585,6 @@ static int sb_finish_set_opts(struct super_block *sb)
+ 			iput(inode);
+ 		}
+ 		spin_lock(&sbsec->isec_lock);
+-		goto next_inode;
+ 	}
+ 	spin_unlock(&sbsec->isec_lock);
+ out:

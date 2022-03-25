@@ -1,0 +1,25 @@
+commit 96d26503e1deba5d12e0e4b473336479cc0965af
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Wed Feb 6 00:07:03 2019 +0800
+
+    net: dscc4: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called in dscc4_tx_irq() when skb
+    xmit done. It makes drop profiles(dropwatch, perf) more friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/wan/dscc4.c b/drivers/net/wan/dscc4.c
+index c0b0f525c87c..27decf8ae840 100644
+--- a/drivers/net/wan/dscc4.c
++++ b/drivers/net/wan/dscc4.c
+@@ -1575,7 +1575,7 @@ static void dscc4_tx_irq(struct dscc4_pci_priv *ppriv,
+ 					dev->stats.tx_packets++;
+ 					dev->stats.tx_bytes += skb->len;
+ 				}
+-				dev_kfree_skb_irq(skb);
++				dev_consume_skb_irq(skb);
+ 				dpriv->tx_skbuff[cur] = NULL;
+ 				++dpriv->tx_dirty;
+ 			} else {

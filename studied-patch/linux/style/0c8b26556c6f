@@ -1,0 +1,74 @@
+commit 0c8b26556c6f6abf84bca67ce2c2e010953bba81
+Author: Ben Dooks <ben.dooks@codethink.co.uk>
+Date:   Wed Nov 14 11:50:20 2018 +0000
+
+    usbnet: smsc95xx: simplify tx_fixup code
+    
+    The smsc95xx_tx_fixup is doing multiple calls to skb_push() to
+    put an 8-byte command header onto the packet. It would be easier
+    to do one skb_push() and then copy the data in once the push is
+    done.
+    
+    We also make the code smaller by using proper unaligned puts for
+    the header. This merges in the CPU to LE32 conversion as well and
+    makes the whole sequence easier to understand hopefully.
+    
+    Signed-off-by: Ben Dooks <ben.dooks@codethink.co.uk>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/usb/smsc95xx.c b/drivers/net/usb/smsc95xx.c
+index 6e971628bb50..924ca94d3495 100644
+--- a/drivers/net/usb/smsc95xx.c
++++ b/drivers/net/usb/smsc95xx.c
+@@ -2018,6 +2018,7 @@ static struct sk_buff *smsc95xx_tx_fixup(struct usbnet *dev,
+ 	bool csum = skb->ip_summed == CHECKSUM_PARTIAL;
+ 	int overhead = csum ? SMSC95XX_TX_OVERHEAD_CSUM : SMSC95XX_TX_OVERHEAD;
+ 	u32 tx_cmd_a, tx_cmd_b;
++	void *ptr;
+ 
+ 	/* We do not advertise SG, so skbs should be already linearized */
+ 	BUG_ON(skb_shinfo(skb)->nr_frags);
+@@ -2031,6 +2032,9 @@ static struct sk_buff *smsc95xx_tx_fixup(struct usbnet *dev,
+ 		return NULL;
+ 	}
+ 
++	tx_cmd_b = (u32)skb->len;
++	tx_cmd_a = tx_cmd_b | TX_CMD_A_FIRST_SEG_ | TX_CMD_A_LAST_SEG_;
++
+ 	if (csum) {
+ 		if (skb->len <= 45) {
+ 			/* workaround - hardware tx checksum does not work
+@@ -2044,24 +2048,18 @@ static struct sk_buff *smsc95xx_tx_fixup(struct usbnet *dev,
+ 			csum = false;
+ 		} else {
+ 			u32 csum_preamble = smsc95xx_calc_csum_preamble(skb);
+-			skb_push(skb, 4);
+-			cpu_to_le32s(&csum_preamble);
+-			memcpy(skb->data, &csum_preamble, 4);
++			ptr = skb_push(skb, 4);
++			put_unaligned_le32(csum_preamble, ptr);
++
++			tx_cmd_a += 4;
++			tx_cmd_b += 4;
++			tx_cmd_b |= TX_CMD_B_CSUM_ENABLE;
+ 		}
+ 	}
+ 
+-	skb_push(skb, 4);
+-	tx_cmd_b = (u32)(skb->len - 4);
+-	if (csum)
+-		tx_cmd_b |= TX_CMD_B_CSUM_ENABLE;
+-	cpu_to_le32s(&tx_cmd_b);
+-	memcpy(skb->data, &tx_cmd_b, 4);
+-
+-	skb_push(skb, 4);
+-	tx_cmd_a = (u32)(skb->len - 8) | TX_CMD_A_FIRST_SEG_ |
+-		TX_CMD_A_LAST_SEG_;
+-	cpu_to_le32s(&tx_cmd_a);
+-	memcpy(skb->data, &tx_cmd_a, 4);
++	ptr = skb_push(skb, 8);
++	put_unaligned_le32(tx_cmd_a, ptr);
++	put_unaligned_le32(tx_cmd_b, ptr+4);
+ 
+ 	return skb;
+ }

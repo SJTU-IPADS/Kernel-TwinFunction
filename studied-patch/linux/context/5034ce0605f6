@@ -1,0 +1,45 @@
+commit 5034ce0605f65576665932dd47c6db120fc97848
+Author: Songjun Wu <songjun.wu@linux.intel.com>
+Date:   Tue Oct 16 17:19:09 2018 +0800
+
+    serial: lantiq: Replace clk_enable/clk_disable with clk generic API
+    
+    The clk driver has introduced new clock APIs that replace
+    the existing clk_enable and clk_disable.
+    - clk_enable() APIs is replaced with clk_prepare_enable()
+    - clk_disable() API is replaced with clk_disable_unprepare()
+    
+    Signed-off-by: Songjun Wu <songjun.wu@linux.intel.com>
+    Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+diff --git a/drivers/tty/serial/lantiq.c b/drivers/tty/serial/lantiq.c
+index 4acdbdf8fe7a..34b1ef3c12ce 100644
+--- a/drivers/tty/serial/lantiq.c
++++ b/drivers/tty/serial/lantiq.c
+@@ -308,7 +308,7 @@ lqasc_startup(struct uart_port *port)
+ 	int retval;
+ 
+ 	if (!IS_ERR(ltq_port->clk))
+-		clk_enable(ltq_port->clk);
++		clk_prepare_enable(ltq_port->clk);
+ 	port->uartclk = clk_get_rate(ltq_port->freqclk);
+ 
+ 	asc_update_bits(ASCCLC_DISS | ASCCLC_RMCMASK, (1 << ASCCLC_RMCOFFSET),
+@@ -376,7 +376,7 @@ lqasc_shutdown(struct uart_port *port)
+ 	asc_update_bits(ASCTXFCON_TXFEN, ASCTXFCON_TXFFLU,
+ 		port->membase + LTQ_ASC_TXFCON);
+ 	if (!IS_ERR(ltq_port->clk))
+-		clk_disable(ltq_port->clk);
++		clk_disable_unprepare(ltq_port->clk);
+ }
+ 
+ static void
+@@ -630,7 +630,7 @@ lqasc_console_setup(struct console *co, char *options)
+ 	port = &ltq_port->port;
+ 
+ 	if (!IS_ERR(ltq_port->clk))
+-		clk_enable(ltq_port->clk);
++		clk_prepare_enable(ltq_port->clk);
+ 
+ 	port->uartclk = clk_get_rate(ltq_port->freqclk);
+ 

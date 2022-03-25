@@ -1,0 +1,38 @@
+commit a4833c6059afb37763f9d502915e211b13e393e4
+Author: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Date:   Sun Oct 21 22:00:28 2018 +0200
+
+    pinctrl: cherryview: simplify getting .driver_data
+    
+    We should get 'driver_data' from 'struct device' directly. Going via
+    platform_device is an unneeded step back and forth.
+    
+    Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+    Acked-by: Mika Westerberg <mika.westerberg@linux.intel.com>
+    Acked-by: Linus Walleij <linus.walleij@linaro.org>
+    Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+
+diff --git a/drivers/pinctrl/intel/pinctrl-cherryview.c b/drivers/pinctrl/intel/pinctrl-cherryview.c
+index 9b0f4b9ef482..f685abef68c3 100644
+--- a/drivers/pinctrl/intel/pinctrl-cherryview.c
++++ b/drivers/pinctrl/intel/pinctrl-cherryview.c
+@@ -1744,8 +1744,7 @@ static int chv_pinctrl_remove(struct platform_device *pdev)
+ #ifdef CONFIG_PM_SLEEP
+ static int chv_pinctrl_suspend_noirq(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct chv_pinctrl *pctrl = platform_get_drvdata(pdev);
++	struct chv_pinctrl *pctrl = dev_get_drvdata(dev);
+ 	unsigned long flags;
+ 	int i;
+ 
+@@ -1778,8 +1777,7 @@ static int chv_pinctrl_suspend_noirq(struct device *dev)
+ 
+ static int chv_pinctrl_resume_noirq(struct device *dev)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct chv_pinctrl *pctrl = platform_get_drvdata(pdev);
++	struct chv_pinctrl *pctrl = dev_get_drvdata(dev);
+ 	unsigned long flags;
+ 	int i;
+ 

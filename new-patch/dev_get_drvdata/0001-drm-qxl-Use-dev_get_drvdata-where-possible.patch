@@ -1,0 +1,39 @@
+From 4690f6200478962789b3c1d99b6368cd971223ca Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 18:30:18 +0800
+Subject: [PATCH] drm/qxl: Use dev_get_drvdata where possible
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/gpu/drm/qxl/qxl_drv.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/qxl/qxl_drv.c b/drivers/gpu/drm/qxl/qxl_drv.c
+index f33e349c4ec5..af1e2b377945 100644
+--- a/drivers/gpu/drm/qxl/qxl_drv.c
++++ b/drivers/gpu/drm/qxl/qxl_drv.c
+@@ -206,16 +206,14 @@ static int qxl_pm_resume(struct device *dev)
+ 
+ static int qxl_pm_thaw(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
+ 
+ 	return qxl_drm_resume(drm_dev, true);
+ }
+ 
+ static int qxl_pm_freeze(struct device *dev)
+ {
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-	struct drm_device *drm_dev = pci_get_drvdata(pdev);
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
+ 
+ 	return qxl_drm_freeze(drm_dev);
+ }
+-- 
+2.20.1
+

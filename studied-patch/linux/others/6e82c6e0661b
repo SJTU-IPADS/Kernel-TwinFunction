@@ -1,0 +1,60 @@
+commit 6e82c6e0661befbe2f926863586597236ca617af
+Author: Christian König <christian.koenig@amd.com>
+Date:   Tue Oct 30 13:16:28 2018 +0100
+
+    drm/amdgpu: drop the remaining uses of ring idx in messages
+    
+    Consistently use the ring name instead.
+    
+    Signed-off-by: Christian König <christian.koenig@amd.com>
+    Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+    Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
+index 5448cf27654e..ee47c11e92ce 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
+@@ -398,9 +398,9 @@ int amdgpu_fence_driver_start_ring(struct amdgpu_ring *ring,
+ 	ring->fence_drv.irq_type = irq_type;
+ 	ring->fence_drv.initialized = true;
+ 
+-	dev_dbg(adev->dev, "fence driver on ring %d use gpu addr 0x%016llx, "
+-		"cpu addr 0x%p\n", ring->idx,
+-		ring->fence_drv.gpu_addr, ring->fence_drv.cpu_addr);
++	DRM_DEV_DEBUG(adev->dev, "fence driver on ring %s use gpu addr "
++		      "0x%016llx, cpu addr 0x%p\n", ring->name,
++		      ring->fence_drv.gpu_addr, ring->fence_drv.cpu_addr);
+ 	return 0;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index fcb370cfa1e7..100f23b5e22f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -1620,8 +1620,8 @@ static int gfx_v9_0_ngg_en(struct amdgpu_device *adev)
+ 	/* Clear GDS reserved memory */
+ 	r = amdgpu_ring_alloc(ring, 17);
+ 	if (r) {
+-		DRM_ERROR("amdgpu: NGG failed to lock ring %d (%d).\n",
+-			  ring->idx, r);
++		DRM_ERROR("amdgpu: NGG failed to lock ring %s (%d).\n",
++			  ring->name, r);
+ 		return r;
+ 	}
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index a7e61c6de71c..6cedf7ebf036 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -739,9 +739,8 @@ static int gmc_v9_0_late_init(void *handle)
+ 		unsigned vmhub = ring->funcs->vmhub;
+ 
+ 		ring->vm_inv_eng = vm_inv_eng[vmhub]++;
+-		dev_info(adev->dev, "ring %u(%s) uses VM inv eng %u on hub %u\n",
+-			 ring->idx, ring->name, ring->vm_inv_eng,
+-			 ring->funcs->vmhub);
++		dev_info(adev->dev, "ring %s uses VM inv eng %u on hub %u\n",
++			 ring->name, ring->vm_inv_eng, ring->funcs->vmhub);
+ 	}
+ 
+ 	/* Engine 16 is used for KFD and 17 for GART flushes */

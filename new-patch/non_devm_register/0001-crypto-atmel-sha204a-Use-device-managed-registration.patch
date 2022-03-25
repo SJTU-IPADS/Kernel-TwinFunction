@@ -1,0 +1,37 @@
+From 5a72619e664f68c1b7c5773a4a7b20cd5e73a887 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 15:06:50 +0800
+Subject: [PATCH] crypto: atmel-sha204a: Use device-managed registration API
+
+Use devm_hwrng_register to get rid of manual
+unregistration.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/crypto/atmel-sha204a.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/crypto/atmel-sha204a.c b/drivers/crypto/atmel-sha204a.c
+index ea0d2068ea4f..c96c14e7dab1 100644
+--- a/drivers/crypto/atmel-sha204a.c
++++ b/drivers/crypto/atmel-sha204a.c
+@@ -109,7 +109,7 @@ static int atmel_sha204a_probe(struct i2c_client *client,
+ 	i2c_priv->hwrng.read = atmel_sha204a_rng_read;
+ 	i2c_priv->hwrng.quality = 1024;
+ 
+-	ret = hwrng_register(&i2c_priv->hwrng);
++	ret = devm_hwrng_register(&client->dev, &i2c_priv->hwrng);
+ 	if (ret)
+ 		dev_warn(&client->dev, "failed to register RNG (%d)\n", ret);
+ 
+@@ -127,7 +127,6 @@ static int atmel_sha204a_remove(struct i2c_client *client)
+ 
+ 	if (i2c_priv->hwrng.priv)
+ 		kfree((void *)i2c_priv->hwrng.priv);
+-	hwrng_unregister(&i2c_priv->hwrng);
+ 
+ 	return 0;
+ }
+-- 
+2.20.1
+

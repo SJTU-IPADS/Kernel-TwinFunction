@@ -1,0 +1,39 @@
+commit a1c64456d5ecd840ad9ac697501f01503909dc4c
+Author: markj <markj@FreeBSD.org>
+Date:   Sun Apr 1 16:43:30 2018 +0000
+
+    MFC r324102 (by cem):
+    netsmb: Fix buggy/racy smb_strdupin()
+    
+    PR:     222687
+
+diff --git a/sys/netsmb/smb_subr.c b/sys/netsmb/smb_subr.c
+index 2992f994b17..c4b97308d61 100644
+--- a/sys/netsmb/smb_subr.c
++++ b/sys/netsmb/smb_subr.c
+@@ -110,22 +110,11 @@ smb_strdup(const char *s)
+ char *
+ smb_strdupin(char *s, size_t maxlen)
+ {
+-	char *p, bt;
++	char *p;
+ 	int error;
+-	size_t len;
+ 
+-	len = 0;
+-	for (p = s; ;p++) {
+-		if (copyin(p, &bt, 1))
+-			return NULL;
+-		len++;
+-		if (maxlen && len > maxlen)
+-			return NULL;
+-		if (bt == 0)
+-			break;
+-	}
+-	p = malloc(len, M_SMBSTR, M_WAITOK);
+-	error = copyin(s, p, len);
++	p = malloc(maxlen + 1, M_SMBSTR, M_WAITOK);
++	error = copyinstr(s, p, maxlen + 1, NULL);
+ 	if (error) {
+ 		free(p, M_SMBSTR);
+ 		return (NULL);

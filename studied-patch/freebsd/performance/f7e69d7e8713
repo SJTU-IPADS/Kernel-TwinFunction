@@ -1,0 +1,100 @@
+commit f7e69d7e8713a360f9c0236a4ecce2e425fc52be
+Author: hselasky <hselasky@FreeBSD.org>
+Date:   Fri Mar 30 18:55:13 2018 +0000
+
+    MFC r331437:
+    Create designated workqueue for each mlx5en(4) device instance.
+    
+    The mlx5e_destroy_ifp() function may be called from the system workqueue and
+    in this case trying to flush all works will cause a dead lock.
+    Instead of using the system workqueue, create a designated workqueue
+    for each mlx5en(4) device instance.
+    
+    Submitted by:   slavash@
+    Sponsored by:   Mellanox Technologies
+
+diff --git a/sys/dev/mlx5/mlx5_en/en.h b/sys/dev/mlx5/mlx5_en/en.h
+index 49c626ac483..21ae15f7119 100644
+--- a/sys/dev/mlx5/mlx5_en/en.h
++++ b/sys/dev/mlx5/mlx5_en/en.h
+@@ -759,6 +759,8 @@ struct mlx5e_priv {
+ 	struct mlx5e_stats stats;
+ 	int	counter_set_id;
+ 
++	struct workqueue_struct *wq;
++
+ 	eventhandler_tag vlan_detach;
+ 	eventhandler_tag vlan_attach;
+ 	struct ifmedia media;
+diff --git a/sys/dev/mlx5/mlx5_en/mlx5_en_main.c b/sys/dev/mlx5/mlx5_en/mlx5_en_main.c
+index 33e62b430f2..dc131c1b33f 100644
+--- a/sys/dev/mlx5/mlx5_en/mlx5_en_main.c
++++ b/sys/dev/mlx5/mlx5_en/mlx5_en_main.c
+@@ -640,7 +640,7 @@ mlx5e_update_stats(void *arg)
+ {
+ 	struct mlx5e_priv *priv = arg;
+ 
+-	schedule_work(&priv->update_stats_work);
++	queue_work(priv->wq, &priv->update_stats_work);
+ 
+ 	callout_reset(&priv->watchdog, hz, &mlx5e_update_stats, priv);
+ }
+@@ -652,7 +652,7 @@ mlx5e_async_event_sub(struct mlx5e_priv *priv,
+ 	switch (event) {
+ 	case MLX5_DEV_EVENT_PORT_UP:
+ 	case MLX5_DEV_EVENT_PORT_DOWN:
+-		schedule_work(&priv->update_carrier_work);
++		queue_work(priv->wq, &priv->update_carrier_work);
+ 		break;
+ 
+ 	default:
+@@ -2585,7 +2585,7 @@ mlx5e_set_rx_mode(struct ifnet *ifp)
+ {
+ 	struct mlx5e_priv *priv = ifp->if_softc;
+ 
+-	schedule_work(&priv->set_rx_mode_work);
++	queue_work(priv->wq, &priv->set_rx_mode_work);
+ }
+ 
+ static int
+@@ -3425,11 +3425,20 @@ mlx5e_create_ifp(struct mlx5_core_dev *mdev)
+ 		goto err_free_sysctl;
+ 	}
+ 	mlx5e_build_ifp_priv(mdev, priv, ncv);
++
++	snprintf(unit, sizeof(unit), "mce%u_wq",
++	    device_get_unit(mdev->pdev->dev.bsddev));
++	priv->wq = alloc_workqueue(unit, 0, 1);
++	if (priv->wq == NULL) {
++		if_printf(ifp, "%s: alloc_workqueue failed\n", __func__);
++		goto err_free_sysctl;
++	}
++
+ 	err = mlx5_alloc_map_uar(mdev, &priv->cq_uar);
+ 	if (err) {
+ 		if_printf(ifp, "%s: mlx5_alloc_map_uar failed, %d\n",
+ 		    __func__, err);
+-		goto err_free_sysctl;
++		goto err_free_wq;
+ 	}
+ 	err = mlx5_core_alloc_pd(mdev, &priv->pdn);
+ 	if (err) {
+@@ -3544,6 +3553,9 @@ mlx5e_create_ifp(struct mlx5_core_dev *mdev)
+ err_unmap_free_uar:
+ 	mlx5_unmap_free_uar(mdev, &priv->cq_uar);
+ 
++err_free_wq:
++	destroy_workqueue(priv->wq);
++
+ err_free_sysctl:
+ 	sysctl_ctx_free(&priv->sysctl_ctx);
+ 
+@@ -3604,7 +3616,7 @@ mlx5e_destroy_ifp(struct mlx5_core_dev *mdev, void *vpriv)
+ 	mlx5_core_dealloc_pd(priv->mdev, priv->pdn);
+ 	mlx5_unmap_free_uar(priv->mdev, &priv->cq_uar);
+ 	mlx5e_disable_async_events(priv);
+-	flush_scheduled_work();
++	destroy_workqueue(priv->wq);
+ 	mlx5e_priv_mtx_destroy(priv);
+ 	free(priv, M_MLX5EN);
+ }

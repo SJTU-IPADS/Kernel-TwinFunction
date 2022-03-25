@@ -1,0 +1,29 @@
+commit a49b767ec00701e78a120c8d4dcf2c4f07ca9946
+Author: markj <markj@FreeBSD.org>
+Date:   Wed Mar 28 14:00:46 2018 +0000
+
+    MFC r331536:
+    Use LIST_FOREACH_SAFE in sleepq_chains_remove_matching().
+
+diff --git a/sys/kern/subr_sleepqueue.c b/sys/kern/subr_sleepqueue.c
+index 0b93767c3cf..c98530ca18a 100644
+--- a/sys/kern/subr_sleepqueue.c
++++ b/sys/kern/subr_sleepqueue.c
+@@ -1098,7 +1098,7 @@ void
+ sleepq_chains_remove_matching(bool (*matches)(struct thread *))
+ {
+ 	struct sleepqueue_chain *sc;
+-	struct sleepqueue *sq;
++	struct sleepqueue *sq, *sq1;
+ 	int i, wakeup_swapper;
+ 
+ 	wakeup_swapper = 0;
+@@ -1107,7 +1107,7 @@ sleepq_chains_remove_matching(bool (*matches)(struct thread *))
+ 			continue;
+ 		}
+ 		mtx_lock_spin(&sc->sc_lock);
+-		LIST_FOREACH(sq, &sc->sc_queues, sq_hash) {
++		LIST_FOREACH_SAFE(sq, &sc->sc_queues, sq_hash, sq1) {
+ 			for (i = 0; i < NR_SLEEPQS; ++i) {
+ 				wakeup_swapper |= sleepq_remove_matching(sq, i,
+ 				    matches, 0);

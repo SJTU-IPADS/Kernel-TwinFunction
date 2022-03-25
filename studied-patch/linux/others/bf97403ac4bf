@@ -1,0 +1,25 @@
+commit bf97403ac4bfbc9f9f92f47e737aee983d9191f5
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Thu Jan 17 23:30:03 2019 +0800
+
+    macvlan: replace kfree_skb by consume_skb for drop profiles
+    
+    Replace the kfree_skb() by consume_skb() to be drop monitor(dropwatch,
+    perf) friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/macvlan.c b/drivers/net/macvlan.c
+index fc726ce4c164..6d067176320f 100644
+--- a/drivers/net/macvlan.c
++++ b/drivers/net/macvlan.c
+@@ -337,7 +337,7 @@ static void macvlan_process_broadcast(struct work_struct *w)
+ 
+ 		if (src)
+ 			dev_put(src->dev);
+-		kfree_skb(skb);
++		consume_skb(skb);
+ 	}
+ }
+ 

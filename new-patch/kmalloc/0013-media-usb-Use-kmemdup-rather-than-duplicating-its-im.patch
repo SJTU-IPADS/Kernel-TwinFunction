@@ -1,0 +1,61 @@
+From 6ccd5ed18cf3e9c7f6fd171826a40053758f996e Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Wed, 3 Jul 2019 23:31:40 +0800
+Subject: [PATCH v2 13/35] media/usb: Use kmemdup rather than duplicating its
+ implementation
+
+kmemdup is introduced to duplicate a region of memory in a neat way.
+Rather than kmalloc/kzalloc + memcpy, which the programmer needs to
+write the size twice (sometimes lead to mistakes), kmemdup improves
+readability, leads to smaller code and also reduce the chances of mistakes.
+Suggestion to use kmemdup rather than using kmalloc/kzalloc + memcpy.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Fix a typo in commit message (memset -> memcpy)
+
+ drivers/media/usb/em28xx/em28xx-cards.c | 3 +--
+ drivers/media/usb/zr364xx/zr364xx.c     | 4 +---
+ 2 files changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/media/usb/em28xx/em28xx-cards.c b/drivers/media/usb/em28xx/em28xx-cards.c
+index 1283c7ca9ad5..6e33782c3ca6 100644
+--- a/drivers/media/usb/em28xx/em28xx-cards.c
++++ b/drivers/media/usb/em28xx/em28xx-cards.c
+@@ -3566,13 +3566,12 @@ static int em28xx_init_dev(struct em28xx *dev, struct usb_device *udev,
+ static int em28xx_duplicate_dev(struct em28xx *dev)
+ {
+ 	int nr;
+-	struct em28xx *sec_dev = kzalloc(sizeof(*sec_dev), GFP_KERNEL);
++	struct em28xx *sec_dev = kmemdup(dev, sizeof(*sec_dev), GFP_KERNEL);
+ 
+ 	if (!sec_dev) {
+ 		dev->dev_next = NULL;
+ 		return -ENOMEM;
+ 	}
+-	memcpy(sec_dev, dev, sizeof(*sec_dev));
+ 	/* Check to see next free device and mark as used */
+ 	do {
+ 		nr = find_first_zero_bit(em28xx_devused, EM28XX_MAXBOARDS);
+diff --git a/drivers/media/usb/zr364xx/zr364xx.c b/drivers/media/usb/zr364xx/zr364xx.c
+index 37a7992585df..39df6bfece2c 100644
+--- a/drivers/media/usb/zr364xx/zr364xx.c
++++ b/drivers/media/usb/zr364xx/zr364xx.c
+@@ -199,12 +199,10 @@ static int send_control_msg(struct usb_device *udev, u8 request, u16 value,
+ {
+ 	int status;
+ 
+-	unsigned char *transfer_buffer = kmalloc(size, GFP_KERNEL);
++	unsigned char *transfer_buffer = kmemdup(cp, size, GFP_KERNEL);
+ 	if (!transfer_buffer)
+ 		return -ENOMEM;
+ 
+-	memcpy(transfer_buffer, cp, size);
+-
+ 	status = usb_control_msg(udev,
+ 				 usb_sndctrlpipe(udev, 0),
+ 				 request,
+-- 
+2.11.0
+

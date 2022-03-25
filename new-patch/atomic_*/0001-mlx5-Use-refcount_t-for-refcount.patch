@@ -1,0 +1,107 @@
+From a1ad88dbb5250e42a7f90645242997e97de9f76d Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 6 Aug 2019 09:40:59 +0800
+Subject: [PATCH v3] mlx5: Use refcount_t for refcount
+
+Reference counters are preferred to use refcount_t instead of
+atomic_t.
+This is because the implementation of refcount_t can prevent
+overflows and detect possible use-after-free.
+So convert atomic_t ref counters to refcount_t.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v3:
+  - Merge v2 patches together.
+
+ drivers/infiniband/hw/mlx5/srq_cmd.c         | 6 +++---
+ drivers/net/ethernet/mellanox/mlx5/core/qp.c | 6 +++---
+ include/linux/mlx5/driver.h                  | 3 ++-
+ 3 files changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/infiniband/hw/mlx5/srq_cmd.c b/drivers/infiniband/hw/mlx5/srq_cmd.c
+index b0d0687c7a68..8fc3630a9d4c 100644
+--- a/drivers/infiniband/hw/mlx5/srq_cmd.c
++++ b/drivers/infiniband/hw/mlx5/srq_cmd.c
+@@ -86,7 +86,7 @@ struct mlx5_core_srq *mlx5_cmd_get_srq(struct mlx5_ib_dev *dev, u32 srqn)
+ 	xa_lock(&table->array);
+ 	srq = xa_load(&table->array, srqn);
+ 	if (srq)
+-		atomic_inc(&srq->common.refcount);
++		refcount_inc(&srq->common.refcount);
+ 	xa_unlock(&table->array);
+ 
+ 	return srq;
+@@ -592,7 +592,7 @@ int mlx5_cmd_create_srq(struct mlx5_ib_dev *dev, struct mlx5_core_srq *srq,
+ 	if (err)
+ 		return err;
+ 
+-	atomic_set(&srq->common.refcount, 1);
++	refcount_set(&srq->common.refcount, 1);
+ 	init_completion(&srq->common.free);
+ 
+ 	err = xa_err(xa_store_irq(&table->array, srq->srqn, srq, GFP_KERNEL));
+@@ -675,7 +675,7 @@ static int srq_event_notifier(struct notifier_block *nb,
+ 	xa_lock(&table->array);
+ 	srq = xa_load(&table->array, srqn);
+ 	if (srq)
+-		atomic_inc(&srq->common.refcount);
++		refcount_inc(&srq->common.refcount);
+ 	xa_unlock(&table->array);
+ 
+ 	if (!srq)
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/qp.c b/drivers/net/ethernet/mellanox/mlx5/core/qp.c
+index b8ba74de9555..7b44d1e49604 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/qp.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/qp.c
+@@ -53,7 +53,7 @@ mlx5_get_rsc(struct mlx5_qp_table *table, u32 rsn)
+ 
+ 	common = radix_tree_lookup(&table->tree, rsn);
+ 	if (common)
+-		atomic_inc(&common->refcount);
++		refcount_inc(&common->refcount);
+ 
+ 	spin_unlock_irqrestore(&table->lock, flags);
+ 
+@@ -62,7 +62,7 @@ mlx5_get_rsc(struct mlx5_qp_table *table, u32 rsn)
+ 
+ void mlx5_core_put_rsc(struct mlx5_core_rsc_common *common)
+ {
+-	if (atomic_dec_and_test(&common->refcount))
++	if (refcount_dec_and_test(&common->refcount))
+ 		complete(&common->free);
+ }
+ 
+@@ -209,7 +209,7 @@ static int create_resource_common(struct mlx5_core_dev *dev,
+ 	if (err)
+ 		return err;
+ 
+-	atomic_set(&qp->common.refcount, 1);
++	refcount_set(&qp->common.refcount, 1);
+ 	init_completion(&qp->common.free);
+ 	qp->pid = current->pid;
+ 
+diff --git a/include/linux/mlx5/driver.h b/include/linux/mlx5/driver.h
+index 0e6da1840c7d..5b56f343ce87 100644
+--- a/include/linux/mlx5/driver.h
++++ b/include/linux/mlx5/driver.h
+@@ -47,6 +47,7 @@
+ #include <linux/interrupt.h>
+ #include <linux/idr.h>
+ #include <linux/notifier.h>
++#include <linux/refcount.h>
+ 
+ #include <linux/mlx5/device.h>
+ #include <linux/mlx5/doorbell.h>
+@@ -398,7 +399,7 @@ enum mlx5_res_type {
+ 
+ struct mlx5_core_rsc_common {
+ 	enum mlx5_res_type	res;
+-	atomic_t		refcount;
++	refcount_t		refcount;
+ 	struct completion	free;
+ };
+ 
+-- 
+2.20.1
+

@@ -1,0 +1,35 @@
+commit 0cafc12ab9cc163e6078db8ec978c200a632e88e
+Author: Thierry Reding <treding@nvidia.com>
+Date:   Thu Dec 20 18:19:47 2018 +0100
+
+    mailbox: bcm-flexrm: Use device-managed registration API
+    
+    Get rid of some boilerplate driver removal code by using the newly added
+    device-managed registration API.
+    
+    Signed-off-by: Thierry Reding <treding@nvidia.com>
+    Acked-by: Scott Branden <scott.branden@broadcom.com>
+    Signed-off-by: Jassi Brar <jaswinder.singh@linaro.org>
+
+diff --git a/drivers/mailbox/bcm-flexrm-mailbox.c b/drivers/mailbox/bcm-flexrm-mailbox.c
+index d7a8ed7d8097..d713271ebf7c 100644
+--- a/drivers/mailbox/bcm-flexrm-mailbox.c
++++ b/drivers/mailbox/bcm-flexrm-mailbox.c
+@@ -1665,7 +1665,7 @@ static int flexrm_mbox_probe(struct platform_device *pdev)
+ 		mbox->controller.chans[index].con_priv = &mbox->rings[index];
+ 
+ 	/* Register mailbox controller */
+-	ret = mbox_controller_register(&mbox->controller);
++	ret = devm_mbox_controller_register(dev, &mbox->controller);
+ 	if (ret)
+ 		goto fail_free_debugfs_root;
+ 
+@@ -1691,8 +1691,6 @@ static int flexrm_mbox_remove(struct platform_device *pdev)
+ 	struct device *dev = &pdev->dev;
+ 	struct flexrm_mbox *mbox = platform_get_drvdata(pdev);
+ 
+-	mbox_controller_unregister(&mbox->controller);
+-
+ 	debugfs_remove_recursive(mbox->root);
+ 
+ 	platform_msi_domain_free_irqs(dev);

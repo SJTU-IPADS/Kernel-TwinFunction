@@ -1,0 +1,25 @@
+commit f4ad1a6154e305dbcde20395a6961658d1ce032b
+Author: Yang Wei <yang.wei9@zte.com.cn>
+Date:   Wed Feb 6 00:21:31 2019 +0800
+
+    net: tehuti: replace dev_kfree_skb_irq by dev_consume_skb_irq for drop profiles
+    
+    dev_consume_skb_irq() should be called in bdx_tx_cleanup() when skb
+    xmit done. It makes drop profiles(dropwatch, perf) more friendly.
+    
+    Signed-off-by: Yang Wei <yang.wei9@zte.com.cn>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+diff --git a/drivers/net/ethernet/tehuti/tehuti.c b/drivers/net/ethernet/tehuti/tehuti.c
+index dc966ddb6d81..b24c11187017 100644
+--- a/drivers/net/ethernet/tehuti/tehuti.c
++++ b/drivers/net/ethernet/tehuti/tehuti.c
+@@ -1739,7 +1739,7 @@ static void bdx_tx_cleanup(struct bdx_priv *priv)
+ 		tx_level -= db->rptr->len;	/* '-' koz len is negative */
+ 
+ 		/* now should come skb pointer - free it */
+-		dev_kfree_skb_irq(db->rptr->addr.skb);
++		dev_consume_skb_irq(db->rptr->addr.skb);
+ 		bdx_tx_db_inc_rptr(db);
+ 	}
+ 

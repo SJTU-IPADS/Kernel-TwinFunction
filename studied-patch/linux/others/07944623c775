@@ -1,0 +1,57 @@
+commit 07944623c775a3ef2b85beab769a4e68b2bed979
+Author: Emily Deng <Emily.Deng@amd.com>
+Date:   Wed Dec 12 17:00:13 2018 +0800
+
+    drm/amdgpu: access register without KIQ
+    
+    There is no need to access register such as mmSMC_IND_INDEX_11
+    and mmSMC_IND_DATA_11, PCIE_INDEX, PCIE_DATA through KIQ because
+    they are VF-copy.
+    
+    Signed-off-by: Emily Deng <Emily.Deng@amd.com>
+    Acked-by: Christian König <christian.koenig@amd.com>
+    Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vi.c b/drivers/gpu/drm/amd/amdgpu/vi.c
+index ff2906c215fa..77e367459101 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vi.c
++++ b/drivers/gpu/drm/amd/amdgpu/vi.c
+@@ -87,9 +87,9 @@ static u32 vi_pcie_rreg(struct amdgpu_device *adev, u32 reg)
+ 	u32 r;
+ 
+ 	spin_lock_irqsave(&adev->pcie_idx_lock, flags);
+-	WREG32(mmPCIE_INDEX, reg);
+-	(void)RREG32(mmPCIE_INDEX);
+-	r = RREG32(mmPCIE_DATA);
++	WREG32_NO_KIQ(mmPCIE_INDEX, reg);
++	(void)RREG32_NO_KIQ(mmPCIE_INDEX);
++	r = RREG32_NO_KIQ(mmPCIE_DATA);
+ 	spin_unlock_irqrestore(&adev->pcie_idx_lock, flags);
+ 	return r;
+ }
+@@ -99,10 +99,10 @@ static void vi_pcie_wreg(struct amdgpu_device *adev, u32 reg, u32 v)
+ 	unsigned long flags;
+ 
+ 	spin_lock_irqsave(&adev->pcie_idx_lock, flags);
+-	WREG32(mmPCIE_INDEX, reg);
+-	(void)RREG32(mmPCIE_INDEX);
+-	WREG32(mmPCIE_DATA, v);
+-	(void)RREG32(mmPCIE_DATA);
++	WREG32_NO_KIQ(mmPCIE_INDEX, reg);
++	(void)RREG32_NO_KIQ(mmPCIE_INDEX);
++	WREG32_NO_KIQ(mmPCIE_DATA, v);
++	(void)RREG32_NO_KIQ(mmPCIE_DATA);
+ 	spin_unlock_irqrestore(&adev->pcie_idx_lock, flags);
+ }
+ 
+@@ -123,8 +123,8 @@ static void vi_smc_wreg(struct amdgpu_device *adev, u32 reg, u32 v)
+ 	unsigned long flags;
+ 
+ 	spin_lock_irqsave(&adev->smc_idx_lock, flags);
+-	WREG32(mmSMC_IND_INDEX_11, (reg));
+-	WREG32(mmSMC_IND_DATA_11, (v));
++	WREG32_NO_KIQ(mmSMC_IND_INDEX_11, (reg));
++	WREG32_NO_KIQ(mmSMC_IND_DATA_11, (v));
+ 	spin_unlock_irqrestore(&adev->smc_idx_lock, flags);
+ }
+ 

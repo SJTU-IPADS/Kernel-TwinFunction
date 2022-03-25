@@ -1,0 +1,47 @@
+commit fe76fc6aaf538df27708ffa3e5d549a6c8e16142
+Author: Ming Lei <ming.lei@redhat.com>
+Date:   Tue Jan 15 11:59:52 2019 +0800
+
+    sbitmap: Protect swap_lock from hardirq
+    
+    Because we may call blk_mq_get_driver_tag() directly from
+    blk_mq_dispatch_rq_list() without holding any lock, then HARDIRQ may
+    come and the above DEADLOCK is triggered.
+    
+    Commit ab53dcfb3e7b ("sbitmap: Protect swap_lock from hardirq") tries to
+    fix this issue by using 'spin_lock_bh', which isn't enough because we
+    complete request from hardirq context direclty in case of multiqueue.
+    
+    Cc: Clark Williams <williams@redhat.com>
+    Fixes: ab53dcfb3e7b ("sbitmap: Protect swap_lock from hardirq")
+    Cc: Jens Axboe <axboe@kernel.dk>
+    Cc: Ming Lei <ming.lei@redhat.com>
+    Cc: Guenter Roeck <linux@roeck-us.net>
+    Cc: Steven Rostedt (VMware) <rostedt@goodmis.org>
+    Signed-off-by: Ming Lei <ming.lei@redhat.com>
+    Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+
+diff --git a/lib/sbitmap.c b/lib/sbitmap.c
+index 864354000e04..5b382c1244ed 100644
+--- a/lib/sbitmap.c
++++ b/lib/sbitmap.c
+@@ -27,8 +27,9 @@ static inline bool sbitmap_deferred_clear(struct sbitmap *sb, int index)
+ {
+ 	unsigned long mask, val;
+ 	bool ret = false;
++	unsigned long flags;
+ 
+-	spin_lock_bh(&sb->map[index].swap_lock);
++	spin_lock_irqsave(&sb->map[index].swap_lock, flags);
+ 
+ 	if (!sb->map[index].cleared)
+ 		goto out_unlock;
+@@ -49,7 +50,7 @@ static inline bool sbitmap_deferred_clear(struct sbitmap *sb, int index)
+ 
+ 	ret = true;
+ out_unlock:
+-	spin_unlock_bh(&sb->map[index].swap_lock);
++	spin_unlock_irqrestore(&sb->map[index].swap_lock, flags);
+ 	return ret;
+ }
+ 

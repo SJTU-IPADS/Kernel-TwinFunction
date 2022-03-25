@@ -1,0 +1,36 @@
+commit b9117149fefdcdc6fcd12a14a26d71979582c057
+Author: Paulo Zanoni <paulo.r.zanoni@intel.com>
+Date:   Thu Oct 4 16:16:00 2018 -0700
+
+    drm/i915: promote ddb update message to DRM_DEBUG_KMS
+    
+    This message is currently marked as DRM_DEBUG_ATOMIC. I would like it
+    to be DRM_DEBUG_KMS since it is more KMS than atomic, and this will
+    also make the message appear in the CI logs, which may or may not help
+    us with some FIFO underrun bugs.
+    
+    Reviewed-by: Matt Roper <matthew.d.roper@intel.com>
+    Signed-off-by: Paulo Zanoni <paulo.r.zanoni@intel.com>
+    Link: https://patchwork.freedesktop.org/patch/msgid/20181004231600.14101-7-paulo.r.zanoni@intel.com
+
+diff --git a/drivers/gpu/drm/i915/intel_pm.c b/drivers/gpu/drm/i915/intel_pm.c
+index e76a1398b74f..fa5c48778a80 100644
+--- a/drivers/gpu/drm/i915/intel_pm.c
++++ b/drivers/gpu/drm/i915/intel_pm.c
+@@ -5230,11 +5230,11 @@ skl_print_wm_changes(const struct drm_atomic_state *state)
+ 			if (skl_ddb_entry_equal(old, new))
+ 				continue;
+ 
+-			DRM_DEBUG_ATOMIC("[PLANE:%d:%s] ddb (%d - %d) -> (%d - %d)\n",
+-					 intel_plane->base.base.id,
+-					 intel_plane->base.name,
+-					 old->start, old->end,
+-					 new->start, new->end);
++			DRM_DEBUG_KMS("[PLANE:%d:%s] ddb (%d - %d) -> (%d - %d)\n",
++				      intel_plane->base.base.id,
++				      intel_plane->base.name,
++				      old->start, old->end,
++				      new->start, new->end);
+ 		}
+ 	}
+ }

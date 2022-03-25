@@ -1,0 +1,29 @@
+commit a81dc018b1ce5129b875d61e0713915945bf8123
+Author: kib <kib@FreeBSD.org>
+Date:   Tue Dec 26 09:55:36 2017 +0000
+
+    MFC r326977:
+    mlx5en: Avoid SFENCe on x86.
+
+diff --git a/sys/dev/mlx5/mlx5_en/mlx5_en_rx.c b/sys/dev/mlx5/mlx5_en/mlx5_en_rx.c
+index 62189d4a618..fda3a73eb31 100644
+--- a/sys/dev/mlx5/mlx5_en/mlx5_en_rx.c
++++ b/sys/dev/mlx5/mlx5_en/mlx5_en_rx.c
+@@ -90,7 +90,7 @@ mlx5e_post_rx_wqes(struct mlx5e_rq *rq)
+ 	}
+ 
+ 	/* ensure wqes are visible to device before updating doorbell record */
+-	wmb();
++	atomic_thread_fence_rel();
+ 
+ 	mlx5_wq_ll_update_db_record(&rq->wq);
+ }
+@@ -391,7 +391,7 @@ mlx5e_poll_rx_cq(struct mlx5e_rq *rq, int budget)
+ 	mlx5_cqwq_update_db_record(&rq->cq.wq);
+ 
+ 	/* ensure cq space is freed before enabling more cqes */
+-	wmb();
++	atomic_thread_fence_rel();
+ 	return (i);
+ }
+ 

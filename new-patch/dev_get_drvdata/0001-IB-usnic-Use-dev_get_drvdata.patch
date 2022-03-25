@@ -1,0 +1,29 @@
+From 5fbf2163487bbb1ccb2b191e4d016c53a31d3635 Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Tue, 23 Jul 2019 19:20:27 +0800
+Subject: [PATCH] IB/usnic: Use dev_get_drvdata
+
+Instead of using to_pci_dev + pci_get_drvdata,
+use dev_get_drvdata to make code simpler.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+ drivers/infiniband/hw/usnic/usnic_ib_verbs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/infiniband/hw/usnic/usnic_ib_verbs.c b/drivers/infiniband/hw/usnic/usnic_ib_verbs.c
+index eeb07b245ef9..a354c7c86547 100644
+--- a/drivers/infiniband/hw/usnic/usnic_ib_verbs.c
++++ b/drivers/infiniband/hw/usnic/usnic_ib_verbs.c
+@@ -194,7 +194,7 @@ find_free_vf_and_create_qp_grp(struct usnic_ib_dev *us_ibdev,
+ 			return ERR_CAST(dev_list);
+ 		for (i = 0; dev_list[i]; i++) {
+ 			dev = dev_list[i];
+-			vf = pci_get_drvdata(to_pci_dev(dev));
++			vf = dev_get_drvdata(dev);
+ 			spin_lock(&vf->lock);
+ 			vnic = vf->vnic;
+ 			if (!usnic_vnic_check_room(vnic, res_spec)) {
+-- 
+2.20.1
+

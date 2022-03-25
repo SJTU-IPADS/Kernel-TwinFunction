@@ -1,0 +1,31 @@
+commit 3d9cbe37c16ffd19eeab6b49a0311bbb999627d8
+Author: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date:   Mon Jun 11 16:47:21 2018 +0300
+
+    libnvdimm, namespace: Replace kmemdup() with kstrndup()
+    
+    kstrndup() takes care of '\0' terminator for the strings.
+    
+    Use it here instead of kmemdup() + explicit terminating the input string.
+    
+    Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+    Signed-off-by: Dave Jiang <dave.jiang@intel.com>
+    Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+
+diff --git a/drivers/nvdimm/namespace_devs.c b/drivers/nvdimm/namespace_devs.c
+index 681af3a8fd62..4b077555ac70 100644
+--- a/drivers/nvdimm/namespace_devs.c
++++ b/drivers/nvdimm/namespace_devs.c
+@@ -270,11 +270,10 @@ static ssize_t __alt_name_store(struct device *dev, const char *buf,
+ 	if (dev->driver || to_ndns(dev)->claim)
+ 		return -EBUSY;
+ 
+-	input = kmemdup(buf, len + 1, GFP_KERNEL);
++	input = kstrndup(buf, len, GFP_KERNEL);
+ 	if (!input)
+ 		return -ENOMEM;
+ 
+-	input[len] = '\0';
+ 	pos = strim(input);
+ 	if (strlen(pos) + 1 > NSLABEL_NAME_LEN) {
+ 		rc = -EINVAL;

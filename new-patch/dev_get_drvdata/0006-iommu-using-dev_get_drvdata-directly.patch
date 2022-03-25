@@ -1,0 +1,34 @@
+From 13d99f070a0686193a6d82e7f99916e59410f11c Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 4 Jul 2019 09:20:29 +0800
+Subject: [Patch v2 06/10] iommu: using dev_get_drvdata directly
+
+Several drivers cast a struct device pointer to a struct
+platform_device pointer only to then call platform_get_drvdata().
+To improve readability, these constructs can be simplified
+by using dev_get_drvdata() directly.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Make the commit message more clearly.
+
+ drivers/iommu/omap-iommu.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/iommu/omap-iommu.c b/drivers/iommu/omap-iommu.c
+index 62f9c61338a5..c638f7795735 100644
+--- a/drivers/iommu/omap-iommu.c
++++ b/drivers/iommu/omap-iommu.c
+@@ -36,7 +36,7 @@
+ static const struct iommu_ops omap_iommu_ops;
+ 
+ #define to_iommu(dev)							\
+-	((struct omap_iommu *)platform_get_drvdata(to_platform_device(dev)))
++	((struct omap_iommu *)dev_get_drvdata(dev))
+ 
+ /* bitmap of the page sizes currently supported */
+ #define OMAP_IOMMU_PGSIZES	(SZ_4K | SZ_64K | SZ_1M | SZ_16M)
+-- 
+2.11.0
+

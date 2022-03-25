@@ -1,0 +1,75 @@
+From 3f97e46da2be8a3d53f832acff6de1f9d9cd803d Mon Sep 17 00:00:00 2001
+From: Twin Functions <twinfunctions@outlook.com>
+Date: Thu, 4 Jul 2019 09:19:21 +0800
+Subject: [Patch v2 03/10] drm/omapdrm: using dev_get_drvdata directly
+
+Several drivers cast a struct device pointer to a struct
+platform_device pointer only to then call platform_get_drvdata().
+To improve readability, these constructs can be simplified
+by using dev_get_drvdata() directly.
+
+Signed-off-by: Twin Functions <twinfunctions@outlook.com>
+---
+Changes in v2:
+  - Make the commit message more clearly.
+
+ drivers/gpu/drm/omapdrm/displays/panel-dsi-cm.c | 15 +++++----------
+ 1 file changed, 5 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/gpu/drm/omapdrm/displays/panel-dsi-cm.c b/drivers/gpu/drm/omapdrm/displays/panel-dsi-cm.c
+index 8edef8ef23b0..53240da139b1 100644
+--- a/drivers/gpu/drm/omapdrm/displays/panel-dsi-cm.c
++++ b/drivers/gpu/drm/omapdrm/displays/panel-dsi-cm.c
+@@ -407,8 +407,7 @@ static const struct backlight_ops dsicm_bl_ops = {
+ static ssize_t dsicm_num_errors_show(struct device *dev,
+ 		struct device_attribute *attr, char *buf)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct panel_drv_data *ddata = platform_get_drvdata(pdev);
++	struct panel_drv_data *ddata = dev_get_drvdata(dev);
+ 	struct omap_dss_device *src = ddata->src;
+ 	u8 errors = 0;
+ 	int r;
+@@ -439,8 +438,7 @@ static ssize_t dsicm_num_errors_show(struct device *dev,
+ static ssize_t dsicm_hw_revision_show(struct device *dev,
+ 		struct device_attribute *attr, char *buf)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct panel_drv_data *ddata = platform_get_drvdata(pdev);
++	struct panel_drv_data *ddata = dev_get_drvdata(dev);
+ 	struct omap_dss_device *src = ddata->src;
+ 	u8 id1, id2, id3;
+ 	int r;
+@@ -506,8 +504,7 @@ static ssize_t dsicm_show_ulps(struct device *dev,
+ 		struct device_attribute *attr,
+ 		char *buf)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct panel_drv_data *ddata = platform_get_drvdata(pdev);
++	struct panel_drv_data *ddata = dev_get_drvdata(dev);
+ 	unsigned int t;
+ 
+ 	mutex_lock(&ddata->lock);
+@@ -521,8 +518,7 @@ static ssize_t dsicm_store_ulps_timeout(struct device *dev,
+ 		struct device_attribute *attr,
+ 		const char *buf, size_t count)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct panel_drv_data *ddata = platform_get_drvdata(pdev);
++	struct panel_drv_data *ddata = dev_get_drvdata(dev);
+ 	struct omap_dss_device *src = ddata->src;
+ 	unsigned long t;
+ 	int r;
+@@ -553,8 +549,7 @@ static ssize_t dsicm_show_ulps_timeout(struct device *dev,
+ 		struct device_attribute *attr,
+ 		char *buf)
+ {
+-	struct platform_device *pdev = to_platform_device(dev);
+-	struct panel_drv_data *ddata = platform_get_drvdata(pdev);
++	struct panel_drv_data *ddata = dev_get_drvdata(dev);
+ 	unsigned int t;
+ 
+ 	mutex_lock(&ddata->lock);
+-- 
+2.11.0
+
